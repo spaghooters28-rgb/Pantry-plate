@@ -188,7 +188,14 @@ router.post("/meals/save-recipe", async (req, res): Promise<void> => {
   const instructions = body.instructions ?? null;
   const sourceUrl = body.sourceUrl ?? null;
 
-  const [meal] = await db.insert(mealsTable).values({
+  // Prevent duplicate meals: if same name exists, reuse it
+  const [existingMeal] = await db
+    .select()
+    .from(mealsTable)
+    .where(ilike(mealsTable.name, body.recipeName))
+    .limit(1);
+
+  const meal = existingMeal ?? (await db.insert(mealsTable).values({
     name: body.recipeName,
     description: `Recipe imported from ${sourceUrl ?? "external source"}`,
     cuisine,
@@ -201,9 +208,10 @@ router.post("/meals/save-recipe", async (req, res): Promise<void> => {
     isFavorited: false,
     instructions,
     imageUrl: null,
-  }).returning();
+  }).returning())[0];
 
-  if (Array.isArray(body.ingredients) && body.ingredients.length > 0) {
+  // Only insert ingredients for brand-new meals (not when reusing an existing one)
+  if (!existingMeal && Array.isArray(body.ingredients) && body.ingredients.length > 0) {
     await db.insert(ingredientsTable).values(
       body.ingredients.map((ing) => ({
         mealId: meal.id,
@@ -216,17 +224,25 @@ router.post("/meals/save-recipe", async (req, res): Promise<void> => {
     );
   }
 
-  await db.insert(recipeHistoryTable).values({
-    name: body.recipeName,
-    cuisine,
-    protein,
-    isGlutenFree,
-    cookTimeMinutes,
-    calories,
-    instructions,
-    sourceUrl,
-    mealId: meal.id,
-  });
+  // Upsert history — skip if already saved under this name
+  const [existingHistory] = await db
+    .select()
+    .from(recipeHistoryTable)
+    .where(ilike(recipeHistoryTable.name, body.recipeName))
+    .limit(1);
+  if (!existingHistory) {
+    await db.insert(recipeHistoryTable).values({
+      name: body.recipeName,
+      cuisine,
+      protein,
+      isGlutenFree,
+      cookTimeMinutes,
+      calories,
+      instructions,
+      sourceUrl,
+      mealId: meal.id,
+    });
+  }
 
   if (body.assignToDay && ALL_DAYS.includes(body.assignToDay)) {
     let plan = (await db.select().from(weeklyPlansTable).orderBy(desc(weeklyPlansTable.id)).limit(1))[0];

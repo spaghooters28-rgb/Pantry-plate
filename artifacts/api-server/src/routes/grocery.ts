@@ -277,18 +277,25 @@ router.post("/grocery-list/from-meal/:mealId", async (req, res): Promise<void> =
     }
   }
 
-  // Record in history
-  await db.insert(recipeHistoryTable).values({
-    name: meal.name,
-    cuisine: meal.cuisine,
-    protein: meal.protein,
-    isGlutenFree: meal.isGlutenFree,
-    cookTimeMinutes: meal.cookTimeMinutes,
-    calories: meal.calories,
-    instructions: meal.instructions ?? null,
-    sourceUrl: null,
-    mealId: meal.id,
-  });
+  // Record in history (skip if already saved under this name)
+  const [existingHistory] = await db
+    .select()
+    .from(recipeHistoryTable)
+    .where(ilike(recipeHistoryTable.name, meal.name))
+    .limit(1);
+  if (!existingHistory) {
+    await db.insert(recipeHistoryTable).values({
+      name: meal.name,
+      cuisine: meal.cuisine,
+      protein: meal.protein,
+      isGlutenFree: meal.isGlutenFree,
+      cookTimeMinutes: meal.cookTimeMinutes,
+      calories: meal.calories,
+      instructions: meal.instructions ?? null,
+      sourceUrl: null,
+      mealId: meal.id,
+    });
+  }
 
   res.json({
     addedItems: addedItems.map((i) => ({

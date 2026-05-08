@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, ilike } from "drizzle-orm";
 import { db, mealsTable, ingredientsTable, sidesTable, weeklyPlansTable, weeklyPlanDaysTable, groceryItemsTable, pantryItemsTable, recipeHistoryTable } from "@workspace/db";
 import { GenerateWeeklyPlanBody, UpdateDayMealBody, UpdateDayMealParams } from "@workspace/api-zod";
 
@@ -189,18 +189,25 @@ router.post("/weekly-plan/add-to-grocery", async (_req, res): Promise<void> => {
       totalAdded++;
     }
 
-    // Record in history (once per meal)
-    await db.insert(recipeHistoryTable).values({
-      name: meal.name,
-      cuisine: meal.cuisine,
-      protein: meal.protein,
-      isGlutenFree: meal.isGlutenFree,
-      cookTimeMinutes: meal.cookTimeMinutes,
-      calories: meal.calories,
-      instructions: meal.instructions ?? null,
-      sourceUrl: null,
-      mealId: meal.id,
-    });
+    // Record in history (skip if already saved under this name)
+    const [existingHistory] = await db
+      .select()
+      .from(recipeHistoryTable)
+      .where(ilike(recipeHistoryTable.name, meal.name))
+      .limit(1);
+    if (!existingHistory) {
+      await db.insert(recipeHistoryTable).values({
+        name: meal.name,
+        cuisine: meal.cuisine,
+        protein: meal.protein,
+        isGlutenFree: meal.isGlutenFree,
+        cookTimeMinutes: meal.cookTimeMinutes,
+        calories: meal.calories,
+        instructions: meal.instructions ?? null,
+        sourceUrl: null,
+        mealId: meal.id,
+      });
+    }
   }
 
   res.json({ added: totalAdded, mealsProcessed: mealIds.length });
