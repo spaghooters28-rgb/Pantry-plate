@@ -172,19 +172,6 @@ export function Pantry() {
         </div>
       </div>
 
-      {/* Summary stats */}
-      {!isLoading && items && items.length > 0 && (
-        <div className="grid grid-cols-2 gap-3">
-          <div className="p-3 rounded-xl border border-border bg-card text-center">
-            <p className="text-2xl font-bold font-serif">{items.length}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Total Items</p>
-          </div>
-          <div className="p-3 rounded-xl border border-green-200 bg-green-50 text-center">
-            <p className="text-2xl font-bold font-serif text-green-700">{items.filter((i) => i.inStock).length}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">In Stock</p>
-          </div>
-        </div>
-      )}
 
       {isLoading ? (
         <div className="space-y-6">
