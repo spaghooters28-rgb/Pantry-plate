@@ -20,7 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Clock, Flame, Shuffle, ShoppingCart, ChevronRight, Calendar, Settings2, ChevronDown, ChevronUp } from "lucide-react";
+import { Clock, Flame, Shuffle, ShoppingCart, ChevronRight, Calendar, Settings2, ChevronDown, ChevronUp, BookOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const ALL_DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
@@ -39,11 +39,26 @@ function capitalizeDay(day: string) {
   return day.charAt(0).toUpperCase() + day.slice(1);
 }
 
+type PlanMeal = {
+  id: number;
+  name: string;
+  cuisine: string;
+  protein: string;
+  isGlutenFree: boolean;
+  cookTimeMinutes: number;
+  calories: number;
+  description?: string;
+  instructions?: string | null;
+  servings?: number;
+};
+
 export function WeeklyPlan() {
   const [swapDay, setSwapDay] = useState<string | null>(null);
   const [swapSearch, setSwapSearch] = useState("");
   const [swapIgnorePrefs, setSwapIgnorePrefs] = useState(false);
   const [showPrefs, setShowPrefs] = useState(false);
+  const [selectedMeal, setSelectedMeal] = useState<PlanMeal | null>(null);
+  const [showInstructions, setShowInstructions] = useState(false);
   const [localPrefs, setLocalPrefs] = useState<{
     cuisine: string;
     proteins: string[];
@@ -383,17 +398,20 @@ export function WeeklyPlan() {
                   {/* Meal info */}
                   <div className="flex-1 min-w-0 p-4">
                     {day.meal ? (
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-base leading-tight truncate">{day.meal.name}</p>
+                      <div className="flex items-start justify-between gap-3">
+                        <button
+                          className="flex-1 min-w-0 text-left hover:opacity-80 transition-opacity"
+                          onClick={() => { setSelectedMeal(day.meal as PlanMeal); setShowInstructions(false); }}
+                        >
+                          <p className="font-semibold text-base leading-snug">{day.meal.name}</p>
                           <div className="flex flex-wrap gap-2 mt-1 text-xs text-muted-foreground">
                             <span className="flex items-center gap-0.5"><Clock className="w-3 h-3" />{day.meal.cookTimeMinutes}m</span>
                             <span className="flex items-center gap-0.5"><Flame className="w-3 h-3" />{day.meal.calories} kcal</span>
                             <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{day.meal.cuisine}</Badge>
                             {day.meal.isGlutenFree && <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-green-500 text-green-600">GF</Badge>}
                           </div>
-                        </div>
-                        <Button variant="ghost" size="sm" className="shrink-0" onClick={() => setSwapDay(day.day)}>
+                        </button>
+                        <Button variant="ghost" size="sm" className="shrink-0 mt-0.5" onClick={() => setSwapDay(day.day)}>
                           <Shuffle className="w-3.5 h-3.5 mr-1" />
                           Swap
                         </Button>
@@ -414,6 +432,59 @@ export function WeeklyPlan() {
           ))}
         </div>
       )}
+
+      {/* Meal detail dialog */}
+      <Dialog open={!!selectedMeal} onOpenChange={(open) => { if (!open) { setSelectedMeal(null); setShowInstructions(false); } }}>
+        <DialogContent className="max-w-lg max-h-[80vh] flex flex-col gap-4">
+          {selectedMeal && (
+            <>
+              <DialogHeader>
+                <div className="flex flex-wrap gap-1.5 mb-1">
+                  <Badge variant="secondary">{selectedMeal.cuisine}</Badge>
+                  {selectedMeal.isGlutenFree && <Badge variant="outline" className="border-green-500 text-green-600">GF</Badge>}
+                  <Badge variant="outline">{selectedMeal.protein}</Badge>
+                </div>
+                <DialogTitle className="font-serif text-xl leading-tight">{selectedMeal.name}</DialogTitle>
+              </DialogHeader>
+
+              <div className="flex gap-4 text-sm text-muted-foreground border-y py-2">
+                <span className="flex items-center gap-1"><Clock className="w-4 h-4" />{selectedMeal.cookTimeMinutes} min</span>
+                <span className="flex items-center gap-1"><Flame className="w-4 h-4" />{selectedMeal.calories} kcal</span>
+              </div>
+
+              {selectedMeal.description && (
+                <p className="text-sm text-muted-foreground">{selectedMeal.description}</p>
+              )}
+
+              {selectedMeal.instructions ? (
+                <div className="flex-1 overflow-y-auto min-h-0 border rounded-lg overflow-hidden">
+                  <button
+                    className="w-full flex items-center justify-between px-4 py-3 bg-muted/50 hover:bg-muted transition-colors text-sm font-medium"
+                    onClick={() => setShowInstructions((v) => !v)}
+                  >
+                    <span className="flex items-center gap-2">
+                      <BookOpen className="w-4 h-4 text-primary" />
+                      How to Cook This
+                    </span>
+                    {showInstructions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </button>
+                  {showInstructions && (
+                    <div className="px-4 py-3 text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                      {selectedMeal.instructions}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">No cooking instructions available.</p>
+              )}
+
+              <Button variant="outline" className="mt-auto" onClick={() => { setSelectedMeal(null); setShowInstructions(false); }}>
+                Close
+              </Button>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Swap meal dialog */}
       <Dialog open={!!swapDay} onOpenChange={(open) => { if (!open) { setSwapDay(null); setSwapSearch(""); setSwapIgnorePrefs(false); } }}>

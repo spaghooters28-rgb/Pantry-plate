@@ -609,25 +609,19 @@ export function Discover() {
               </div>
 
               {/* Recipe Instructions */}
-              {selectedMeal.instructions && (
-                <div className="space-y-2">
-                  <button
-                    className="w-full flex items-center justify-between text-sm font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground transition-colors"
-                    onClick={() => setShowInstructions((v) => !v)}
-                  >
-                    <span className="flex items-center gap-2">
-                      <BookOpen className="w-4 h-4" />
-                      Recipe Instructions
-                    </span>
-                    {showInstructions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  </button>
-                  {showInstructions && (
-                    <div className="p-4 rounded-lg bg-muted/50 border text-sm leading-relaxed whitespace-pre-line">
-                      {selectedMeal.instructions}
-                    </div>
-                  )}
-                </div>
-              )}
+              <div className="space-y-2">
+                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                  <BookOpen className="w-4 h-4" />
+                  How to Cook This
+                </h3>
+                {selectedMeal.instructions ? (
+                  <div className="p-4 rounded-lg bg-muted/50 border text-sm leading-relaxed whitespace-pre-line">
+                    {selectedMeal.instructions}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">No cooking instructions available for this recipe.</p>
+                )}
+              </div>
 
               {/* Sides */}
               {selectedMeal.availableSides && selectedMeal.availableSides.length > 0 && (
