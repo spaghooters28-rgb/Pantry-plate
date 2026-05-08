@@ -8,6 +8,7 @@ import {
   useCheckPantryForMeal,
   useGenerateAiMeals,
   useToggleMealFavorite,
+  useDeleteGroceryItem,
   getGetGroceryListQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -42,6 +43,13 @@ type PantryCheckResult = {
   needToBuy: Array<{ name: string; quantity: string; unit: string; category: string }>;
 };
 
+type PantryPrompt = {
+  pantryItemId: number;
+  ingredientName: string;
+  question: string;
+  groceryItemId: number;
+};
+
 const CUISINE_COLORS: Record<string, string> = {
   American: "bg-blue-100 text-blue-800",
   Mexican: "bg-orange-100 text-orange-800",
@@ -61,6 +69,8 @@ export function Discover() {
   const [pantryCheckLoading, setPantryCheckLoading] = useState(false);
   const [addingMealId, setAddingMealId] = useState<number | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [pantryPrompts, setPantryPrompts] = useState<PantryPrompt[]>([]);
+  const [dismissedPrompts, setDismissedPrompts] = useState<Set<number>>(new Set());
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -83,6 +93,7 @@ export function Discover() {
   const checkPantryMutation = useCheckPantryForMeal();
   const generateAiMealsMutation = useGenerateAiMeals();
   const toggleFavoriteMutation = useToggleMealFavorite();
+  const deleteGroceryItemMutation = useDeleteGroceryItem();
 
   function handleOpenMeal(meal: Meal) {
     setSelectedMeal(meal);
@@ -109,16 +120,14 @@ export function Discover() {
         onSuccess: (result) => {
           setAddingMealId(null);
           queryClient.invalidateQueries({ queryKey: getGetGroceryListQueryKey() });
-          const prompts = (result as { pantryPrompts?: Array<{ question: string }> }).pantryPrompts ?? [];
+          const prompts = (result as { pantryPrompts?: PantryPrompt[] }).pantryPrompts ?? [];
+          setSelectedMeal(null);
           if (prompts.length > 0) {
-            toast({
-              title: "Added to grocery list!",
-              description: `Pantry heads-up: ${prompts[0].question}`,
-            });
+            setDismissedPrompts(new Set());
+            setPantryPrompts(prompts);
           } else {
             toast({ title: "Added to grocery list!", description: `${meal.name} ingredients added.` });
           }
-          setSelectedMeal(null);
         },
         onError: () => {
           setAddingMealId(null);
@@ -127,6 +136,27 @@ export function Discover() {
       }
     );
   }
+
+  function handlePantryYes(prompt: PantryPrompt) {
+    // User has it — remove from grocery list
+    deleteGroceryItemMutation.mutate(
+      { id: prompt.groceryItemId },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetGroceryListQueryKey() });
+          setDismissedPrompts((prev) => new Set([...prev, prompt.groceryItemId]));
+        },
+        onError: () => toast({ title: "Error", description: "Could not remove item.", variant: "destructive" }),
+      }
+    );
+  }
+
+  function handlePantryNo(prompt: PantryPrompt) {
+    // User needs it — keep it in grocery list, just dismiss this prompt
+    setDismissedPrompts((prev) => new Set([...prev, prompt.groceryItemId]));
+  }
+
+  const activePrompts = pantryPrompts.filter((p) => !dismissedPrompts.has(p.groceryItemId));
 
   function handleToggleFavorite(e: React.MouseEvent, meal: Meal) {
     e.stopPropagation();
@@ -432,6 +462,76 @@ export function Discover() {
           </div>
         </>
       )}
+
+      {/* Pantry Confirmation Dialog */}
+      <Dialog
+        open={pantryPrompts.length > 0}
+        onOpenChange={(open) => { if (!open) { setPantryPrompts([]); setDismissedPrompts(new Set()); } }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-serif flex items-center gap-2">
+              <ShoppingCart className="w-5 h-5 text-primary" />
+              Pantry Check
+            </DialogTitle>
+            <DialogDescription>
+              We added all ingredients to your grocery list. Do you still have these items at home?
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-1">
+            {pantryPrompts.map((prompt) => {
+              const dismissed = dismissedPrompts.has(prompt.groceryItemId);
+              return (
+                <div
+                  key={prompt.groceryItemId}
+                  className={`flex items-center justify-between gap-3 px-4 py-3 rounded-lg border transition-all ${
+                    dismissed ? "opacity-40 bg-muted border-transparent" : "bg-card border-border"
+                  }`}
+                >
+                  <span className="text-sm font-medium flex-1">{prompt.ingredientName}</span>
+                  {dismissed ? (
+                    <span className="text-xs text-muted-foreground italic">Done</span>
+                  ) : (
+                    <div className="flex gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-3 text-xs border-green-400 text-green-700 hover:bg-green-50"
+                        onClick={() => handlePantryYes(prompt)}
+                        disabled={deleteGroceryItemMutation.isPending}
+                      >
+                        Yes, I have it
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-3 text-xs"
+                        onClick={() => handlePantryNo(prompt)}
+                      >
+                        No, keep it
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {activePrompts.length === 0 && (
+            <p className="text-sm text-center text-muted-foreground py-1">
+              All done! Your grocery list is up to date.
+            </p>
+          )}
+
+          <Button
+            className="w-full"
+            onClick={() => { setPantryPrompts([]); setDismissedPrompts(new Set()); }}
+          >
+            {activePrompts.length === 0 ? "Close" : "Skip remaining"}
+          </Button>
+        </DialogContent>
+      </Dialog>
 
       {/* Meal Detail Dialog */}
       <Dialog open={!!selectedMeal} onOpenChange={(open) => { if (!open) setSelectedMeal(null); }}>
