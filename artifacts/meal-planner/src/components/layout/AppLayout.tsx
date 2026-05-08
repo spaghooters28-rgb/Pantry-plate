@@ -7,6 +7,7 @@ import {
   PackageSearch, 
   Clock, 
   History,
+  Star,
   Menu
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -17,6 +18,7 @@ const routes = [
   { name: "Weekly Plan", path: "/weekly-plan", icon: Calendar },
   { name: "Grocery List", path: "/grocery-list", icon: ShoppingCart },
   { name: "Pantry", path: "/pantry", icon: PackageSearch },
+  { name: "Favorites", path: "/favorites", icon: Star },
   { name: "Scheduled", path: "/schedule", icon: Clock },
   { name: "Saved", path: "/history", icon: History },
 ];

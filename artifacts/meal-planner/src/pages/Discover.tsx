@@ -164,7 +164,7 @@ export function Discover() {
       { id: meal.id },
       {
         onSuccess: (updated) => {
-          queryClient.invalidateQueries({ queryKey: getListMealsQueryKey(params) });
+          queryClient.invalidateQueries({ queryKey: ["/api/meals"] });
           // Update dialog meal if open
           if (selectedMeal?.id === meal.id) {
             setSelectedMeal((prev) => prev ? { ...prev, isFavorited: (updated as Meal).isFavorited } : null);

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   useListPantryItems,
   getListPantryItemsQueryKey,
@@ -20,6 +20,8 @@ import { PackageSearch, Plus, Trash2, CheckCircle2, AlertTriangle, ChefHat, Shop
 import { useToast } from "@/hooks/use-toast";
 
 const CATEGORIES = ["Pantry", "Produce", "Dairy & Eggs", "Meat & Seafood", "Grains & Bread", "Frozen", "Beverages", "Other"];
+
+const COMMON_QUANTITIES = ["½", "1", "2", "3", "4", "5", "6", "8", "10", "12"];
 
 type PantryItem = {
   id: number;
@@ -65,6 +67,26 @@ export function Pantry() {
   const qKey = getListPantryItemsQueryKey();
 
   const { data: items, isLoading } = useListPantryItems({ query: { queryKey: qKey } });
+
+  type QtyOpen = { id: number; top: number; left: number } | null;
+  const [qtyOpen, setQtyOpen] = useState<QtyOpen>(null);
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    if (!qtyOpen) return;
+    function handle(e: PointerEvent) {
+      if (!(e.target as Element).closest("[data-qty-picker]")) setQtyOpen(null);
+    }
+    document.addEventListener("pointerdown", handle, { capture: true });
+    return () => document.removeEventListener("pointerdown", handle, { capture: true });
+  }, [qtyOpen]);
+
+  function handleQuantityChange(id: number, qty: string) {
+    updateMutation.mutate(
+      { id, data: { quantity: qty } },
+      { onSuccess: () => queryClient.invalidateQueries({ queryKey: qKey }) }
+    );
+  }
 
   const updateMutation = useUpdatePantryItem();
   const addMutation = useAddPantryItem();
@@ -360,9 +382,28 @@ export function Pantry() {
                   <Badge variant="secondary" className="text-xs">{item.category}</Badge>
                 </div>
 
-                {item.quantity && (
-                  <p className="text-xs text-muted-foreground">Qty: {item.quantity}</p>
-                )}
+                <div className="flex items-center gap-1 mt-0.5">
+                  <span className="text-xs text-muted-foreground">Qty:</span>
+                  <button
+                    data-qty-picker
+                    className="text-xs text-muted-foreground hover:text-primary underline decoration-dotted transition-colors"
+                    onPointerDown={(e) => { e.stopPropagation(); pointerStartRef.current = { x: e.clientX, y: e.clientY }; }}
+                    onPointerUp={(e) => {
+                      e.stopPropagation();
+                      const start = pointerStartRef.current;
+                      pointerStartRef.current = null;
+                      if (!start || Math.abs(e.clientX - start.x) > 6 || Math.abs(e.clientY - start.y) > 6) return;
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      setQtyOpen((prev) => prev?.id === item.id ? null : {
+                        id: item.id,
+                        top: rect.bottom + 6,
+                        left: Math.min(rect.left, window.innerWidth - 220),
+                      });
+                    }}
+                  >
+                    {item.quantity ?? "—"}
+                  </button>
+                </div>
                 {item.notes && (
                   <p className="text-xs text-muted-foreground italic mt-0.5">{item.notes}</p>
                 )}
@@ -381,6 +422,32 @@ export function Pantry() {
               </CardContent>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* Quantity picker overlay */}
+      {qtyOpen && (
+        <div
+          data-qty-picker
+          className="fixed z-50 bg-card border border-border rounded-xl shadow-2xl p-3 w-52"
+          style={{ top: qtyOpen.top, left: qtyOpen.left }}
+        >
+          <p className="text-xs font-medium text-muted-foreground mb-2">Set quantity</p>
+          <div className="grid grid-cols-5 gap-1.5">
+            {COMMON_QUANTITIES.map((q) => {
+              const currentQty = (items as PantryItem[] | undefined)?.find((i) => i.id === qtyOpen.id)?.quantity;
+              return (
+                <button
+                  key={q}
+                  data-qty-picker
+                  className={`h-9 rounded-lg text-sm font-medium transition-colors ${currentQty === q ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-primary/15 text-foreground"}`}
+                  onClick={() => { handleQuantityChange(qtyOpen.id, q); setQtyOpen(null); }}
+                >
+                  {q}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
