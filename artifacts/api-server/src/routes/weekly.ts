@@ -5,7 +5,7 @@ import { GenerateWeeklyPlanBody, UpdateDayMealBody, UpdateDayMealParams } from "
 
 const router: IRouter = Router();
 
-const ALL_DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+const ALL_DAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
 async function getMealDetails(mealId: number | null | undefined) {
   if (!mealId) return null;
@@ -29,6 +29,9 @@ async function buildPlanResponse(plan: typeof weeklyPlansTable.$inferSelect) {
       selectedSideId: d.selectedSideId ?? null,
     }))
   );
+
+  // Sort by ALL_DAYS order so response is always Sunday-first
+  daysWithMeals.sort((a, b) => ALL_DAYS.indexOf(a.day) - ALL_DAYS.indexOf(b.day));
 
   return {
     id: plan.id,

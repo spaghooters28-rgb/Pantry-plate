@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq, and, ilike } from "drizzle-orm";
 import { db, groceryItemsTable, ingredientsTable, mealsTable, pantryItemsTable, scheduledItemsTable, recipeHistoryTable } from "@workspace/db";
 import {
   AddGroceryItemBody,
@@ -58,6 +58,22 @@ router.post("/grocery-list/items", async (req, res): Promise<void> => {
   const parsed = AddGroceryItemBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  // Prevent duplicates — return existing item if same name already in list
+  const [existing] = await db
+    .select()
+    .from(groceryItemsTable)
+    .where(ilike(groceryItemsTable.name, parsed.data.name));
+
+  if (existing) {
+    res.status(200).json({
+      ...existing,
+      unit: existing.unit ?? null,
+      mealId: existing.mealId ?? null,
+      mealName: existing.mealName ?? null,
+    });
     return;
   }
 
@@ -187,6 +203,10 @@ router.post("/grocery-list/from-meal/:mealId", async (req, res): Promise<void> =
 
   const pantryItems = await db.select().from(pantryItemsTable).where(eq(pantryItemsTable.inStock, true));
 
+  // Load existing grocery names once for dedup check
+  const existingGrocery = await db.select({ name: groceryItemsTable.name }).from(groceryItemsTable);
+  const existingNames = new Set(existingGrocery.map((g) => g.name.toLowerCase()));
+
   const addedItems: (typeof groceryItemsTable.$inferSelect)[] = [];
   const pantryPrompts: Array<{
     pantryItemId: number;
@@ -196,6 +216,9 @@ router.post("/grocery-list/from-meal/:mealId", async (req, res): Promise<void> =
   }> = [];
 
   for (const ingredient of ingredients) {
+    // Skip if an item with the same name is already in the grocery list
+    if (existingNames.has(ingredient.name.toLowerCase())) continue;
+
     const [inserted] = await db
       .insert(groceryItemsTable)
       .values({

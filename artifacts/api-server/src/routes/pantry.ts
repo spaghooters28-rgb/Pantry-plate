@@ -153,16 +153,24 @@ router.post("/pantry/items/:id/to-grocery", async (req, res): Promise<void> => {
     return;
   }
 
-  await db.insert(groceryItemsTable).values({
-    name: item.name,
-    quantity: item.quantity ?? "1",
-    unit: null,
-    category: item.category,
-    isChecked: false,
-    isCustom: true,
-    mealId: null,
-    mealName: null,
-  });
+  // Prevent duplicates — skip insert if item already in grocery list
+  const [existingGrocery] = await db
+    .select()
+    .from(groceryItemsTable)
+    .where(ilike(groceryItemsTable.name, item.name));
+
+  if (!existingGrocery) {
+    await db.insert(groceryItemsTable).values({
+      name: item.name,
+      quantity: item.quantity ?? "1",
+      unit: null,
+      category: item.category,
+      isChecked: false,
+      isCustom: true,
+      mealId: null,
+      mealName: null,
+    });
+  }
 
   if (parsed.data.removeFromPantry) {
     await db.delete(pantryItemsTable).where(eq(pantryItemsTable.id, params.data.id));
