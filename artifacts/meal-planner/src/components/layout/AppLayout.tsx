@@ -18,7 +18,7 @@ const routes = [
   { name: "Grocery List", path: "/grocery-list", icon: ShoppingCart },
   { name: "Pantry", path: "/pantry", icon: PackageSearch },
   { name: "Scheduled", path: "/schedule", icon: Clock },
-  { name: "History", path: "/history", icon: History },
+  { name: "Saved", path: "/history", icon: History },
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {

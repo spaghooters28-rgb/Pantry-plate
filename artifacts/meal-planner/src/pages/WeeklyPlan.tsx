@@ -549,7 +549,7 @@ export function WeeklyPlan() {
               >
                 {tab === "favorites" && <Star className="w-3.5 h-3.5" />}
                 {tab === "history" && <History className="w-3.5 h-3.5" />}
-                {tab === "all" ? "All Meals" : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                {tab === "all" ? "All Meals" : tab === "history" ? "Saved" : "Favorites"}
               </button>
             ))}
           </div>
@@ -628,7 +628,7 @@ export function WeeklyPlan() {
                 !historyMeals.length ? (
                   <div className="py-10 text-center text-sm text-muted-foreground">
                     <History className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                    <p className="font-medium mb-1">No history yet</p>
+                    <p className="font-medium mb-1">No saved recipes yet</p>
                     <p>Recipes you add to your grocery list will appear here.</p>
                   </div>
                 ) : (

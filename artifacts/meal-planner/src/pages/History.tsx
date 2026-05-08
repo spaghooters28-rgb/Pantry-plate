@@ -58,9 +58,9 @@ export function HistoryPage() {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: qKey });
           if (selected?.id === entry.id) setSelected(null);
-          toast({ title: `"${entry.name}" removed from history.` });
+          toast({ title: `"${entry.name}" removed from saved.` });
         },
-        onError: () => toast({ title: "Error", description: "Could not remove from history.", variant: "destructive" }),
+        onError: () => toast({ title: "Error", description: "Could not remove from saved.", variant: "destructive" }),
       }
     );
   }
@@ -68,7 +68,7 @@ export function HistoryPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-serif font-bold text-primary mb-1">History</h1>
+        <h1 className="text-3xl font-serif font-bold text-primary mb-1">Saved</h1>
         <p className="text-muted-foreground">Recipes you've added to your grocery list.</p>
       </div>
 
@@ -79,7 +79,7 @@ export function HistoryPage() {
       ) : !entries || entries.length === 0 ? (
         <div className="py-20 text-center text-muted-foreground">
           <History className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p className="font-medium mb-1">No history yet</p>
+          <p className="font-medium mb-1">No saved recipes yet</p>
           <p className="text-sm">Add meals to your grocery list and they'll appear here.</p>
         </div>
       ) : (
@@ -116,7 +116,7 @@ export function HistoryPage() {
                     <button
                       className="p-1 text-muted-foreground hover:text-destructive transition-colors"
                       onClick={(e) => { e.stopPropagation(); handleDelete(entry); }}
-                      title="Remove from history"
+                      title="Remove from saved"
                       disabled={deleteMutation.isPending}
                     >
                       <Trash2 className="w-4 h-4" />
@@ -196,7 +196,7 @@ export function HistoryPage() {
                 disabled={deleteMutation.isPending}
               >
                 <Trash2 className="w-4 h-4" />
-                Remove from history
+                Remove from saved
               </Button>
               <Button variant="outline" size="sm" onClick={() => setSelected(null)}>Close</Button>
             </div>
