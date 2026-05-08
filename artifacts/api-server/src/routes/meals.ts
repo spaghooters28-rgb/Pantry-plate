@@ -51,14 +51,58 @@ router.get("/meals", async (req, res): Promise<void> => {
   res.json(mealsWithDetails);
 });
 
+const CUISINES = [
+  "American",
+  "Asian",
+  "BBQ & Grilled",
+  "Breakfast",
+  "Caribbean",
+  "Chinese",
+  "Desserts",
+  "French",
+  "Greek",
+  "Indian",
+  "Italian",
+  "Japanese",
+  "Korean",
+  "Mediterranean",
+  "Mexican",
+  "Middle Eastern",
+  "Side Dishes",
+  "Thai",
+  "Other",
+];
+
+const PROTEINS = [
+  "Beef",
+  "Chicken",
+  "Duck",
+  "Eggs",
+  "Fish",
+  "Lamb",
+  "Pork",
+  "Salmon",
+  "Sausage",
+  "Shrimp",
+  "Steak",
+  "Tofu",
+  "Turkey",
+  "Vegetarian",
+  "Other",
+];
+
 router.get("/meals/cuisines", async (_req, res): Promise<void> => {
-  const meals = await db.selectDistinct({ cuisine: mealsTable.cuisine }).from(mealsTable);
-  res.json(meals.map((m) => m.cuisine));
+  // Return static curated list; merge any DB values not in the list
+  const dbRows = await db.selectDistinct({ cuisine: mealsTable.cuisine }).from(mealsTable);
+  const dbValues = dbRows.map((m) => m.cuisine).filter((c) => !CUISINES.includes(c));
+  res.json([...CUISINES, ...dbValues]);
 });
 
 router.get("/meals/proteins", async (_req, res): Promise<void> => {
-  const meals = await db.selectDistinct({ protein: mealsTable.protein }).from(mealsTable);
-  res.json(meals.map((m) => m.protein));
+  // Return static curated list; merge any DB values not in the list
+  const dbRows = await db.selectDistinct({ protein: mealsTable.protein }).from(mealsTable);
+  const dbValues = dbRows.map((m) => m.protein).filter((p) => !PROTEINS.includes(p));
+  res.json([...PROTEINS, ...dbValues]);
 });
 
 router.get("/meals/sides", async (_req, res): Promise<void> => {
