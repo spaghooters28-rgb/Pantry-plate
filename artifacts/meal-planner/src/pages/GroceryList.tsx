@@ -524,7 +524,7 @@ export function GroceryList() {
         </div>
       ) : (
         <div className="space-y-6">
-          {list?.categories.map((category) => (
+          {[...(list?.categories ?? [])].sort((a, b) => a.category.localeCompare(b.category)).map((category) => (
             <div key={category.category} className="space-y-2">
               <h3 className="font-serif text-base font-semibold text-muted-foreground flex items-center gap-2">
                 {category.category}
@@ -534,7 +534,7 @@ export function GroceryList() {
               </h3>
               <Card>
                 <CardContent className="p-0">
-                  {category.items.map((item, idx) => (
+                  {[...category.items].sort((a, b) => a.name.localeCompare(b.name)).map((item, idx) => (
                     <div
                       key={item.id}
                       className={`flex items-center gap-3 px-4 py-3 group ${idx !== category.items.length - 1 ? "border-b" : ""} ${item.isChecked ? "bg-muted/30" : ""}`}
