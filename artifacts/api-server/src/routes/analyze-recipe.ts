@@ -47,7 +47,7 @@ router.post("/meals/analyze-recipe", async (req, res): Promise<void> => {
     return;
   }
 
-  const prompt = `You are a recipe parsing expert. Extract the recipe name, ingredients, and step-by-step instructions from the following web page content.
+  const prompt = `You are a recipe parsing expert. Extract the recipe details, ingredients, and step-by-step instructions from the following web page content.
 
 Page content:
 ${pageContent}
@@ -55,13 +55,19 @@ ${pageContent}
 Return a JSON object (no markdown, no code fences, ONLY valid JSON) with this shape:
 {
   "recipeName": "string (the recipe name)",
+  "cuisine": "string (one of: American, Mexican, Asian, Indian, Italian, Mediterranean, Other)",
+  "protein": "string (primary protein: Chicken, Beef, Pork, Fish, Shrimp, Tofu, Vegetarian, Mixed, Other)",
+  "isGlutenFree": "boolean (true if the recipe is gluten-free)",
+  "cookTimeMinutes": "number (total cook + prep time in minutes)",
+  "calories": "number (estimated calories per serving)",
+  "servings": "number (number of servings)",
   "instructions": "string or null (numbered step-by-step cooking instructions, written clearly. Null if not found.)",
   "ingredients": [
     {
       "name": "string (ingredient name, cleaned up, e.g. 'chicken breast')",
       "quantity": "string (amount, e.g. '2', '1/2', '200')",
       "unit": "string or null (e.g. 'cup', 'tbsp', 'g', 'oz', or null if unitless)",
-      "category": "string (one of: Produce, Dairy & Eggs, Meat & Seafood, Pantry, Spices & Herbs, Grains & Bread, Frozen, Beverages, Other)"
+      "category": "string (one of: Produce, Dairy & Eggs, Meat & Seafood, Pantry, Grains & Bread, Frozen, Beverages, Other)"
     }
   ]
 }
@@ -70,10 +76,17 @@ Rules:
 - Extract ALL ingredients listed in the recipe
 - Extract the full step-by-step cooking instructions (numbered steps preferred)
 - Clean up ingredient names (remove parenthetical notes, trim whitespace)
-- If you cannot find a recipe or ingredients, return { "recipeName": "Unknown Recipe", "instructions": null, "ingredients": [] }
+- Estimate calories per serving if not explicitly stated
+- If you cannot find a recipe or ingredients, return { "recipeName": "Unknown Recipe", "cuisine": "Other", "protein": "Other", "isGlutenFree": false, "cookTimeMinutes": 30, "calories": 400, "servings": 4, "instructions": null, "ingredients": [] }
 - Return ONLY the JSON object, nothing else`;
 
   let recipeName = "Unknown Recipe";
+  let cuisine: string | null = null;
+  let protein: string | null = null;
+  let isGlutenFree: boolean | null = null;
+  let cookTimeMinutes: number | null = null;
+  let calories: number | null = null;
+  let servings: number | null = null;
   let instructions: string | null = null;
   let extracted: ExtractedIngredient[] = [];
 
@@ -87,8 +100,24 @@ Rules:
     const content = response.choices[0]?.message?.content ?? "";
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]) as { recipeName: string; instructions?: string | null; ingredients: ExtractedIngredient[] };
+      const parsed = JSON.parse(jsonMatch[0]) as {
+        recipeName: string;
+        cuisine?: string | null;
+        protein?: string | null;
+        isGlutenFree?: boolean | null;
+        cookTimeMinutes?: number | null;
+        calories?: number | null;
+        servings?: number | null;
+        instructions?: string | null;
+        ingredients: ExtractedIngredient[];
+      };
       recipeName = parsed.recipeName || "Unknown Recipe";
+      cuisine = parsed.cuisine ?? null;
+      protein = parsed.protein ?? null;
+      isGlutenFree = parsed.isGlutenFree ?? null;
+      cookTimeMinutes = typeof parsed.cookTimeMinutes === "number" ? parsed.cookTimeMinutes : null;
+      calories = typeof parsed.calories === "number" ? parsed.calories : null;
+      servings = typeof parsed.servings === "number" ? parsed.servings : null;
       instructions = parsed.instructions ?? null;
       extracted = Array.isArray(parsed.ingredients) ? parsed.ingredients : [];
     }
@@ -118,7 +147,7 @@ Rules:
   const haveCount = ingredients.filter((i) => i.inPantry).length;
   const needCount = ingredients.filter((i) => !i.inPantry).length;
 
-  res.json({ recipeName, instructions, ingredients, haveCount, needCount });
+  res.json({ recipeName, cuisine, protein, isGlutenFree, cookTimeMinutes, calories, servings, instructions, ingredients, haveCount, needCount });
 });
 
 const ALL_DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];

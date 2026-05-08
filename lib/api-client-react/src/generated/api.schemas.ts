@@ -234,6 +234,12 @@ export interface RecipeIngredient {
 
 export interface AnalyzeRecipeResult {
   recipeName: string;
+  cuisine?: string | null;
+  protein?: string | null;
+  isGlutenFree?: boolean | null;
+  cookTimeMinutes?: number | null;
+  calories?: number | null;
+  servings?: number | null;
   /** Full recipe instructions extracted from the page */
   instructions?: string | null;
   ingredients: RecipeIngredient[];

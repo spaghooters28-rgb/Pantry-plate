@@ -229,6 +229,12 @@ export const AnalyzeRecipeUrlBody = zod.object({
 
 export const AnalyzeRecipeUrlResponse = zod.object({
   recipeName: zod.string(),
+  cuisine: zod.string().nullish(),
+  protein: zod.string().nullish(),
+  isGlutenFree: zod.boolean().nullish(),
+  cookTimeMinutes: zod.number().nullish(),
+  calories: zod.number().nullish(),
+  servings: zod.number().nullish(),
   instructions: zod
     .string()
     .nullish()

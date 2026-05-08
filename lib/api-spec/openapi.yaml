@@ -1205,6 +1205,24 @@ components:
       properties:
         recipeName:
           type: string
+        cuisine:
+          type: string
+          nullable: true
+        protein:
+          type: string
+          nullable: true
+        isGlutenFree:
+          type: boolean
+          nullable: true
+        cookTimeMinutes:
+          type: integer
+          nullable: true
+        calories:
+          type: integer
+          nullable: true
+        servings:
+          type: integer
+          nullable: true
         instructions:
           type: string
           nullable: true

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, ilike } from "drizzle-orm";
+import { eq, and, ilike, asc } from "drizzle-orm";
 import { db, groceryItemsTable, ingredientsTable, mealsTable, pantryItemsTable, scheduledItemsTable, recipeHistoryTable } from "@workspace/db";
 import {
   AddGroceryItemBody,
@@ -41,7 +41,7 @@ function groupByCategory(items: (typeof groceryItemsTable.$inferSelect)[]) {
 }
 
 async function buildGroceryListResponse() {
-  const items = await db.select().from(groceryItemsTable);
+  const items = await db.select().from(groceryItemsTable).orderBy(asc(groceryItemsTable.id));
   const categories = groupByCategory(items);
   return {
     categories,

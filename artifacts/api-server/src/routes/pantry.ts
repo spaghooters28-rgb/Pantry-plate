@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike } from "drizzle-orm";
+import { eq, ilike, asc } from "drizzle-orm";
 import { db, pantryItemsTable, ingredientsTable, mealsTable, groceryItemsTable } from "@workspace/db";
 import {
   AddPantryItemBody,
@@ -36,7 +36,7 @@ async function buildPantryItemResponse(item: typeof pantryItemsTable.$inferSelec
 }
 
 router.get("/pantry", async (_req, res): Promise<void> => {
-  const items = await db.select().from(pantryItemsTable);
+  const items = await db.select().from(pantryItemsTable).orderBy(asc(pantryItemsTable.id));
   const withMeals = await Promise.all(items.map(buildPantryItemResponse));
   res.json(withMeals);
 });
