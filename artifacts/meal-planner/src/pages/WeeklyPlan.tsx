@@ -373,7 +373,7 @@ export function WeeklyPlan() {
           {plan?.days.map((day) => (
             <Card key={day.day} className="overflow-hidden">
               <CardContent className="p-0">
-                <div className="flex items-center">
+                <div className="flex items-center min-w-0">
                   {/* Day label */}
                   <div className="w-20 shrink-0 p-4 border-r bg-muted/40 flex flex-col items-center">
                     <span className="text-lg">{DAY_EMOJIS[day.day] ?? "📅"}</span>
@@ -381,7 +381,7 @@ export function WeeklyPlan() {
                   </div>
 
                   {/* Meal info */}
-                  <div className="flex-1 p-4">
+                  <div className="flex-1 min-w-0 p-4">
                     {day.meal ? (
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex-1 min-w-0">
@@ -492,15 +492,11 @@ export function WeeklyPlan() {
                   onClick={() => handleSwapMeal(m.id)}
                   disabled={updateDayMealMutation.isPending}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium truncate">{m.name}</span>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <Badge variant="secondary" className="text-xs">{m.cuisine}</Badge>
-                      {m.isGlutenFree && <Badge variant="outline" className="text-xs border-green-500 text-green-600">GF</Badge>}
-                    </div>
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {m.cookTimeMinutes}m · {m.calories} kcal · {m.protein}
+                  <p className="font-medium leading-snug">{m.name}</p>
+                  <div className="flex items-center flex-wrap gap-1.5 mt-1">
+                    <Badge variant="secondary" className="text-xs">{m.cuisine}</Badge>
+                    {m.isGlutenFree && <Badge variant="outline" className="text-xs border-green-500 text-green-600">GF</Badge>}
+                    <span className="text-xs text-muted-foreground">{m.cookTimeMinutes}m · {m.calories} kcal · {m.protein}</span>
                   </div>
                 </button>
               ))
