@@ -22,6 +22,7 @@ import type {
   AddPantryItemBody,
   CheckPantryBody,
   CreateScheduledItemBody,
+  GenerateAiMealsBody,
   GenerateWeeklyPlanBody,
   GroceryItem,
   GroceryList,
@@ -444,6 +445,92 @@ export function useListProteins<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Use AI to generate and save new meal ideas based on filters
+ */
+export const getGenerateAiMealsUrl = () => {
+  return `/api/meals/generate-ai`;
+};
+
+export const generateAiMeals = async (
+  generateAiMealsBody?: GenerateAiMealsBody,
+  options?: RequestInit,
+): Promise<Meal[]> => {
+  return customFetch<Meal[]>(getGenerateAiMealsUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(generateAiMealsBody),
+  });
+};
+
+export const getGenerateAiMealsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateAiMeals>>,
+    TError,
+    { data: BodyType<GenerateAiMealsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof generateAiMeals>>,
+  TError,
+  { data: BodyType<GenerateAiMealsBody> },
+  TContext
+> => {
+  const mutationKey = ["generateAiMeals"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof generateAiMeals>>,
+    { data: BodyType<GenerateAiMealsBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return generateAiMeals(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GenerateAiMealsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof generateAiMeals>>
+>;
+export type GenerateAiMealsMutationBody = BodyType<GenerateAiMealsBody>;
+export type GenerateAiMealsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Use AI to generate and save new meal ideas based on filters
+ */
+export const useGenerateAiMeals = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateAiMeals>>,
+    TError,
+    { data: BodyType<GenerateAiMealsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof generateAiMeals>>,
+  TError,
+  { data: BodyType<GenerateAiMealsBody> },
+  TContext
+> => {
+  return useMutation(getGenerateAiMealsMutationOptions(options));
+};
 
 /**
  * @summary List all available side dish options

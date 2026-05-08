@@ -20,7 +20,7 @@ async function buildPantryItemResponse(item: typeof pantryItemsTable.$inferSelec
 
   const mealIds = [...new Set(matchingIngredients.map((i) => i.mealId))];
   const meals = mealIds.length > 0
-    ? await db.select({ name: mealsTable.name }).from(mealsTable)
+    ? await db.select({ id: mealsTable.id, name: mealsTable.name }).from(mealsTable)
       .then((all) => all.filter((m) => mealIds.includes(m.id)))
     : [];
 

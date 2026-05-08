@@ -121,6 +121,27 @@ paths:
                 items:
                   type: string
 
+  /meals/generate-ai:
+    post:
+      operationId: generateAiMeals
+      tags: [meals]
+      summary: Use AI to generate and save new meal ideas based on filters
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateAiMealsBody"
+      responses:
+        "200":
+          description: Newly generated meals saved to the database
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Meal"
+
   /meals/sides:
     get:
       operationId: listSides
@@ -844,6 +865,26 @@ components:
           type: string
           format: date-time
           nullable: true
+
+    GenerateAiMealsBody:
+      type: object
+      properties:
+        cuisine:
+          type: string
+          nullable: true
+          description: Filter cuisine for AI suggestions (e.g. Italian, Mexican)
+        protein:
+          type: string
+          nullable: true
+          description: Filter protein type for AI suggestions
+        glutenFree:
+          type: boolean
+          nullable: true
+          description: If true, only generate gluten-free meal ideas
+        count:
+          type: integer
+          nullable: true
+          description: Number of meals to generate (default 10)
 
     CheckPantryBody:
       type: object

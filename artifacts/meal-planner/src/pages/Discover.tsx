@@ -6,6 +6,7 @@ import {
   useListProteins,
   useAddMealToGroceryList,
   useCheckPantryForMeal,
+  useGenerateAiMeals,
   getGetGroceryListQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -13,9 +14,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Toggle } from "@/components/ui/toggle";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Clock, Flame, ChefHat, ShoppingCart, CheckCircle2, AlertCircle, Users } from "lucide-react";
+import { Clock, Flame, ChefHat, ShoppingCart, CheckCircle2, AlertCircle, Users, Sparkles, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 type Meal = {
@@ -46,7 +46,6 @@ const CUISINE_COLORS: Record<string, string> = {
   Indian: "bg-yellow-100 text-yellow-800",
   Italian: "bg-green-100 text-green-800",
   Mediterranean: "bg-teal-100 text-teal-800",
-  Korean: "bg-purple-100 text-purple-800",
 };
 
 export function Discover() {
@@ -75,6 +74,7 @@ export function Discover() {
 
   const addMealMutation = useAddMealToGroceryList();
   const checkPantryMutation = useCheckPantryForMeal();
+  const generateAiMealsMutation = useGenerateAiMeals();
 
   function handleOpenMeal(meal: Meal) {
     setSelectedMeal(meal);
@@ -119,12 +119,84 @@ export function Discover() {
     );
   }
 
+  function handleGenerateAi() {
+    generateAiMealsMutation.mutate(
+      {
+        data: {
+          cuisine: cuisine || undefined,
+          protein: protein || undefined,
+          glutenFree: glutenFreeOnly || undefined,
+          count: 10,
+        },
+      },
+      {
+        onSuccess: (newMeals) => {
+          queryClient.invalidateQueries({ queryKey: getListMealsQueryKey(params) });
+          toast({
+            title: `${newMeals.length} new meal ideas added!`,
+            description: "AI-generated meals are now in your list.",
+          });
+        },
+        onError: () => {
+          toast({
+            title: "Could not generate meals",
+            description: "AI generation failed. Please try again.",
+            variant: "destructive",
+          });
+        },
+      }
+    );
+  }
+
+  const activeFilters = [
+    cuisine && `Cuisine: ${cuisine}`,
+    protein && `Protein: ${protein}`,
+    glutenFreeOnly && "Gluten-Free",
+  ].filter(Boolean);
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-serif font-bold text-primary mb-1">Discover</h1>
-        <p className="text-muted-foreground">Find your next favorite meal.</p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-3xl font-serif font-bold text-primary mb-1">Discover</h1>
+          <p className="text-muted-foreground">Find your next favorite meal.</p>
+        </div>
+        <Button
+          onClick={handleGenerateAi}
+          disabled={generateAiMealsMutation.isPending}
+          className="gap-2 shrink-0"
+          variant="outline"
+        >
+          {generateAiMealsMutation.isPending ? (
+            <>
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              Generating…
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-4 h-4" />
+              Generate More Ideas
+              {activeFilters.length > 0 && (
+                <span className="ml-1 text-xs text-muted-foreground">
+                  ({activeFilters.join(", ")})
+                </span>
+              )}
+            </>
+          )}
+        </Button>
       </div>
+
+      {/* AI generation loading banner */}
+      {generateAiMealsMutation.isPending && (
+        <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 flex items-center gap-3 text-sm text-primary">
+          <Sparkles className="w-4 h-4 shrink-0 animate-pulse" />
+          <span>
+            AI is searching for new{" "}
+            {activeFilters.length > 0 ? activeFilters.join(", ").toLowerCase() + " " : ""}
+            meal ideas and adding them to your library…
+          </span>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="space-y-3">
@@ -183,6 +255,26 @@ export function Discover() {
         </div>
       </div>
 
+      {/* Results count */}
+      {!isLoading && meals && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            {meals.length} meal{meals.length !== 1 ? "s" : ""} found
+            {activeFilters.length > 0 && (
+              <span className="ml-1">for <strong>{activeFilters.join(", ")}</strong></span>
+            )}
+          </p>
+          <button
+            onClick={handleGenerateAi}
+            disabled={generateAiMealsMutation.isPending}
+            className="text-xs text-primary hover:underline flex items-center gap-1 disabled:opacity-50"
+          >
+            <Sparkles className="w-3 h-3" />
+            {generateAiMealsMutation.isPending ? "Generating…" : "Find more with AI"}
+          </button>
+        </div>
+      )}
+
       {/* Meal Grid */}
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -191,55 +283,102 @@ export function Discover() {
           ))}
         </div>
       ) : meals?.length === 0 ? (
-        <div className="py-16 text-center text-muted-foreground">
+        <div className="py-16 text-center">
           <ChefHat className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p>No meals match your filters. Try broadening your search.</p>
+          <p className="text-muted-foreground mb-4">No meals match your filters yet.</p>
+          <Button onClick={handleGenerateAi} disabled={generateAiMealsMutation.isPending} className="gap-2">
+            <Sparkles className="w-4 h-4" />
+            {generateAiMealsMutation.isPending ? "Generating…" : "Generate Meals with AI"}
+          </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {meals?.map((meal) => (
-            <Card key={meal.id} className="overflow-hidden flex flex-col hover:shadow-md transition-shadow cursor-pointer group" onClick={() => handleOpenMeal(meal as Meal)}>
-              <div className={`h-3 w-full ${CUISINE_COLORS[meal.cuisine]?.split(" ")[0] ?? "bg-primary"}`} />
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-start mb-1">
-                  <Badge
-                    className={`text-xs font-medium ${CUISINE_COLORS[meal.cuisine] ?? "bg-muted text-muted-foreground"}`}
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {meals?.map((meal) => (
+              <Card key={meal.id} className="overflow-hidden flex flex-col hover:shadow-md transition-shadow cursor-pointer group" onClick={() => handleOpenMeal(meal as Meal)}>
+                <div className={`h-3 w-full ${CUISINE_COLORS[meal.cuisine]?.split(" ")[0] ?? "bg-primary"}`} />
+                <CardHeader className="pb-2">
+                  <div className="flex justify-between items-start mb-1">
+                    <Badge
+                      className={`text-xs font-medium ${CUISINE_COLORS[meal.cuisine] ?? "bg-muted text-muted-foreground"}`}
+                      variant="outline"
+                    >
+                      {meal.cuisine}
+                    </Badge>
+                    {meal.isGlutenFree && (
+                      <Badge variant="outline" className="text-xs border-green-600 text-green-600">GF</Badge>
+                    )}
+                  </div>
+                  <CardTitle className="text-lg font-serif leading-tight group-hover:text-primary transition-colors">
+                    {meal.name}
+                  </CardTitle>
+                  <CardDescription className="text-sm line-clamp-2">{meal.description}</CardDescription>
+                </CardHeader>
+                <CardContent className="flex-1 pb-2">
+                  <div className="flex gap-3 text-sm text-muted-foreground">
+                    <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{meal.cookTimeMinutes}m</span>
+                    <span className="flex items-center gap-1"><Flame className="w-3.5 h-3.5" />{meal.calories} kcal</span>
+                    <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />Serves {meal.servings}</span>
+                  </div>
+                  <div className="mt-2">
+                    <Badge variant="secondary" className="text-xs">{meal.protein}</Badge>
+                  </div>
+                </CardContent>
+                <CardFooter className="pt-2 pb-4">
+                  <Button
+                    className="w-full"
                     variant="outline"
+                    size="sm"
+                    onClick={(e) => { e.stopPropagation(); handleOpenMeal(meal as Meal); }}
                   >
-                    {meal.cuisine}
-                  </Badge>
-                  {meal.isGlutenFree && (
-                    <Badge variant="outline" className="text-xs border-green-600 text-green-600">GF</Badge>
-                  )}
-                </div>
-                <CardTitle className="text-lg font-serif leading-tight group-hover:text-primary transition-colors">
-                  {meal.name}
-                </CardTitle>
-                <CardDescription className="text-sm line-clamp-2">{meal.description}</CardDescription>
-              </CardHeader>
-              <CardContent className="flex-1 pb-2">
-                <div className="flex gap-3 text-sm text-muted-foreground">
-                  <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{meal.cookTimeMinutes}m</span>
-                  <span className="flex items-center gap-1"><Flame className="w-3.5 h-3.5" />{meal.calories} kcal</span>
-                  <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />Serves {meal.servings}</span>
-                </div>
-                <div className="mt-2">
-                  <Badge variant="secondary" className="text-xs">{meal.protein}</Badge>
-                </div>
-              </CardContent>
-              <CardFooter className="pt-2 pb-4">
-                <Button
-                  className="w-full"
-                  variant="outline"
-                  size="sm"
-                  onClick={(e) => { e.stopPropagation(); handleOpenMeal(meal as Meal); }}
-                >
-                  View Recipe
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
+                    View Recipe
+                  </Button>
+                </CardFooter>
+              </Card>
+            ))}
+
+            {/* AI generation skeleton cards */}
+            {generateAiMealsMutation.isPending && (
+              [1, 2, 3].map((i) => (
+                <Card key={`ai-loading-${i}`} className="overflow-hidden flex flex-col opacity-60">
+                  <div className="h-3 w-full bg-gradient-to-r from-primary/30 via-primary/60 to-primary/30 animate-pulse" />
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Sparkles className="w-3.5 h-3.5 text-primary animate-pulse" />
+                      <span className="text-xs text-primary font-medium">AI generating…</span>
+                    </div>
+                    <Skeleton className="h-5 w-3/4 mb-1" />
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-2/3" />
+                  </CardHeader>
+                  <CardContent className="flex-1 pb-2">
+                    <div className="flex gap-3">
+                      <Skeleton className="h-3 w-10" />
+                      <Skeleton className="h-3 w-14" />
+                      <Skeleton className="h-3 w-16" />
+                    </div>
+                  </CardContent>
+                  <CardFooter className="pt-2 pb-4">
+                    <Skeleton className="h-8 w-full" />
+                  </CardFooter>
+                </Card>
+              ))
+            )}
+          </div>
+
+          {/* Load More strip */}
+          <div className="flex justify-center pt-4">
+            <Button
+              variant="outline"
+              onClick={handleGenerateAi}
+              disabled={generateAiMealsMutation.isPending}
+              className="gap-2 text-sm"
+            >
+              <Sparkles className="w-4 h-4" />
+              {generateAiMealsMutation.isPending ? "Generating 10 more…" : "Generate 10 More with AI"}
+            </Button>
+          </div>
+        </>
       )}
 
       {/* Meal Detail Dialog */}
@@ -302,6 +441,9 @@ export function Discover() {
                           ))}
                         </div>
                       </div>
+                    )}
+                    {pantryCheck.haveInPantry.length === 0 && pantryCheck.needToBuy.length === 0 && (
+                      <p className="text-sm text-muted-foreground">No ingredient data for this meal yet.</p>
                     )}
                   </div>
                 ) : null}

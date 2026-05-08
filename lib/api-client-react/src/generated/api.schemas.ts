@@ -158,6 +158,17 @@ export interface UpdatePantryItemBody {
   lastVerifiedAt?: string | null;
 }
 
+export interface GenerateAiMealsBody {
+  /** Filter cuisine for AI suggestions (e.g. Italian, Mexican) */
+  cuisine?: string | null;
+  /** Filter protein type for AI suggestions */
+  protein?: string | null;
+  /** If true, only generate gluten-free meal ideas */
+  glutenFree?: boolean | null;
+  /** Number of meals to generate (default 10) */
+  count?: number | null;
+}
+
 export interface CheckPantryBody {
   mealId: number;
 }

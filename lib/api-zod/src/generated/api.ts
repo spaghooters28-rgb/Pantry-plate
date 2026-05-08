@@ -117,6 +117,62 @@ export const ListProteinsResponseItem = zod.string();
 export const ListProteinsResponse = zod.array(ListProteinsResponseItem);
 
 /**
+ * @summary Use AI to generate and save new meal ideas based on filters
+ */
+export const GenerateAiMealsBody = zod.object({
+  cuisine: zod
+    .string()
+    .nullish()
+    .describe("Filter cuisine for AI suggestions (e.g. Italian, Mexican)"),
+  protein: zod
+    .string()
+    .nullish()
+    .describe("Filter protein type for AI suggestions"),
+  glutenFree: zod
+    .boolean()
+    .nullish()
+    .describe("If true, only generate gluten-free meal ideas"),
+  count: zod
+    .number()
+    .nullish()
+    .describe("Number of meals to generate (default 10)"),
+});
+
+export const GenerateAiMealsResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string(),
+  cuisine: zod.string(),
+  protein: zod.string(),
+  isGlutenFree: zod.boolean(),
+  cookTimeMinutes: zod.number(),
+  servings: zod.number(),
+  calories: zod.number(),
+  imageUrl: zod.string().nullish(),
+  ingredients: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      quantity: zod.string(),
+      unit: zod.string(),
+      category: zod.string().describe("produce, dairy, meat, pantry, etc."),
+      isCommonPantryItem: zod
+        .boolean()
+        .describe("Common spices\/staples likely already in pantry"),
+    }),
+  ),
+  availableSides: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      description: zod.string(),
+    }),
+  ),
+  tags: zod.array(zod.string()),
+});
+export const GenerateAiMealsResponse = zod.array(GenerateAiMealsResponseItem);
+
+/**
  * @summary List all available side dish options
  */
 export const ListSidesResponseItem = zod.string();
