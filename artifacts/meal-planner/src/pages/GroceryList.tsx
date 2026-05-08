@@ -7,6 +7,7 @@ import {
   useDeleteGroceryItem,
   useClearGroceryList,
   useGetGroceryListSuggestions,
+  getListPantryItemsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,7 +17,7 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, Trash2, ShoppingBag, Sparkles, X } from "lucide-react";
+import { Plus, Trash2, ShoppingBag, Sparkles, X, PackagePlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const CATEGORIES = [
@@ -289,6 +290,7 @@ type GroceryItemType = {
 export function GroceryList() {
   const [addOpen, setAddOpen] = useState(false);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [movingToPantry, setMovingToPantry] = useState(false);
   const [newItem, setNewItem] = useState({ name: "", quantity: "1", unit: "", category: "Other", scheduleType: "none", scheduleDaysInterval: 7 });
   const [categoryAutoDetected, setCategoryAutoDetected] = useState(false);
   const [duplicateItem, setDuplicateItem] = useState<GroceryItemType | null>(null);
@@ -347,6 +349,33 @@ export function GroceryList() {
         toast({ title: "Cleared!", description: "Checked items removed from your list." });
       },
     });
+  }
+
+  async function handleMoveToPantry() {
+    const checkedItems = list?.categories.flatMap((c) => c.items).filter((i) => i.isChecked) ?? [];
+    if (checkedItems.length === 0) return;
+    setMovingToPantry(true);
+    try {
+      await Promise.all(
+        checkedItems.map((item) =>
+          fetch("/api/pantry/items", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: item.name, quantity: item.quantity ?? "1", category: item.category }),
+          })
+        )
+      );
+      await new Promise<void>((resolve, reject) =>
+        clearMutation.mutate(undefined, { onSuccess: () => resolve(), onError: reject })
+      );
+      queryClient.invalidateQueries({ queryKey: qKey });
+      queryClient.invalidateQueries({ queryKey: getListPantryItemsQueryKey() });
+      toast({ title: `${checkedItems.length} item${checkedItems.length > 1 ? "s" : ""} moved to pantry!` });
+    } catch {
+      toast({ title: "Error", description: "Could not move items to pantry.", variant: "destructive" });
+    } finally {
+      setMovingToPantry(false);
+    }
   }
 
   function findExistingItem(name: string): GroceryItemType | null {
@@ -442,10 +471,16 @@ export function GroceryList() {
         </div>
         <div className="flex gap-2 flex-wrap">
           {list && list.checkedItems > 0 && (
-            <Button variant="outline" size="sm" onClick={handleClearChecked} disabled={clearMutation.isPending}>
-              <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-              Clear Checked ({list.checkedItems})
-            </Button>
+            <>
+              <Button variant="outline" size="sm" onClick={handleMoveToPantry} disabled={movingToPantry || clearMutation.isPending}>
+                <PackagePlus className="w-3.5 h-3.5 mr-1.5" />
+                {movingToPantry ? "Moving…" : `Move to Pantry (${list.checkedItems})`}
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleClearChecked} disabled={clearMutation.isPending || movingToPantry}>
+                <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                Clear Checked ({list.checkedItems})
+              </Button>
+            </>
           )}
           <Button variant="outline" size="sm" onClick={() => setSuggestionsOpen(true)}>
             <Sparkles className="w-3.5 h-3.5 mr-1.5" />

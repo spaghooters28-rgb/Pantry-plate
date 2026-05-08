@@ -108,11 +108,12 @@ export function Pantry() {
 
   function handleAddToGrocery(item: PantryItem) {
     movePantryMutation.mutate(
-      { id: item.id, data: { removeFromPantry: false } },
+      { id: item.id, data: { removeFromPantry: true } },
       {
         onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: qKey });
           queryClient.invalidateQueries({ queryKey: getGetGroceryListQueryKey() });
-          toast({ title: `${item.name} added to grocery list` });
+          toast({ title: `${item.name} moved to grocery list` });
         },
         onError: () => toast({ title: "Error", description: "Could not add to grocery list.", variant: "destructive" }),
       }
