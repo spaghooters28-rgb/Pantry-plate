@@ -97,14 +97,7 @@ export function Pantry() {
   for (const cat of Object.keys(grouped)) {
     grouped[cat].sort((a, b) => a.name.localeCompare(b.name));
   }
-  const sortedCategories = Object.keys(grouped).sort((a, b) => {
-    const ai = CATEGORY_ORDER.indexOf(a);
-    const bi = CATEGORY_ORDER.indexOf(b);
-    if (ai === -1 && bi === -1) return a.localeCompare(b);
-    if (ai === -1) return 1;
-    if (bi === -1) return -1;
-    return ai - bi;
-  });
+  const sortedCategories = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
 
   function handleAddToGrocery(item: PantryItem) {
     movePantryMutation.mutate(
