@@ -42,6 +42,7 @@ function capitalizeDay(day: string) {
 export function WeeklyPlan() {
   const [swapDay, setSwapDay] = useState<string | null>(null);
   const [swapSearch, setSwapSearch] = useState("");
+  const [swapIgnorePrefs, setSwapIgnorePrefs] = useState(false);
   const [showPrefs, setShowPrefs] = useState(false);
   const [localPrefs, setLocalPrefs] = useState<{
     cuisine: string;
@@ -183,10 +184,22 @@ export function WeeklyPlan() {
     });
   }
 
-  const filteredMeals = allMeals?.filter((m) =>
-    !swapSearch || m.name.toLowerCase().includes(swapSearch.toLowerCase()) ||
-    m.cuisine.toLowerCase().includes(swapSearch.toLowerCase())
-  );
+  // Saved prefs from server (used for swap filtering — not the unsaved local edits)
+  const savedPrefs = preferences as { cuisine?: string | null; proteins?: string[]; glutenFree?: boolean | null } | undefined;
+
+  const filteredMeals = allMeals?.filter((m) => {
+    // Text search
+    if (swapSearch && !m.name.toLowerCase().includes(swapSearch.toLowerCase()) &&
+        !m.cuisine.toLowerCase().includes(swapSearch.toLowerCase()) &&
+        !m.protein.toLowerCase().includes(swapSearch.toLowerCase())) return false;
+    // Preference filters (unless overridden)
+    if (!swapIgnorePrefs) {
+      if (savedPrefs?.cuisine && m.cuisine !== savedPrefs.cuisine) return false;
+      if (savedPrefs?.glutenFree && !m.isGlutenFree) return false;
+      if (savedPrefs?.proteins && savedPrefs.proteins.length > 0 && !savedPrefs.proteins.includes(m.protein)) return false;
+    }
+    return true;
+  });
 
   const totalCalories = plan?.days.reduce((sum, d) => sum + (d.meal?.calories ?? 0), 0) ?? 0;
   const plannedDays = plan?.days.filter((d) => d.meal).length ?? 0;
@@ -387,10 +400,10 @@ export function WeeklyPlan() {
                       </div>
                     ) : (
                       <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground text-sm italic">Rest day</span>
-                        <Button variant="outline" size="sm" onClick={() => setSwapDay(day.day)}>
-                          <ChevronRight className="w-3.5 h-3.5 mr-1" />
-                          Pick Meal
+                        <span className="text-muted-foreground text-sm italic">No meal planned</span>
+                        <Button variant="ghost" size="sm" className="shrink-0" onClick={() => setSwapDay(day.day)}>
+                          <Shuffle className="w-3.5 h-3.5 mr-1" />
+                          Swap
                         </Button>
                       </div>
                     )}
@@ -403,35 +416,95 @@ export function WeeklyPlan() {
       )}
 
       {/* Swap meal dialog */}
-      <Dialog open={!!swapDay} onOpenChange={(open) => { if (!open) { setSwapDay(null); setSwapSearch(""); } }}>
-        <DialogContent className="max-w-lg max-h-[70vh] flex flex-col">
+      <Dialog open={!!swapDay} onOpenChange={(open) => { if (!open) { setSwapDay(null); setSwapSearch(""); setSwapIgnorePrefs(false); } }}>
+        <DialogContent className="max-w-lg max-h-[75vh] flex flex-col gap-3">
           <DialogHeader>
             <DialogTitle className="font-serif">Pick a Meal for {swapDay ? capitalizeDay(swapDay) : ""}</DialogTitle>
           </DialogHeader>
+
           <input
             className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-            placeholder="Search meals or cuisine…"
+            placeholder="Search by name, cuisine, or protein…"
             value={swapSearch}
             onChange={(e) => setSwapSearch(e.target.value)}
             autoFocus
           />
-          <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-            {filteredMeals?.map((m) => (
+
+          {/* Active preference filters notice */}
+          {(() => {
+            const activeFilters: string[] = [];
+            if (!swapIgnorePrefs) {
+              if (savedPrefs?.cuisine) activeFilters.push(savedPrefs.cuisine);
+              if (savedPrefs?.proteins && savedPrefs.proteins.length > 0) activeFilters.push(savedPrefs.proteins.join(", "));
+              if (savedPrefs?.glutenFree) activeFilters.push("Gluten-Free");
+            }
+            if (activeFilters.length === 0) return null;
+            return (
+              <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-primary/8 border border-primary/20 text-xs">
+                <span className="text-primary font-medium">
+                  Filtered by preferences: {activeFilters.join(" · ")}
+                </span>
+                <button
+                  onClick={() => setSwapIgnorePrefs(true)}
+                  className="text-muted-foreground hover:text-foreground underline ml-2 shrink-0"
+                >
+                  Show all
+                </button>
+              </div>
+            );
+          })()}
+
+          {swapIgnorePrefs && (
+            <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted border text-xs">
+              <span className="text-muted-foreground">Showing all meals</span>
               <button
-                key={m.id}
-                className="w-full text-left p-3 rounded-lg border border-border hover:border-primary hover:bg-muted transition-colors"
-                onClick={() => handleSwapMeal(m.id)}
-                disabled={updateDayMealMutation.isPending}
+                onClick={() => setSwapIgnorePrefs(false)}
+                className="text-primary hover:underline ml-2 shrink-0"
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">{m.name}</span>
-                  <Badge variant="secondary" className="text-xs">{m.cuisine}</Badge>
-                </div>
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  {m.cookTimeMinutes}m • {m.calories} kcal • {m.protein}
-                </div>
+                Apply preferences
               </button>
-            ))}
+            </div>
+          )}
+
+          <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-0">
+            {filteredMeals?.length === 0 ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                <p className="font-medium mb-1">No meals match</p>
+                <p>
+                  {swapIgnorePrefs
+                    ? "Try a different search term."
+                    : "Your preferences are filtering results."}
+                </p>
+                {!swapIgnorePrefs && (
+                  <button
+                    onClick={() => setSwapIgnorePrefs(true)}
+                    className="mt-2 text-primary hover:underline"
+                  >
+                    Show all meals
+                  </button>
+                )}
+              </div>
+            ) : (
+              filteredMeals?.map((m) => (
+                <button
+                  key={m.id}
+                  className="w-full text-left p-3 rounded-lg border border-border hover:border-primary hover:bg-muted transition-colors"
+                  onClick={() => handleSwapMeal(m.id)}
+                  disabled={updateDayMealMutation.isPending}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium truncate">{m.name}</span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Badge variant="secondary" className="text-xs">{m.cuisine}</Badge>
+                      {m.isGlutenFree && <Badge variant="outline" className="text-xs border-green-500 text-green-600">GF</Badge>}
+                    </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    {m.cookTimeMinutes}m · {m.calories} kcal · {m.protein}
+                  </div>
+                </button>
+              ))
+            )}
           </div>
         </DialogContent>
       </Dialog>
