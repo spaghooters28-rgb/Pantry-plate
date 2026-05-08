@@ -451,48 +451,6 @@ export function WeeklyPlan() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Active Days */}
-            <div>
-              <label className="text-sm font-medium mb-2 block">Active Days (leave empty for all 7)</label>
-              <div className="flex flex-wrap gap-2">
-                {ALL_DAYS.map((day) => {
-                  const hasMeal = !!plan?.days.find((d) => d.day === day)?.meal;
-                  const isActive = prefs.activeDays.includes(day);
-                  return (
-                    <button
-                      key={day}
-                      onClick={() => toggleActiveDay(day)}
-                      className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border relative ${
-                        isActive
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : hasMeal
-                          ? "bg-green-50 border-green-400 text-green-800 hover:border-primary hover:text-primary"
-                          : "bg-card border-border text-muted-foreground hover:border-primary hover:text-primary"
-                      }`}
-                    >
-                      {DAY_SHORT[day]}
-                      {hasMeal && !isActive && (
-                        <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-green-500 border border-white" />
-                      )}
-                    </button>
-                  );
-                })}
-                {prefs.activeDays.length > 0 && (
-                  <button
-                    onClick={() => setLocalPrefs((p) => p ? { ...p, activeDays: [] } : p)}
-                    className="px-3 py-1.5 rounded-full text-sm text-muted-foreground hover:text-foreground transition-colors border border-dashed border-border"
-                  >
-                    All days
-                  </button>
-                )}
-              </div>
-              {prefs.activeDays.length > 0 && (
-                <p className="text-xs text-muted-foreground mt-1.5">
-                  Planning {prefs.activeDays.length} day{prefs.activeDays.length !== 1 ? "s" : ""} — blank days will have no meal assigned.
-                </p>
-              )}
-            </div>
-
             {/* Cuisine */}
             <div>
               <label className="text-sm font-medium mb-2 block">Preferred Cuisine</label>
