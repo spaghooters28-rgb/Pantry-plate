@@ -7,8 +7,6 @@ import {
   useDeleteGroceryItem,
   useClearGroceryList,
   useGetGroceryListSuggestions,
-  useAnalyzeRecipeUrl,
-  useSaveAnalyzedRecipe,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,11 +16,7 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import {
-  Plus, Trash2, ShoppingBag, Sparkles, X,
-  Link, Loader2, Search, ChevronDown, ChevronUp,
-  Calendar, CheckCircle2, ShoppingCart, BookOpen,
-} from "lucide-react";
+import { Plus, Trash2, ShoppingBag, Sparkles, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const CATEGORIES = ["Produce", "Meat & Seafood", "Dairy & Eggs", "Pantry", "Grains & Bread", "Frozen", "Beverages", "Other"];
@@ -34,43 +28,69 @@ const SCHEDULE_OPTIONS = [
   { value: "custom", label: "Custom interval" },
 ];
 const COMMON_QUANTITIES = ["½", "1", "2", "3", "4", "5", "6", "8", "10", "12"];
-const ALL_DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
-const DAY_SHORT: Record<string, string> = {
-  monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu",
-  friday: "Fri", saturday: "Sat", sunday: "Sun",
+
+const CATEGORY_KEYWORDS: Record<string, string[]> = {
+  "Produce": [
+    "apple", "banana", "orange", "lemon", "lime", "grape", "berry", "berries", "tomato", "potato",
+    "onion", "garlic", "carrot", "broccoli", "spinach", "lettuce", "kale", "cucumber", "pepper",
+    "zucchini", "mushroom", "avocado", "celery", "corn", "pea", "herb", "basil", "parsley",
+    "cilantro", "mint", "ginger", "jalapeño", "chile", "chili", "squash", "melon", "watermelon",
+    "mango", "pineapple", "strawberry", "blueberry", "raspberry", "cherry", "peach", "plum",
+    "pear", "arugula", "cabbage", "chard", "beet", "radish", "turnip", "asparagus", "artichoke",
+    "eggplant", "leek", "scallion", "shallot", "yam", "sweet potato", "fennel", "cauliflower",
+    "bok choy", "edamame", "snap peas", "green bean", "okra", "plantain",
+  ],
+  "Meat & Seafood": [
+    "chicken", "beef", "pork", "turkey", "lamb", "duck", "veal", "steak", "bacon", "ham",
+    "sausage", "salmon", "tuna", "shrimp", "fish", "cod", "tilapia", "halibut", "crab",
+    "lobster", "scallop", "clam", "mussel", "anchovy", "sardine", "trout", "catfish",
+    "meatball", "ground beef", "ground turkey", "brisket", "rib", "tenderloin", "filet",
+    "pepperoni", "salami", "prosciutto", "chorizo", "kielbasa",
+  ],
+  "Dairy & Eggs": [
+    "milk", "cheese", "butter", "yogurt", "cream", "egg", "sour cream", "cream cheese",
+    "mozzarella", "cheddar", "parmesan", "feta", "brie", "ricotta", "cottage cheese",
+    "whipped cream", "half and half", "kefir", "ghee", "gouda", "swiss", "provolone",
+  ],
+  "Grains & Bread": [
+    "bread", "rice", "pasta", "flour", "oat", "cereal", "quinoa", "barley", "wheat",
+    "noodle", "tortilla", "pita", "bagel", "muffin", "cracker", "granola", "couscous",
+    "polenta", "panko", "breadcrumb", "bun", "roll", "baguette", "wrap", "rye", "sourdough",
+  ],
+  "Beverages": [
+    "juice", "soda", "coffee", "tea", "wine", "beer", "lemonade", "kombucha", "beverage",
+    "coconut water", "sparkling water", "sports drink", "energy drink", "almond milk",
+    "oat milk", "soy milk",
+  ],
+  "Frozen": [
+    "frozen", "ice cream", "ice", "popsicle", "frozen pizza", "frozen meal",
+  ],
+  "Pantry": [
+    "oil", "vinegar", "soy sauce", "salt", "pepper", "sugar", "honey", "syrup", "sauce",
+    "ketchup", "mustard", "mayo", "mayonnaise", "dressing", "jam", "jelly", "peanut butter",
+    "almond butter", "nutella", "canned", "broth", "stock", "tomato paste", "coconut milk",
+    "lentil", "chickpea", "tofu", "tempeh", "nut", "almond", "cashew", "walnut", "pecan",
+    "pistachio", "peanut", "seed", "raisin", "dried", "spice", "cinnamon", "cumin",
+    "paprika", "turmeric", "oregano", "thyme", "rosemary", "baking soda", "baking powder",
+    "yeast", "chocolate", "cocoa", "vanilla", "sriracha", "hot sauce", "worcestershire",
+    "olive oil", "vegetable oil", "sesame oil", "coconut oil",
+  ],
 };
 
-type RecipeIngredient = {
-  name: string;
-  quantity: string;
-  unit: string | null;
-  category: string;
-  inPantry: boolean;
-};
-
-type AnalyzeResult = {
-  recipeName: string;
-  instructions: string | null;
-  ingredients: RecipeIngredient[];
-  haveCount: number;
-  needCount: number;
-  cuisine: string | null;
-  protein: string | null;
-  isGlutenFree: boolean | null;
-  cookTimeMinutes: number | null;
-  calories: number | null;
-  servings: number | null;
-};
+function detectCategory(name: string): string | null {
+  const lower = name.toLowerCase().trim();
+  if (lower.length < 2) return null;
+  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    if (keywords.some((kw) => lower.includes(kw))) return category;
+  }
+  return null;
+}
 
 export function GroceryList() {
   const [addOpen, setAddOpen] = useState(false);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
-  const [analyzerOpen, setAnalyzerOpen] = useState(false);
-  const [recipeUrl, setRecipeUrl] = useState("");
-  const [analyzeResult, setAnalyzeResult] = useState<AnalyzeResult | null>(null);
-  const [selectedDay, setSelectedDay] = useState("");
-  const [showInstructions, setShowInstructions] = useState(false);
   const [newItem, setNewItem] = useState({ name: "", quantity: "1", unit: "", category: "Other", scheduleType: "none", scheduleDaysInterval: 7 });
+  const [categoryAutoDetected, setCategoryAutoDetected] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const qKey = getGetGroceryListQueryKey();
@@ -82,8 +102,6 @@ export function GroceryList() {
   const addMutation = useAddGroceryItem();
   const deleteMutation = useDeleteGroceryItem();
   const clearMutation = useClearGroceryList();
-  const analyzeRecipeMutation = useAnalyzeRecipeUrl();
-  const saveRecipeMutation = useSaveAnalyzedRecipe();
 
   type QtyOpen = { id: number; top: number; left: number } | null;
   const [qtyOpen, setQtyOpen] = useState<QtyOpen>(null);
@@ -149,6 +167,7 @@ export function GroceryList() {
           queryClient.invalidateQueries({ queryKey: qKey });
           setAddOpen(false);
           setNewItem({ name: "", quantity: "1", unit: "", category: "Other", scheduleType: "none", scheduleDaysInterval: 7 });
+          setCategoryAutoDetected(false);
           toast({ title: "Item added!", description: newItem.scheduleType !== "none" ? "Item added and scheduled." : undefined });
         },
         onError: () => toast({ title: "Error", description: "Could not add item.", variant: "destructive" }),
@@ -168,82 +187,6 @@ export function GroceryList() {
     );
   }
 
-  function handleAnalyzeRecipe(e: React.FormEvent) {
-    e.preventDefault();
-    if (!recipeUrl.trim()) return;
-    setAnalyzeResult(null);
-    setShowInstructions(false);
-    analyzeRecipeMutation.mutate(
-      { data: { url: recipeUrl.trim() } },
-      {
-        onSuccess: (result) => setAnalyzeResult(result as AnalyzeResult),
-        onError: () => toast({ title: "Error", description: "Could not analyze recipe. Make sure the URL is publicly accessible.", variant: "destructive" }),
-      }
-    );
-  }
-
-  function handleAddMissingToGrocery() {
-    if (!analyzeResult) return;
-    const missing = analyzeResult.ingredients.filter((i) => !i.inPantry);
-    if (missing.length === 0) {
-      toast({ title: "You have everything!", description: "All ingredients are already in your pantry." });
-      return;
-    }
-    Promise.all(
-      missing.map((ing) =>
-        fetch("/api/grocery-list/items", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: ing.name, quantity: ing.quantity || "1", unit: ing.unit ?? undefined, category: ing.category }),
-        })
-      )
-    ).then(() => {
-      queryClient.invalidateQueries({ queryKey: qKey });
-      toast({
-        title: `${missing.length} item${missing.length !== 1 ? "s" : ""} added!`,
-        description: `Missing ingredients from "${analyzeResult.recipeName}" added.`,
-      });
-    }).catch(() => {
-      toast({ title: "Error", description: "Some items could not be added.", variant: "destructive" });
-    });
-  }
-
-  function handleSaveAsRecipe() {
-    if (!analyzeResult) return;
-    saveRecipeMutation.mutate(
-      {
-        data: {
-          recipeName: analyzeResult.recipeName,
-          cuisine: analyzeResult.cuisine ?? undefined,
-          protein: analyzeResult.protein ?? undefined,
-          isGlutenFree: analyzeResult.isGlutenFree ?? undefined,
-          cookTimeMinutes: analyzeResult.cookTimeMinutes ?? undefined,
-          calories: analyzeResult.calories ?? undefined,
-          instructions: analyzeResult.instructions ?? null,
-          sourceUrl: recipeUrl.trim() || null,
-          assignToDay: selectedDay || null,
-          ingredients: analyzeResult.ingredients,
-        },
-      },
-      {
-        onSuccess: () => {
-          toast({
-            title: selectedDay
-              ? `Recipe saved & added to ${DAY_SHORT[selectedDay] ?? selectedDay}!`
-              : "Recipe saved to your library!",
-            description: selectedDay ? "Check Weekly Plan to see it." : "Find it in Discover and Saved.",
-          });
-          setAnalyzerOpen(false);
-          setRecipeUrl("");
-          setAnalyzeResult(null);
-          setSelectedDay("");
-          setShowInstructions(false);
-        },
-        onError: () => toast({ title: "Error", description: "Could not save recipe.", variant: "destructive" }),
-      }
-    );
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -258,14 +201,6 @@ export function GroceryList() {
               Clear Checked ({list.checkedItems})
             </Button>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => { setAnalyzerOpen(true); setAnalyzeResult(null); setRecipeUrl(""); }}
-          >
-            <Link className="w-3.5 h-3.5 mr-1.5" />
-            Recipe Analyzer
-          </Button>
           <Button variant="outline" size="sm" onClick={() => setSuggestionsOpen(true)}>
             <Sparkles className="w-3.5 h-3.5 mr-1.5" />
             Suggestions
@@ -401,153 +336,8 @@ export function GroceryList() {
         </div>
       )}
 
-      {/* Recipe Analyzer Dialog */}
-      <Dialog
-        open={analyzerOpen}
-        onOpenChange={(open) => {
-          if (!open) { setAnalyzerOpen(false); setAnalyzeResult(null); setRecipeUrl(""); setSelectedDay(""); setShowInstructions(false); }
-        }}
-      >
-        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col gap-3">
-          <DialogHeader>
-            <DialogTitle className="font-serif flex items-center gap-2">
-              <Link className="w-5 h-5" />
-              Recipe Analyzer
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Paste a recipe URL — AI extracts ingredients, cross-checks your pantry, and lets you save it as a recipe in the app.
-          </p>
-
-          <form onSubmit={handleAnalyzeRecipe} className="flex gap-2">
-            <input
-              className="flex-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-              placeholder="https://www.allrecipes.com/recipe/..."
-              value={recipeUrl}
-              onChange={(e) => setRecipeUrl(e.target.value)}
-              type="url"
-              required
-            />
-            <Button type="submit" disabled={analyzeRecipeMutation.isPending || !recipeUrl.trim()} className="shrink-0 gap-1.5">
-              {analyzeRecipeMutation.isPending ? (
-                <><Loader2 className="w-4 h-4 animate-spin" />Analyzing…</>
-              ) : (
-                <><Search className="w-4 h-4" />Analyze</>
-              )}
-            </Button>
-          </form>
-
-          {analyzeResult && (
-            <div className="flex-1 overflow-y-auto space-y-4 min-h-0">
-              {/* Recipe header */}
-              <div>
-                <h3 className="font-semibold text-base font-serif">{analyzeResult.recipeName}</h3>
-                <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm mt-1">
-                  <span className="flex items-center gap-1 text-green-700">
-                    <CheckCircle2 className="w-4 h-4" />{analyzeResult.haveCount} in pantry
-                  </span>
-                  <span className="flex items-center gap-1 text-amber-700">
-                    <ShoppingCart className="w-4 h-4" />{analyzeResult.needCount} to buy
-                  </span>
-                  {analyzeResult.cuisine && <span className="text-muted-foreground">{analyzeResult.cuisine}</span>}
-                  {analyzeResult.cookTimeMinutes && <span className="text-muted-foreground">{analyzeResult.cookTimeMinutes} min</span>}
-                  {analyzeResult.calories && <span className="text-muted-foreground">{analyzeResult.calories} kcal/serving</span>}
-                </div>
-              </div>
-
-              {/* Instructions collapsible */}
-              {analyzeResult.instructions && (
-                <div className="border rounded-lg overflow-hidden">
-                  <button
-                    type="button"
-                    className="w-full flex items-center justify-between px-3 py-2.5 bg-muted/50 hover:bg-muted transition-colors text-sm font-medium"
-                    onClick={() => setShowInstructions((v) => !v)}
-                  >
-                    <span className="flex items-center gap-2">
-                      <BookOpen className="w-4 h-4 text-primary" />
-                      Cooking Instructions
-                    </span>
-                    {showInstructions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  </button>
-                  {showInstructions && (
-                    <div className="px-3 py-3 text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
-                      {analyzeResult.instructions}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Ingredient list */}
-              <div className="space-y-1.5">
-                {analyzeResult.ingredients.map((ing, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm border ${
-                      ing.inPantry ? "bg-green-50 border-green-200" : "bg-amber-50 border-amber-200"
-                    }`}
-                  >
-                    <span className={ing.inPantry ? "text-green-800" : "text-amber-800"}>
-                      {ing.quantity} {ing.unit ? `${ing.unit} ` : ""}{ing.name}
-                    </span>
-                    <span className={`text-xs font-medium ${ing.inPantry ? "text-green-600" : "text-amber-600"}`}>
-                      {ing.inPantry ? "✓ Have it" : "Need it"}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Day picker */}
-              <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
-                <p className="text-xs font-medium flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-primary" />
-                  Add to Weekly Plan (optional)
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {ALL_DAYS.map((day) => (
-                    <button
-                      key={day}
-                      type="button"
-                      onClick={() => setSelectedDay((d) => d === day ? "" : day)}
-                      className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors border ${
-                        selectedDay === day
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "bg-card border-border text-muted-foreground hover:border-primary"
-                      }`}
-                    >
-                      {DAY_SHORT[day]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Action buttons */}
-              <div className="flex flex-col gap-2 pb-1">
-                {analyzeResult.needCount > 0 && (
-                  <Button variant="outline" className="w-full gap-2" onClick={handleAddMissingToGrocery}>
-                    <ShoppingCart className="w-4 h-4" />
-                    Add {analyzeResult.needCount} Missing Item{analyzeResult.needCount !== 1 ? "s" : ""} to Grocery List
-                  </Button>
-                )}
-                <Button
-                  className="w-full gap-2"
-                  onClick={handleSaveAsRecipe}
-                  disabled={saveRecipeMutation.isPending}
-                >
-                  <BookOpen className="w-4 h-4" />
-                  {saveRecipeMutation.isPending
-                    ? "Saving…"
-                    : selectedDay
-                    ? `Save Recipe & Add to ${DAY_SHORT[selectedDay] ?? selectedDay}`
-                    : "Save as Recipe in My App"}
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
       {/* Add Item Dialog */}
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+      <Dialog open={addOpen} onOpenChange={(open) => { setAddOpen(open); if (!open) setCategoryAutoDetected(false); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="font-serif">Add Item to Grocery List</DialogTitle>
@@ -559,7 +349,17 @@ export function GroceryList() {
                 className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
                 placeholder="e.g. Greek Yogurt"
                 value={newItem.name}
-                onChange={(e) => setNewItem((v) => ({ ...v, name: e.target.value }))}
+                onChange={(e) => {
+                  const name = e.target.value;
+                  const detected = detectCategory(name);
+                  if (detected) {
+                    setNewItem((v) => ({ ...v, name, category: detected }));
+                    setCategoryAutoDetected(true);
+                  } else {
+                    setNewItem((v) => ({ ...v, name }));
+                    setCategoryAutoDetected(false);
+                  }
+                }}
                 autoFocus
                 required
               />
@@ -585,11 +385,22 @@ export function GroceryList() {
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium mb-1 block">Category</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-sm font-medium">Category</label>
+                {categoryAutoDetected && (
+                  <span className="text-[11px] text-amber-600 flex items-center gap-1 font-medium">
+                    <Sparkles className="w-3 h-3" /> Auto-detected — tap to change
+                  </span>
+                )}
+              </div>
               <select
-                className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                className={`w-full px-3 py-2 text-sm rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring transition-all ${
+                  categoryAutoDetected
+                    ? "border-2 border-amber-400 ring-2 ring-amber-200"
+                    : "border border-border"
+                }`}
                 value={newItem.category}
-                onChange={(e) => setNewItem((v) => ({ ...v, category: e.target.value }))}
+                onChange={(e) => { setNewItem((v) => ({ ...v, category: e.target.value })); setCategoryAutoDetected(false); }}
               >
                 {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
