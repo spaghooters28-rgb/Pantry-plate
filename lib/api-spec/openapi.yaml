@@ -3,20 +3,30 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Meal Planner API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: meals
+    description: Meal suggestions and management
+  - name: grocery
+    description: Grocery list management
+  - name: pantry
+    description: Pantry item tracking
+  - name: schedule
+    description: Scheduled recurring grocery items
+  - name: weekly
+    description: Weekly meal plans
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +34,469 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ── MEALS ─────────────────────────────────────────────────────────────────
+
+  /meals:
+    get:
+      operationId: listMeals
+      tags: [meals]
+      summary: List meal suggestions with optional filters
+      parameters:
+        - name: cuisine
+          in: query
+          schema:
+            type: string
+          description: Filter by cuisine type (e.g. Italian, Mexican, Asian)
+        - name: protein
+          in: query
+          schema:
+            type: string
+          description: Filter by protein (e.g. chicken, beef, tofu)
+        - name: glutenFree
+          in: query
+          schema:
+            type: boolean
+        - name: side
+          in: query
+          schema:
+            type: string
+          description: Filter by side dish type
+      responses:
+        "200":
+          description: List of meals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Meal"
+
+  /meals/{id}:
+    get:
+      operationId: getMeal
+      tags: [meals]
+      summary: Get a single meal with full ingredients
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Meal detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Meal"
+
+  /meals/cuisines:
+    get:
+      operationId: listCuisines
+      tags: [meals]
+      summary: List all available cuisine categories
+      responses:
+        "200":
+          description: List of cuisine names
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /meals/proteins:
+    get:
+      operationId: listProteins
+      tags: [meals]
+      summary: List all available protein options
+      responses:
+        "200":
+          description: List of protein options
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /meals/sides:
+    get:
+      operationId: listSides
+      tags: [meals]
+      summary: List all available side dish options
+      responses:
+        "200":
+          description: List of side options
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  # ── WEEKLY PLAN ────────────────────────────────────────────────────────────
+
+  /weekly-plan:
+    get:
+      operationId: getWeeklyPlan
+      tags: [weekly]
+      summary: Get the current weekly meal plan
+      responses:
+        "200":
+          description: Weekly plan with 7 days of meals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeeklyPlan"
+
+    post:
+      operationId: generateWeeklyPlan
+      tags: [weekly]
+      summary: Generate a new weekly meal plan (refreshed suggestions)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateWeeklyPlanBody"
+      responses:
+        "200":
+          description: Newly generated weekly plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeeklyPlan"
+
+  /weekly-plan/days/{day}/meal:
+    put:
+      operationId: updateDayMeal
+      tags: [weekly]
+      summary: Assign a meal to a specific day
+      parameters:
+        - name: day
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Day of the week (monday, tuesday, etc.)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDayMealBody"
+      responses:
+        "200":
+          description: Updated day entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeeklyPlanDay"
+
+  # ── GROCERY LIST ──────────────────────────────────────────────────────────
+
+  /grocery-list:
+    get:
+      operationId: getGroceryList
+      tags: [grocery]
+      summary: Get the current grocery list (recipe items + custom items)
+      responses:
+        "200":
+          description: Grocery list grouped by category
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroceryList"
+
+  /grocery-list/items:
+    post:
+      operationId: addGroceryItem
+      tags: [grocery]
+      summary: Add a custom item to the grocery list
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddGroceryItemBody"
+      responses:
+        "201":
+          description: Created grocery item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroceryItem"
+
+  /grocery-list/items/{id}:
+    patch:
+      operationId: updateGroceryItem
+      tags: [grocery]
+      summary: Update a grocery item (check off, update quantity, etc.)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateGroceryItemBody"
+      responses:
+        "200":
+          description: Updated item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroceryItem"
+
+    delete:
+      operationId: deleteGroceryItem
+      tags: [grocery]
+      summary: Remove an item from the grocery list
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /grocery-list/from-meal/{mealId}:
+    post:
+      operationId: addMealToGroceryList
+      tags: [grocery]
+      summary: Add all ingredients for a meal to the grocery list (triggers pantry check)
+      parameters:
+        - name: mealId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Items added along with pantry prompts for ingredients the user may have
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AddMealResult"
+
+  /grocery-list/clear:
+    post:
+      operationId: clearGroceryList
+      tags: [grocery]
+      summary: Clear all checked-off items from the list
+      responses:
+        "200":
+          description: Cleared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroceryList"
+
+  /grocery-list/suggestions:
+    get:
+      operationId: getGroceryListSuggestions
+      tags: [grocery]
+      summary: Get smart grocery suggestions based on pantry state and recent meals
+      responses:
+        "200":
+          description: Suggested items to add
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GrocerySuggestion"
+
+  # ── PANTRY ─────────────────────────────────────────────────────────────────
+
+  /pantry:
+    get:
+      operationId: listPantryItems
+      tags: [pantry]
+      summary: Get all pantry items
+      responses:
+        "200":
+          description: Pantry items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PantryItem"
+
+  /pantry/items:
+    post:
+      operationId: addPantryItem
+      tags: [pantry]
+      summary: Add or update an item in the pantry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddPantryItemBody"
+      responses:
+        "201":
+          description: Created or updated pantry item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PantryItem"
+
+  /pantry/items/{id}:
+    patch:
+      operationId: updatePantryItem
+      tags: [pantry]
+      summary: Update pantry item (mark as depleted, update quantity)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePantryItemBody"
+      responses:
+        "200":
+          description: Updated pantry item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PantryItem"
+
+    delete:
+      operationId: deletePantryItem
+      tags: [pantry]
+      summary: Remove item from pantry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /pantry/check:
+    post:
+      operationId: checkPantryForMeal
+      tags: [pantry]
+      summary: Check which ingredients for a meal are already in pantry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckPantryBody"
+      responses:
+        "200":
+          description: Pantry check result with have/need lists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PantryCheckResult"
+
+  # ── SCHEDULED ITEMS ───────────────────────────────────────────────────────
+
+  /scheduled-items:
+    get:
+      operationId: listScheduledItems
+      tags: [schedule]
+      summary: List all scheduled recurring grocery items
+      responses:
+        "200":
+          description: Scheduled items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScheduledItem"
+
+    post:
+      operationId: createScheduledItem
+      tags: [schedule]
+      summary: Create a recurring scheduled grocery item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateScheduledItemBody"
+      responses:
+        "201":
+          description: Created scheduled item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduledItem"
+
+  /scheduled-items/{id}:
+    patch:
+      operationId: updateScheduledItem
+      tags: [schedule]
+      summary: Update a scheduled item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateScheduledItemBody"
+      responses:
+        "200":
+          description: Updated scheduled item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduledItem"
+
+    delete:
+      operationId: deleteScheduledItem
+      tags: [schedule]
+      summary: Delete a scheduled item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /scheduled-items/due-today:
+    get:
+      operationId: getDueScheduledItems
+      tags: [schedule]
+      summary: Get all scheduled items that are due to be added today
+      responses:
+        "200":
+          description: Due items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScheduledItem"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +504,449 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    # ── MEAL ────────────────────────────────────────────────────────────────
+
+    Ingredient:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        quantity:
+          type: string
+        unit:
+          type: string
+        category:
+          type: string
+          description: "produce, dairy, meat, pantry, etc."
+        isCommonPantryItem:
+          type: boolean
+          description: Common spices/staples likely already in pantry
+      required: [id, name, quantity, unit, category, isCommonPantryItem]
+
+    Side:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+      required: [id, name, description]
+
+    Meal:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        cuisine:
+          type: string
+        protein:
+          type: string
+        isGlutenFree:
+          type: boolean
+        cookTimeMinutes:
+          type: integer
+        servings:
+          type: integer
+        calories:
+          type: integer
+        imageUrl:
+          type: string
+          nullable: true
+        ingredients:
+          type: array
+          items:
+            $ref: "#/components/schemas/Ingredient"
+        availableSides:
+          type: array
+          items:
+            $ref: "#/components/schemas/Side"
+        tags:
+          type: array
+          items:
+            type: string
+      required:
+        [
+          id,
+          name,
+          description,
+          cuisine,
+          protein,
+          isGlutenFree,
+          cookTimeMinutes,
+          servings,
+          calories,
+          ingredients,
+          availableSides,
+          tags,
+        ]
+
+    # ── WEEKLY PLAN ─────────────────────────────────────────────────────────
+
+    WeeklyPlanDay:
+      type: object
+      properties:
+        day:
+          type: string
+        meal:
+          $ref: "#/components/schemas/Meal"
+          nullable: true
+        selectedSideId:
+          type: integer
+          nullable: true
+      required: [day]
+
+    WeeklyPlan:
+      type: object
+      properties:
+        id:
+          type: integer
+        weekStartDate:
+          type: string
+          format: date
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeeklyPlanDay"
+        generatedAt:
+          type: string
+          format: date-time
+      required: [id, weekStartDate, days, generatedAt]
+
+    GenerateWeeklyPlanBody:
+      type: object
+      properties:
+        cuisine:
+          type: string
+          nullable: true
+        glutenFree:
+          type: boolean
+          nullable: true
+        proteins:
+          type: array
+          items:
+            type: string
+
+    UpdateDayMealBody:
+      type: object
+      properties:
+        mealId:
+          type: integer
+          nullable: true
+        selectedSideId:
+          type: integer
+          nullable: true
+      required: []
+
+    # ── GROCERY ─────────────────────────────────────────────────────────────
+
+    GroceryItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        quantity:
+          type: string
+        unit:
+          type: string
+          nullable: true
+        category:
+          type: string
+        isChecked:
+          type: boolean
+        isCustom:
+          type: boolean
+          description: True if manually added by user, not from a recipe
+        mealId:
+          type: integer
+          nullable: true
+          description: Source meal if from a recipe
+        mealName:
+          type: string
+          nullable: true
+        addedAt:
+          type: string
+          format: date-time
+      required:
+        [id, name, quantity, category, isChecked, isCustom, addedAt]
+
+    GroceryCategory:
+      type: object
+      properties:
+        category:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/GroceryItem"
+      required: [category, items]
+
+    GroceryList:
+      type: object
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/GroceryCategory"
+        totalItems:
+          type: integer
+        checkedItems:
+          type: integer
+      required: [categories, totalItems, checkedItems]
+
+    AddGroceryItemBody:
+      type: object
+      properties:
+        name:
+          type: string
+        quantity:
+          type: string
+        unit:
+          type: string
+          nullable: true
+        category:
+          type: string
+        scheduleType:
+          type: string
+          nullable: true
+          description: "none | weekly | biweekly | every_other_day | custom"
+        scheduleDaysInterval:
+          type: integer
+          nullable: true
+          description: If custom schedule, number of days between additions
+      required: [name, quantity, category]
+
+    UpdateGroceryItemBody:
+      type: object
+      properties:
+        isChecked:
+          type: boolean
+          nullable: true
+        quantity:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
+
+    AddMealResult:
+      type: object
+      properties:
+        addedItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/GroceryItem"
+        pantryPrompts:
+          type: array
+          items:
+            $ref: "#/components/schemas/PantryPrompt"
+      required: [addedItems, pantryPrompts]
+
+    PantryPrompt:
+      type: object
+      properties:
+        pantryItemId:
+          type: integer
+        ingredientName:
+          type: string
+        question:
+          type: string
+          description: "Do you still have oregano?"
+        groceryItemId:
+          type: integer
+          description: The grocery item that was added (can be removed if user confirms they have it)
+      required: [pantryItemId, ingredientName, question, groceryItemId]
+
+    GrocerySuggestion:
+      type: object
+      properties:
+        name:
+          type: string
+        reason:
+          type: string
+          description: Why this is being suggested
+        category:
+          type: string
+        frequency:
+          type: string
+          description: "How often this item has been purchased"
+      required: [name, reason, category, frequency]
+
+    # ── PANTRY ──────────────────────────────────────────────────────────────
+
+    PantryItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        quantity:
+          type: string
+          nullable: true
+        category:
+          type: string
+        inStock:
+          type: boolean
+        lastVerifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        usedInMeals:
+          type: array
+          items:
+            type: string
+          description: Meal names that use this ingredient
+        notes:
+          type: string
+          nullable: true
+      required: [id, name, category, inStock, usedInMeals]
+
+    AddPantryItemBody:
+      type: object
+      properties:
+        name:
+          type: string
+        quantity:
+          type: string
+          nullable: true
+        category:
+          type: string
+        notes:
+          type: string
+          nullable: true
+      required: [name, category]
+
+    UpdatePantryItemBody:
+      type: object
+      properties:
+        inStock:
+          type: boolean
+          nullable: true
+        quantity:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        lastVerifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    CheckPantryBody:
+      type: object
+      properties:
+        mealId:
+          type: integer
+      required: [mealId]
+
+    PantryCheckResult:
+      type: object
+      properties:
+        haveInPantry:
+          type: array
+          items:
+            $ref: "#/components/schemas/PantryItem"
+        needToBuy:
+          type: array
+          items:
+            $ref: "#/components/schemas/Ingredient"
+      required: [haveInPantry, needToBuy]
+
+    # ── SCHEDULED ──────────────────────────────────────────────────────────
+
+    ScheduledItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        quantity:
+          type: string
+        unit:
+          type: string
+          nullable: true
+        category:
+          type: string
+        scheduleType:
+          type: string
+          description: "weekly | biweekly | every_other_day | custom"
+        scheduleDaysInterval:
+          type: integer
+          nullable: true
+        nextDueDate:
+          type: string
+          format: date
+        lastAddedDate:
+          type: string
+          format: date
+          nullable: true
+        isActive:
+          type: boolean
+      required:
+        [
+          id,
+          name,
+          quantity,
+          category,
+          scheduleType,
+          nextDueDate,
+          isActive,
+        ]
+
+    CreateScheduledItemBody:
+      type: object
+      properties:
+        name:
+          type: string
+        quantity:
+          type: string
+        unit:
+          type: string
+          nullable: true
+        category:
+          type: string
+        scheduleType:
+          type: string
+          description: "weekly | biweekly | every_other_day | custom"
+        scheduleDaysInterval:
+          type: integer
+          nullable: true
+          description: Required if scheduleType is 'custom'
+      required: [name, quantity, category, scheduleType]
+
+    UpdateScheduledItemBody:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        quantity:
+          type: string
+          nullable: true
+        scheduleType:
+          type: string
+          nullable: true
+        scheduleDaysInterval:
+          type: integer
+          nullable: true
+        isActive:
+          type: boolean
+          nullable: true
+        nextDueDate:
+          type: string
+          format: date
+          nullable: true
