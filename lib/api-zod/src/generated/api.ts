@@ -229,6 +229,10 @@ export const AnalyzeRecipeUrlBody = zod.object({
 
 export const AnalyzeRecipeUrlResponse = zod.object({
   recipeName: zod.string(),
+  instructions: zod
+    .string()
+    .nullish()
+    .describe("Full recipe instructions extracted from the page"),
   ingredients: zod.array(
     zod.object({
       name: zod.string(),
@@ -242,6 +246,62 @@ export const AnalyzeRecipeUrlResponse = zod.object({
   ),
   haveCount: zod.number(),
   needCount: zod.number(),
+});
+
+/**
+ * @summary Save an analyzed recipe as a meal and optionally assign to a weekly plan day
+ */
+export const SaveAnalyzedRecipeBody = zod.object({
+  recipeName: zod.string(),
+  cuisine: zod.string().nullish(),
+  protein: zod.string().nullish(),
+  isGlutenFree: zod.boolean().nullish(),
+  cookTimeMinutes: zod.number().nullish(),
+  calories: zod.number().nullish(),
+  instructions: zod.string().nullish(),
+  sourceUrl: zod.string().nullish(),
+  assignToDay: zod
+    .string()
+    .nullish()
+    .describe('Day of week to assign to (e.g. \"monday\"). Optional.'),
+  ingredients: zod.array(
+    zod.object({
+      name: zod.string(),
+      quantity: zod.string(),
+      unit: zod.string().nullish(),
+      category: zod.string(),
+      inPantry: zod
+        .boolean()
+        .describe("Whether this ingredient is already in the pantry"),
+    }),
+  ),
+});
+
+/**
+ * @summary List all recipes that have been added to the grocery list
+ */
+export const ListRecipeHistoryResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  cuisine: zod.string(),
+  protein: zod.string(),
+  isGlutenFree: zod.boolean(),
+  cookTimeMinutes: zod.number(),
+  calories: zod.number(),
+  instructions: zod.string().nullish(),
+  sourceUrl: zod.string().nullish(),
+  mealId: zod.number().nullish(),
+  addedAt: zod.coerce.date(),
+});
+export const ListRecipeHistoryResponse = zod.array(
+  ListRecipeHistoryResponseItem,
+);
+
+/**
+ * @summary Remove a recipe from history
+ */
+export const DeleteRecipeHistoryParams = zod.object({
+  id: zod.coerce.number(),
 });
 
 /**

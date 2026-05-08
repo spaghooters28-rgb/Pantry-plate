@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
-import { db, groceryItemsTable, ingredientsTable, mealsTable, pantryItemsTable, scheduledItemsTable } from "@workspace/db";
+import { db, groceryItemsTable, ingredientsTable, mealsTable, pantryItemsTable, scheduledItemsTable, recipeHistoryTable } from "@workspace/db";
 import {
   AddGroceryItemBody,
   UpdateGroceryItemParams,
@@ -229,6 +229,19 @@ router.post("/grocery-list/from-meal/:mealId", async (req, res): Promise<void> =
       }
     }
   }
+
+  // Record in history
+  await db.insert(recipeHistoryTable).values({
+    name: meal.name,
+    cuisine: meal.cuisine,
+    protein: meal.protein,
+    isGlutenFree: meal.isGlutenFree,
+    cookTimeMinutes: meal.cookTimeMinutes,
+    calories: meal.calories,
+    instructions: meal.instructions ?? null,
+    sourceUrl: null,
+    mealId: meal.id,
+  });
 
   res.json({
     addedItems: addedItems.map((i) => ({

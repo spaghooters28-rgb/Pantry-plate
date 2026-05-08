@@ -4,3 +4,4 @@ export * from "./pantry";
 export * from "./schedule";
 export * from "./weekly";
 export * from "./preferences";
+export * from "./history";

@@ -234,9 +234,39 @@ export interface RecipeIngredient {
 
 export interface AnalyzeRecipeResult {
   recipeName: string;
+  /** Full recipe instructions extracted from the page */
+  instructions?: string | null;
   ingredients: RecipeIngredient[];
   haveCount: number;
   needCount: number;
+}
+
+export interface SaveRecipeBody {
+  recipeName: string;
+  cuisine?: string | null;
+  protein?: string | null;
+  isGlutenFree?: boolean | null;
+  cookTimeMinutes?: number | null;
+  calories?: number | null;
+  instructions?: string | null;
+  sourceUrl?: string | null;
+  /** Day of week to assign to (e.g. "monday"). Optional. */
+  assignToDay?: string | null;
+  ingredients: RecipeIngredient[];
+}
+
+export interface RecipeHistoryEntry {
+  id: number;
+  name: string;
+  cuisine: string;
+  protein: string;
+  isGlutenFree: boolean;
+  cookTimeMinutes: number;
+  calories: number;
+  instructions?: string | null;
+  sourceUrl?: string | null;
+  mealId?: number | null;
+  addedAt: string;
 }
 
 export interface UpdateScheduledItemBody {

@@ -22,6 +22,8 @@ tags:
     description: Weekly meal plans
   - name: preferences
     description: User preferences
+  - name: history
+    description: Recipe history tracking
 
 paths:
   /healthz:
@@ -181,6 +183,57 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AnalyzeRecipeResult"
+
+  /meals/save-recipe:
+    post:
+      operationId: saveAnalyzedRecipe
+      tags: [meals]
+      summary: Save an analyzed recipe as a meal and optionally assign to a weekly plan day
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveRecipeBody"
+      responses:
+        "201":
+          description: Saved meal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Meal"
+
+  # ── HISTORY ────────────────────────────────────────────────────────────────
+
+  /history:
+    get:
+      operationId: listRecipeHistory
+      tags: [history]
+      summary: List all recipes that have been added to the grocery list
+      responses:
+        "200":
+          description: Recipe history entries, most recent first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RecipeHistoryEntry"
+
+  /history/{id}:
+    delete:
+      operationId: deleteRecipeHistory
+      tags: [history]
+      summary: Remove a recipe from history
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
 
   /meals/sides:
     get:
@@ -1152,6 +1205,10 @@ components:
       properties:
         recipeName:
           type: string
+        instructions:
+          type: string
+          nullable: true
+          description: Full recipe instructions extracted from the page
         ingredients:
           type: array
           items:
@@ -1161,6 +1218,73 @@ components:
         needCount:
           type: integer
       required: [recipeName, ingredients, haveCount, needCount]
+
+    SaveRecipeBody:
+      type: object
+      properties:
+        recipeName:
+          type: string
+        cuisine:
+          type: string
+          nullable: true
+        protein:
+          type: string
+          nullable: true
+        isGlutenFree:
+          type: boolean
+          nullable: true
+        cookTimeMinutes:
+          type: integer
+          nullable: true
+        calories:
+          type: integer
+          nullable: true
+        instructions:
+          type: string
+          nullable: true
+        sourceUrl:
+          type: string
+          nullable: true
+        assignToDay:
+          type: string
+          nullable: true
+          description: Day of week to assign to (e.g. "monday"). Optional.
+        ingredients:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecipeIngredient"
+      required: [recipeName, ingredients]
+
+    RecipeHistoryEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        cuisine:
+          type: string
+        protein:
+          type: string
+        isGlutenFree:
+          type: boolean
+        cookTimeMinutes:
+          type: integer
+        calories:
+          type: integer
+        instructions:
+          type: string
+          nullable: true
+        sourceUrl:
+          type: string
+          nullable: true
+        mealId:
+          type: integer
+          nullable: true
+        addedAt:
+          type: string
+          format: date-time
+      required: [id, name, cuisine, protein, isGlutenFree, cookTimeMinutes, calories, addedAt]
 
     UpdateScheduledItemBody:
       type: object

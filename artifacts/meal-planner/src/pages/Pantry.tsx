@@ -7,6 +7,7 @@ import {
   useDeletePantryItem,
   useMovePantryItemToGrocery,
   useAnalyzeRecipeUrl,
+  useSaveAnalyzedRecipe,
   getGetGroceryListQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -15,7 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { PackageSearch, Plus, Trash2, CheckCircle2, AlertTriangle, ChefHat, ShoppingCart, Link, Loader2, Search } from "lucide-react";
+import { PackageSearch, Plus, Trash2, CheckCircle2, AlertTriangle, ChefHat, ShoppingCart, Link, Loader2, Search, ChevronDown, ChevronUp, Calendar, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const CATEGORIES = ["Pantry", "Produce", "Dairy & Eggs", "Meat & Seafood", "Grains & Bread", "Frozen", "Beverages", "Other"];
@@ -43,6 +44,7 @@ type RecipeIngredient = {
 
 type AnalyzeResult = {
   recipeName: string;
+  instructions: string | null;
   ingredients: RecipeIngredient[];
   haveCount: number;
   needCount: number;
@@ -56,6 +58,8 @@ export function Pantry() {
   const [analyzerOpen, setAnalyzerOpen] = useState(false);
   const [recipeUrl, setRecipeUrl] = useState("");
   const [analyzeResult, setAnalyzeResult] = useState<AnalyzeResult | null>(null);
+  const [selectedDay, setSelectedDay] = useState<string>("");
+  const [showInstructions, setShowInstructions] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const qKey = getListPantryItemsQueryKey();
@@ -67,6 +71,7 @@ export function Pantry() {
   const deleteMutation = useDeletePantryItem();
   const movePantryMutation = useMovePantryItemToGrocery();
   const analyzeRecipeMutation = useAnalyzeRecipeUrl();
+  const saveRecipeMutation = useSaveAnalyzedRecipe();
 
   const filteredItems = items?.filter((item) => {
     if (filter === "in-stock") return item.inStock;
@@ -154,10 +159,17 @@ export function Pantry() {
     );
   }
 
+  const ALL_DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+  const DAY_SHORT: Record<string, string> = {
+    monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu",
+    friday: "Fri", saturday: "Sat", sunday: "Sun",
+  };
+
   function handleAnalyzeRecipe(e: React.FormEvent) {
     e.preventDefault();
     if (!recipeUrl.trim()) return;
     setAnalyzeResult(null);
+    setShowInstructions(false);
     analyzeRecipeMutation.mutate(
       { data: { url: recipeUrl.trim() } },
       {
@@ -176,22 +188,26 @@ export function Pantry() {
       toast({ title: "You have everything!", description: "All ingredients are already in your pantry." });
       return;
     }
-    // We'll add them to grocery list as custom items via the grocery endpoint
-    // Use the grocery-list/items endpoint for each missing item
-    Promise.all(
-      missing.map((ing) =>
+    Promise.all([
+      // Add missing ingredients to grocery list
+      ...missing.map((ing) =>
         fetch("/api/grocery-list/items", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: ing.name,
-            quantity: ing.quantity || "1",
-            unit: ing.unit ?? undefined,
-            category: ing.category,
-          }),
+          body: JSON.stringify({ name: ing.name, quantity: ing.quantity || "1", unit: ing.unit ?? undefined, category: ing.category }),
         })
-      )
-    ).then(() => {
+      ),
+      // Record in history
+      fetch("/api/history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: analyzeResult.recipeName,
+          instructions: analyzeResult.instructions ?? null,
+          sourceUrl: recipeUrl.trim(),
+        }),
+      }),
+    ]).then(() => {
       queryClient.invalidateQueries({ queryKey: getGetGroceryListQueryKey() });
       toast({
         title: `${missing.length} item${missing.length !== 1 ? "s" : ""} added to grocery list!`,
@@ -200,9 +216,39 @@ export function Pantry() {
       setAnalyzerOpen(false);
       setRecipeUrl("");
       setAnalyzeResult(null);
+      setSelectedDay("");
     }).catch(() => {
       toast({ title: "Error", description: "Some items could not be added.", variant: "destructive" });
     });
+  }
+
+  function handleSaveAndAssignToDay() {
+    if (!analyzeResult) return;
+    saveRecipeMutation.mutate(
+      {
+        data: {
+          recipeName: analyzeResult.recipeName,
+          instructions: analyzeResult.instructions ?? null,
+          sourceUrl: recipeUrl.trim() || null,
+          assignToDay: selectedDay || null,
+          ingredients: analyzeResult.ingredients,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: selectedDay ? `Recipe saved & added to ${DAY_SHORT[selectedDay] ?? selectedDay}!` : "Recipe saved to Discover!",
+            description: selectedDay ? "Check the Weekly Plan to see it." : "You can now find it in Discover.",
+          });
+          setAnalyzerOpen(false);
+          setRecipeUrl("");
+          setAnalyzeResult(null);
+          setSelectedDay("");
+          setShowInstructions(false);
+        },
+        onError: () => toast({ title: "Error", description: "Could not save recipe.", variant: "destructive" }),
+      }
+    );
   }
 
   return (
@@ -378,8 +424,8 @@ export function Pantry() {
       </Dialog>
 
       {/* Recipe Link Analyzer Dialog */}
-      <Dialog open={analyzerOpen} onOpenChange={(open) => { if (!open) { setAnalyzerOpen(false); setAnalyzeResult(null); setRecipeUrl(""); } }}>
-        <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
+      <Dialog open={analyzerOpen} onOpenChange={(open) => { if (!open) { setAnalyzerOpen(false); setAnalyzeResult(null); setRecipeUrl(""); setSelectedDay(""); setShowInstructions(false); } }}>
+        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col gap-3">
           <DialogHeader>
             <DialogTitle className="font-serif flex items-center gap-2">
               <Link className="w-5 h-5" />
@@ -399,35 +445,51 @@ export function Pantry() {
             />
             <Button type="submit" disabled={analyzeRecipeMutation.isPending || !recipeUrl.trim()} className="shrink-0 gap-1.5">
               {analyzeRecipeMutation.isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Analyzing…
-                </>
+                <><Loader2 className="w-4 h-4 animate-spin" />Analyzing…</>
               ) : (
-                <>
-                  <Search className="w-4 h-4" />
-                  Analyze
-                </>
+                <><Search className="w-4 h-4" />Analyze</>
               )}
             </Button>
           </form>
 
           {analyzeResult && (
-            <div className="flex-1 overflow-y-auto space-y-4 mt-2">
+            <div className="flex-1 overflow-y-auto space-y-4 min-h-0">
+              {/* Recipe title + pantry summary */}
               <div>
                 <h3 className="font-semibold text-base font-serif">{analyzeResult.recipeName}</h3>
                 <div className="flex gap-3 text-sm mt-1">
                   <span className="flex items-center gap-1 text-green-700">
-                    <CheckCircle2 className="w-4 h-4" />
-                    {analyzeResult.haveCount} in pantry
+                    <CheckCircle2 className="w-4 h-4" />{analyzeResult.haveCount} in pantry
                   </span>
                   <span className="flex items-center gap-1 text-amber-700">
-                    <ShoppingCart className="w-4 h-4" />
-                    {analyzeResult.needCount} to buy
+                    <ShoppingCart className="w-4 h-4" />{analyzeResult.needCount} to buy
                   </span>
                 </div>
               </div>
 
+              {/* Instructions collapsible */}
+              {analyzeResult.instructions && (
+                <div className="border rounded-lg overflow-hidden">
+                  <button
+                    type="button"
+                    className="w-full flex items-center justify-between px-3 py-2.5 bg-muted/50 hover:bg-muted transition-colors text-sm font-medium"
+                    onClick={() => setShowInstructions((v) => !v)}
+                  >
+                    <span className="flex items-center gap-2">
+                      <ChefHat className="w-4 h-4 text-primary" />
+                      Recipe Instructions
+                    </span>
+                    {showInstructions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </button>
+                  {showInstructions && (
+                    <div className="px-3 py-3 text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
+                      {analyzeResult.instructions}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Ingredient list */}
               <div className="space-y-1.5">
                 {analyzeResult.ingredients.map((ing, idx) => (
                   <div
@@ -446,17 +508,55 @@ export function Pantry() {
                 ))}
               </div>
 
-              {analyzeResult.needCount > 0 && (
-                <Button className="w-full gap-2" onClick={handleAddMissingToGrocery}>
-                  <ShoppingCart className="w-4 h-4" />
-                  Add {analyzeResult.needCount} Missing Item{analyzeResult.needCount !== 1 ? "s" : ""} to Grocery List
-                </Button>
-              )}
-              {analyzeResult.needCount === 0 && (
-                <div className="text-center py-3 text-green-700 font-medium text-sm">
-                  🎉 You have everything for this recipe!
+              {/* Day picker for weekly plan assignment */}
+              <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
+                <p className="text-xs font-medium flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-primary" />
+                  Add to Weekly Plan (optional)
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {ALL_DAYS.map((day) => (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => setSelectedDay((d) => d === day ? "" : day)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors border ${
+                        selectedDay === day
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-card border-border text-muted-foreground hover:border-primary"
+                      }`}
+                    >
+                      {DAY_SHORT[day]}
+                    </button>
+                  ))}
                 </div>
-              )}
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex flex-col gap-2 pb-1">
+                {analyzeResult.needCount > 0 && (
+                  <Button variant="outline" className="w-full gap-2" onClick={handleAddMissingToGrocery}>
+                    <ShoppingCart className="w-4 h-4" />
+                    Add {analyzeResult.needCount} Missing Item{analyzeResult.needCount !== 1 ? "s" : ""} to Grocery List
+                  </Button>
+                )}
+                {analyzeResult.needCount === 0 && (
+                  <div className="text-center py-2 text-green-700 font-medium text-sm">
+                    🎉 You have everything for this recipe!
+                  </div>
+                )}
+                <Button
+                  className="w-full gap-2"
+                  onClick={handleSaveAndAssignToDay}
+                  disabled={saveRecipeMutation.isPending}
+                >
+                  {saveRecipeMutation.isPending ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" />Saving…</>
+                  ) : (
+                    <><Save className="w-4 h-4" />{selectedDay ? `Save Recipe & Add to ${DAY_SHORT[selectedDay]}` : "Save Recipe to Discover"}</>
+                  )}
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>

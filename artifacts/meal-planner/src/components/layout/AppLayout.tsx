@@ -6,6 +6,7 @@ import {
   ShoppingCart, 
   PackageSearch, 
   Clock, 
+  History,
   Menu
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -17,6 +18,7 @@ const routes = [
   { name: "Grocery List", path: "/grocery-list", icon: ShoppingCart },
   { name: "Pantry", path: "/pantry", icon: PackageSearch },
   { name: "Scheduled", path: "/schedule", icon: Clock },
+  { name: "History", path: "/history", icon: History },
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {

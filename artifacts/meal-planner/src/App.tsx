@@ -10,6 +10,7 @@ import { WeeklyPlan } from "@/pages/WeeklyPlan";
 import { GroceryList } from "@/pages/GroceryList";
 import { Pantry } from "@/pages/Pantry";
 import { ScheduledItems } from "@/pages/ScheduledItems";
+import { HistoryPage } from "@/pages/History";
 
 const queryClient = new QueryClient();
 
@@ -22,6 +23,7 @@ function Router() {
         <Route path="/grocery-list" component={GroceryList} />
         <Route path="/pantry" component={Pantry} />
         <Route path="/schedule" component={ScheduledItems} />
+        <Route path="/history" component={HistoryPage} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

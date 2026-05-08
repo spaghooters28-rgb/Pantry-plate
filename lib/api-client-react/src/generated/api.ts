@@ -37,6 +37,8 @@ import type {
   MovePantryToGroceryBody,
   PantryCheckResult,
   PantryItem,
+  RecipeHistoryEntry,
+  SaveRecipeBody,
   ScheduledItem,
   UpdateDayMealBody,
   UpdateGroceryItemBody,
@@ -706,6 +708,251 @@ export const useAnalyzeRecipeUrl = <
   TContext
 > => {
   return useMutation(getAnalyzeRecipeUrlMutationOptions(options));
+};
+
+/**
+ * @summary Save an analyzed recipe as a meal and optionally assign to a weekly plan day
+ */
+export const getSaveAnalyzedRecipeUrl = () => {
+  return `/api/meals/save-recipe`;
+};
+
+export const saveAnalyzedRecipe = async (
+  saveRecipeBody: SaveRecipeBody,
+  options?: RequestInit,
+): Promise<Meal> => {
+  return customFetch<Meal>(getSaveAnalyzedRecipeUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(saveRecipeBody),
+  });
+};
+
+export const getSaveAnalyzedRecipeMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof saveAnalyzedRecipe>>,
+    TError,
+    { data: BodyType<SaveRecipeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof saveAnalyzedRecipe>>,
+  TError,
+  { data: BodyType<SaveRecipeBody> },
+  TContext
+> => {
+  const mutationKey = ["saveAnalyzedRecipe"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof saveAnalyzedRecipe>>,
+    { data: BodyType<SaveRecipeBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return saveAnalyzedRecipe(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SaveAnalyzedRecipeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof saveAnalyzedRecipe>>
+>;
+export type SaveAnalyzedRecipeMutationBody = BodyType<SaveRecipeBody>;
+export type SaveAnalyzedRecipeMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Save an analyzed recipe as a meal and optionally assign to a weekly plan day
+ */
+export const useSaveAnalyzedRecipe = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof saveAnalyzedRecipe>>,
+    TError,
+    { data: BodyType<SaveRecipeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof saveAnalyzedRecipe>>,
+  TError,
+  { data: BodyType<SaveRecipeBody> },
+  TContext
+> => {
+  return useMutation(getSaveAnalyzedRecipeMutationOptions(options));
+};
+
+/**
+ * @summary List all recipes that have been added to the grocery list
+ */
+export const getListRecipeHistoryUrl = () => {
+  return `/api/history`;
+};
+
+export const listRecipeHistory = async (
+  options?: RequestInit,
+): Promise<RecipeHistoryEntry[]> => {
+  return customFetch<RecipeHistoryEntry[]>(getListRecipeHistoryUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListRecipeHistoryQueryKey = () => {
+  return [`/api/history`] as const;
+};
+
+export const getListRecipeHistoryQueryOptions = <
+  TData = Awaited<ReturnType<typeof listRecipeHistory>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listRecipeHistory>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListRecipeHistoryQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listRecipeHistory>>
+  > = ({ signal }) => listRecipeHistory({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listRecipeHistory>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListRecipeHistoryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listRecipeHistory>>
+>;
+export type ListRecipeHistoryQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all recipes that have been added to the grocery list
+ */
+
+export function useListRecipeHistory<
+  TData = Awaited<ReturnType<typeof listRecipeHistory>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listRecipeHistory>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListRecipeHistoryQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Remove a recipe from history
+ */
+export const getDeleteRecipeHistoryUrl = (id: number) => {
+  return `/api/history/${id}`;
+};
+
+export const deleteRecipeHistory = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteRecipeHistoryUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteRecipeHistoryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteRecipeHistory>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteRecipeHistory>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteRecipeHistory"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteRecipeHistory>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteRecipeHistory(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteRecipeHistoryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteRecipeHistory>>
+>;
+
+export type DeleteRecipeHistoryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove a recipe from history
+ */
+export const useDeleteRecipeHistory = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteRecipeHistory>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteRecipeHistory>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteRecipeHistoryMutationOptions(options));
 };
 
 /**

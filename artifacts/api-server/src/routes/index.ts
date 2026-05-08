@@ -8,6 +8,7 @@ import pantryRouter from "./pantry";
 import scheduleRouter from "./schedule";
 import preferencesRouter from "./preferences";
 import analyzeRecipeRouter from "./analyze-recipe";
+import historyRouter from "./history";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(groceryRouter);
 router.use(pantryRouter);
 router.use(scheduleRouter);
 router.use(preferencesRouter);
+router.use(historyRouter);
 
 export default router;
