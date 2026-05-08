@@ -11,10 +11,9 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { PackageSearch, Plus, Trash2, CheckCircle2, AlertTriangle, ChefHat, ShoppingCart } from "lucide-react";
+import { PackageSearch, Plus, Trash2, ChefHat, ShoppingCart } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const CATEGORIES = [
@@ -54,13 +53,9 @@ type PantryItem = {
   usedInMeals?: string[];
 };
 
-type RemoveAction = { item: PantryItem } | null;
-
 export function Pantry() {
   const [addOpen, setAddOpen] = useState(false);
-  const [filter, setFilter] = useState<"all" | "in-stock" | "depleted">("all");
   const [newItem, setNewItem] = useState({ name: "", quantity: "", category: "Pantry", notes: "" });
-  const [removeAction, setRemoveAction] = useState<RemoveAction>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const qKey = getListPantryItemsQueryKey();
@@ -92,21 +87,15 @@ export function Pantry() {
     );
   }
 
-  const filteredItems = items?.filter((item) => {
-    if (filter === "in-stock") return item.inStock;
-    if (filter === "depleted") return !item.inStock;
-    return true;
-  }) ?? [];
-
-  const inStockCount = items?.filter((i) => i.inStock).length ?? 0;
-  const depletedCount = items?.filter((i) => !i.inStock).length ?? 0;
-
-  // Group items by category
+  // Group items by category, sorted alphabetically within each group
   const grouped: Record<string, PantryItem[]> = {};
-  for (const item of filteredItems) {
+  for (const item of (items ?? [])) {
     const cat = item.category || "Other";
     if (!grouped[cat]) grouped[cat] = [];
     grouped[cat].push(item as PantryItem);
+  }
+  for (const cat of Object.keys(grouped)) {
+    grouped[cat].sort((a, b) => a.name.localeCompare(b.name));
   }
   const sortedCategories = Object.keys(grouped).sort((a, b) => {
     const ai = CATEGORY_ORDER.indexOf(a);
@@ -117,49 +106,28 @@ export function Pantry() {
     return ai - bi;
   });
 
-  function handleToggleStock(item: PantryItem) {
-    updateMutation.mutate(
-      { id: item.id, data: { inStock: !item.inStock, lastVerifiedAt: new Date().toISOString() } },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: qKey });
-          toast({
-            title: item.inStock ? `${item.name} marked depleted` : `${item.name} restocked`,
-            description: item.inStock ? "We'll suggest adding it to your grocery list." : "Updated in your pantry.",
-          });
-        },
-        onError: () => toast({ title: "Error", description: "Could not update pantry item.", variant: "destructive" }),
-      }
-    );
-  }
-
-  function handleAddToGroceryAndRemove(item: PantryItem, removeFromPantry: boolean) {
+  function handleAddToGrocery(item: PantryItem) {
     movePantryMutation.mutate(
-      { id: item.id, data: { removeFromPantry } },
+      { id: item.id, data: { removeFromPantry: false } },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: qKey });
           queryClient.invalidateQueries({ queryKey: getGetGroceryListQueryKey() });
-          setRemoveAction(null);
-          toast({
-            title: removeFromPantry ? `${item.name} moved to grocery list` : `${item.name} added to grocery list`,
-            description: removeFromPantry ? "Removed from pantry and added to your grocery list." : "Added to your grocery list.",
-          });
+          toast({ title: `${item.name} added to grocery list` });
         },
-        onError: () => toast({ title: "Error", description: "Could not update item.", variant: "destructive" }),
+        onError: () => toast({ title: "Error", description: "Could not add to grocery list.", variant: "destructive" }),
       }
     );
   }
 
-  function handleDelete(id: number, name: string) {
+  function handleDelete(item: PantryItem) {
     deleteMutation.mutate(
-      { id },
+      { id: item.id },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: qKey });
-          setRemoveAction(null);
-          toast({ title: `${name} removed from pantry.` });
+          toast({ title: `${item.name} removed from pantry.` });
         },
+        onError: () => toast({ title: "Error", description: "Could not remove item.", variant: "destructive" }),
       }
     );
   }
@@ -205,42 +173,14 @@ export function Pantry() {
 
       {/* Summary stats */}
       {!isLoading && items && items.length > 0 && (
-        <div className="grid grid-cols-3 gap-3">
-          <button
-            onClick={() => setFilter("all")}
-            className={`p-3 rounded-xl border text-center transition-colors ${filter === "all" ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/40"}`}
-          >
+        <div className="grid grid-cols-2 gap-3">
+          <div className="p-3 rounded-xl border border-border bg-card text-center">
             <p className="text-2xl font-bold font-serif">{items.length}</p>
             <p className="text-xs text-muted-foreground mt-0.5">Total Items</p>
-          </button>
-          <button
-            onClick={() => setFilter("in-stock")}
-            className={`p-3 rounded-xl border text-center transition-colors ${filter === "in-stock" ? "border-green-500 bg-green-50" : "border-border bg-card hover:border-green-300"}`}
-          >
-            <p className="text-2xl font-bold font-serif text-green-700">{inStockCount}</p>
+          </div>
+          <div className="p-3 rounded-xl border border-green-200 bg-green-50 text-center">
+            <p className="text-2xl font-bold font-serif text-green-700">{items.filter((i) => i.inStock).length}</p>
             <p className="text-xs text-muted-foreground mt-0.5">In Stock</p>
-          </button>
-          <button
-            onClick={() => setFilter("depleted")}
-            className={`p-3 rounded-xl border text-center transition-colors ${filter === "depleted" ? "border-destructive bg-destructive/5" : "border-border bg-card hover:border-destructive/40"}`}
-          >
-            <p className="text-2xl font-bold font-serif text-destructive">{depletedCount}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Depleted</p>
-          </button>
-        </div>
-      )}
-
-      {/* Depleted alert */}
-      {!isLoading && depletedCount > 0 && filter !== "in-stock" && (
-        <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200">
-          <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-          <div>
-            <p className="text-sm font-medium text-amber-800">
-              {depletedCount} item{depletedCount > 1 ? "s are" : " is"} depleted
-            </p>
-            <p className="text-xs text-amber-700 mt-0.5">
-              Check the Grocery Suggestions in your Grocery List to restock them automatically.
-            </p>
           </div>
         </div>
       )}
@@ -256,11 +196,11 @@ export function Pantry() {
             </div>
           ))}
         </div>
-      ) : filteredItems.length === 0 ? (
+      ) : (items ?? []).length === 0 ? (
         <div className="py-16 text-center text-muted-foreground">
           <PackageSearch className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p className="font-medium mb-1">{filter === "depleted" ? "Nothing is depleted!" : "Your pantry is empty."}</p>
-          <p className="text-sm">{filter === "all" ? "Add pantry items to track what you have at home." : "Try switching the filter."}</p>
+          <p className="font-medium mb-1">Your pantry is empty.</p>
+          <p className="text-sm">Add pantry items to track what you have at home.</p>
         </div>
       ) : (
         <div className="space-y-6">
@@ -274,33 +214,29 @@ export function Pantry() {
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {grouped[category].map((item) => (
-                  <Card key={item.id} className={`overflow-hidden transition-opacity ${!item.inStock ? "opacity-70" : ""}`}>
-                    <div className={`h-1 w-full ${item.inStock ? "bg-green-500" : "bg-destructive"}`} />
+                  <Card key={item.id} className="overflow-hidden">
+                    <div className="h-1 w-full bg-green-500" />
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <h3 className="font-semibold text-base leading-tight flex-1">{item.name}</h3>
                         <div className="flex items-center gap-1">
                           <button
-                            className={`p-1 rounded-full transition-colors ${item.inStock ? "text-green-600 hover:bg-green-100" : "text-muted-foreground hover:bg-muted"}`}
-                            onClick={() => handleToggleStock(item)}
-                            title={item.inStock ? "Mark depleted" : "Mark in stock"}
+                            className="p-1 text-muted-foreground hover:text-primary transition-colors"
+                            onClick={() => handleAddToGrocery(item)}
+                            disabled={movePantryMutation.isPending}
+                            title="Add to grocery list"
                           >
-                            {item.inStock ? <CheckCircle2 className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
+                            <ShoppingCart className="w-4 h-4" />
                           </button>
                           <button
                             className="p-1 text-muted-foreground hover:text-destructive transition-colors"
-                            onClick={() => setRemoveAction({ item })}
-                            title="Remove options"
+                            onClick={() => handleDelete(item)}
+                            disabled={deleteMutation.isPending}
+                            title="Remove from pantry"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 flex-wrap mb-2">
-                        <Badge variant={item.inStock ? "default" : "destructive"} className="text-xs">
-                          {item.inStock ? "In Stock" : "Depleted"}
-                        </Badge>
                       </div>
 
                       <div className="flex items-center gap-1 mt-0.5">
@@ -374,45 +310,6 @@ export function Pantry() {
           </div>
         </div>
       )}
-
-      {/* Remove Action Dialog */}
-      <Dialog open={!!removeAction} onOpenChange={(open) => { if (!open) setRemoveAction(null); }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="font-serif">Remove "{removeAction?.item.name}"</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">What would you like to do with this item?</p>
-          <div className="flex flex-col gap-2 pt-1">
-            <Button
-              variant="outline"
-              className="justify-start gap-2"
-              onClick={() => removeAction && handleAddToGroceryAndRemove(removeAction.item, false)}
-              disabled={movePantryMutation.isPending}
-            >
-              <ShoppingCart className="w-4 h-4 text-primary" />
-              Add to Grocery List (keep in pantry)
-            </Button>
-            <Button
-              variant="outline"
-              className="justify-start gap-2"
-              onClick={() => removeAction && handleAddToGroceryAndRemove(removeAction.item, true)}
-              disabled={movePantryMutation.isPending}
-            >
-              <ShoppingCart className="w-4 h-4 text-amber-600" />
-              Add to Grocery List &amp; Remove from Pantry
-            </Button>
-            <Button
-              variant="destructive"
-              className="justify-start gap-2"
-              onClick={() => removeAction && handleDelete(removeAction.item.id, removeAction.item.name)}
-              disabled={deleteMutation.isPending}
-            >
-              <Trash2 className="w-4 h-4" />
-              Remove from Pantry Only
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Add Item Dialog */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
