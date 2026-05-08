@@ -15,6 +15,7 @@ interface AiMealSuggestion {
   servings: number;
   calories: number;
   tags: string[];
+  instructions: string;
   ingredients: Array<{
     name: string;
     quantity: string;
@@ -54,6 +55,7 @@ Return a JSON array (no markdown, no code fences, ONLY valid JSON) with exactly 
 - servings: number (2, 4, or 6)
 - calories: number (per serving, e.g. 250-800)
 - tags: string[] (3-5 lowercase tags, e.g. ["spicy","quick","comfort-food"])
+- instructions: string (numbered step-by-step cooking instructions, 6-10 steps, clear and practical — e.g. "1. Season the chicken...\n2. Heat oil in a pan...")
 - ingredients: array of objects (6-12 items), each with:
     name: string, quantity: string, unit: string, category: string, isCommonPantryItem: boolean
     category must be one of: Produce, Dairy, Meat & Seafood, Pantry, Spices & Herbs, Bakery, Frozen, Beverages, Other
@@ -102,6 +104,9 @@ Be creative — avoid generic or duplicated meal names. Return ONLY the JSON arr
           calories: Number(suggestion.calories) || 400,
           imageUrl: null,
           tags: Array.isArray(suggestion.tags) ? suggestion.tags : [],
+          instructions: typeof suggestion.instructions === "string" && suggestion.instructions.trim()
+            ? suggestion.instructions.trim()
+            : null,
         })
         .returning();
 
