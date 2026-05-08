@@ -4,6 +4,7 @@ import { db, mealsTable, ingredientsTable, sidesTable } from "@workspace/db";
 import {
   ListMealsQueryParams,
   GetMealParams,
+  ToggleMealFavoriteParams,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -22,6 +23,7 @@ async function buildMealResponse(meal: typeof mealsTable.$inferSelect) {
   return {
     ...meal,
     imageUrl: meal.imageUrl ?? null,
+    instructions: meal.instructions ?? null,
     ingredients,
     availableSides: sides,
   };
@@ -62,6 +64,29 @@ router.get("/meals/proteins", async (_req, res): Promise<void> => {
 router.get("/meals/sides", async (_req, res): Promise<void> => {
   const allSides = await db.selectDistinct({ name: sidesTable.name }).from(sidesTable);
   res.json(allSides.map((s) => s.name));
+});
+
+router.post("/meals/:id/toggle-favorite", async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const params = ToggleMealFavoriteParams.safeParse({ id: raw });
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [meal] = await db.select().from(mealsTable).where(eq(mealsTable.id, params.data.id));
+  if (!meal) {
+    res.status(404).json({ error: "Meal not found" });
+    return;
+  }
+
+  const [updated] = await db
+    .update(mealsTable)
+    .set({ isFavorited: !meal.isFavorited })
+    .where(eq(mealsTable.id, params.data.id))
+    .returning();
+
+  res.json(await buildMealResponse(updated));
 });
 
 router.get("/meals/:id", async (req, res): Promise<void> => {

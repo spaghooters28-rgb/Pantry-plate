@@ -3,3 +3,4 @@ export * from "./grocery";
 export * from "./pantry";
 export * from "./schedule";
 export * from "./weekly";
+export * from "./preferences";

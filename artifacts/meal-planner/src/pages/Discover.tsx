@@ -7,6 +7,7 @@ import {
   useAddMealToGroceryList,
   useCheckPantryForMeal,
   useGenerateAiMeals,
+  useToggleMealFavorite,
   getGetGroceryListQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -15,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Clock, Flame, ChefHat, ShoppingCart, CheckCircle2, AlertCircle, Users, Sparkles, RefreshCw } from "lucide-react";
+import { Clock, Flame, ChefHat, ShoppingCart, CheckCircle2, AlertCircle, Users, Sparkles, RefreshCw, Star, BookOpen, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 type Meal = {
@@ -29,6 +30,8 @@ type Meal = {
   servings: number;
   calories: number;
   imageUrl?: string | null;
+  isFavorited?: boolean;
+  instructions?: string | null;
   tags?: string[];
   ingredients?: Array<{ id: number; name: string; quantity: string; unit: string; category: string; isCommonPantryItem: boolean }>;
   availableSides?: Array<{ id: number; name: string; description?: string }>;
@@ -52,10 +55,12 @@ export function Discover() {
   const [cuisine, setCuisine] = useState<string>("");
   const [protein, setProtein] = useState<string>("");
   const [glutenFreeOnly, setGlutenFreeOnly] = useState(false);
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [selectedMeal, setSelectedMeal] = useState<Meal | null>(null);
   const [pantryCheck, setPantryCheck] = useState<PantryCheckResult | null>(null);
   const [pantryCheckLoading, setPantryCheckLoading] = useState(false);
   const [addingMealId, setAddingMealId] = useState<number | null>(null);
+  const [showInstructions, setShowInstructions] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -65,9 +70,11 @@ export function Discover() {
     glutenFree: glutenFreeOnly || undefined,
   };
 
-  const { data: meals, isLoading } = useListMeals(params, {
+  const { data: allMeals, isLoading } = useListMeals(params, {
     query: { queryKey: getListMealsQueryKey(params) },
   });
+
+  const meals = favoritesOnly ? allMeals?.filter((m) => (m as Meal).isFavorited) : allMeals;
 
   const { data: cuisines } = useListCuisines();
   const { data: proteins } = useListProteins();
@@ -75,9 +82,11 @@ export function Discover() {
   const addMealMutation = useAddMealToGroceryList();
   const checkPantryMutation = useCheckPantryForMeal();
   const generateAiMealsMutation = useGenerateAiMeals();
+  const toggleFavoriteMutation = useToggleMealFavorite();
 
   function handleOpenMeal(meal: Meal) {
     setSelectedMeal(meal);
+    setShowInstructions(false);
     setPantryCheck(null);
     setPantryCheckLoading(true);
     checkPantryMutation.mutate(
@@ -119,6 +128,23 @@ export function Discover() {
     );
   }
 
+  function handleToggleFavorite(e: React.MouseEvent, meal: Meal) {
+    e.stopPropagation();
+    toggleFavoriteMutation.mutate(
+      { id: meal.id },
+      {
+        onSuccess: (updated) => {
+          queryClient.invalidateQueries({ queryKey: getListMealsQueryKey(params) });
+          // Update dialog meal if open
+          if (selectedMeal?.id === meal.id) {
+            setSelectedMeal((prev) => prev ? { ...prev, isFavorited: (updated as Meal).isFavorited } : null);
+          }
+        },
+        onError: () => toast({ title: "Error", description: "Could not update favorite.", variant: "destructive" }),
+      }
+    );
+  }
+
   function handleGenerateAi() {
     generateAiMealsMutation.mutate(
       {
@@ -152,6 +178,7 @@ export function Discover() {
     cuisine && `Cuisine: ${cuisine}`,
     protein && `Protein: ${protein}`,
     glutenFreeOnly && "Gluten-Free",
+    favoritesOnly && "Favorites",
   ].filter(Boolean);
 
   return (
@@ -223,7 +250,7 @@ export function Discover() {
           ))}
         </div>
 
-        {/* Protein + GF filter */}
+        {/* Protein + GF + Favorites filter */}
         <div className="flex flex-wrap gap-2 items-center">
           <button
             onClick={() => setProtein("")}
@@ -251,6 +278,15 @@ export function Discover() {
             }`}
           >
             Gluten-Free Only
+          </button>
+          <button
+            onClick={() => setFavoritesOnly(!favoritesOnly)}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border flex items-center gap-1 ${
+              favoritesOnly ? "bg-amber-400 text-white border-amber-400" : "bg-card border-border text-muted-foreground hover:border-amber-400 hover:text-amber-500"
+            }`}
+          >
+            <Star className="w-3.5 h-3.5" />
+            Favorites
           </button>
         </div>
       </div>
@@ -285,57 +321,73 @@ export function Discover() {
       ) : meals?.length === 0 ? (
         <div className="py-16 text-center">
           <ChefHat className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p className="text-muted-foreground mb-4">No meals match your filters yet.</p>
-          <Button onClick={handleGenerateAi} disabled={generateAiMealsMutation.isPending} className="gap-2">
-            <Sparkles className="w-4 h-4" />
-            {generateAiMealsMutation.isPending ? "Generating…" : "Generate Meals with AI"}
-          </Button>
+          <p className="text-muted-foreground mb-4">
+            {favoritesOnly ? "You haven't starred any meals yet." : "No meals match your filters yet."}
+          </p>
+          {!favoritesOnly && (
+            <Button onClick={handleGenerateAi} disabled={generateAiMealsMutation.isPending} className="gap-2">
+              <Sparkles className="w-4 h-4" />
+              {generateAiMealsMutation.isPending ? "Generating…" : "Generate Meals with AI"}
+            </Button>
+          )}
         </div>
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {meals?.map((meal) => (
-              <Card key={meal.id} className="overflow-hidden flex flex-col hover:shadow-md transition-shadow cursor-pointer group" onClick={() => handleOpenMeal(meal as Meal)}>
-                <div className={`h-3 w-full ${CUISINE_COLORS[meal.cuisine]?.split(" ")[0] ?? "bg-primary"}`} />
-                <CardHeader className="pb-2">
-                  <div className="flex justify-between items-start mb-1">
-                    <Badge
-                      className={`text-xs font-medium ${CUISINE_COLORS[meal.cuisine] ?? "bg-muted text-muted-foreground"}`}
+            {meals?.map((meal) => {
+              const m = meal as Meal;
+              return (
+                <Card key={m.id} className="overflow-hidden flex flex-col hover:shadow-md transition-shadow cursor-pointer group" onClick={() => handleOpenMeal(m)}>
+                  <div className={`h-3 w-full ${CUISINE_COLORS[m.cuisine]?.split(" ")[0] ?? "bg-primary"}`} />
+                  <CardHeader className="pb-2">
+                    <div className="flex justify-between items-start mb-1">
+                      <Badge
+                        className={`text-xs font-medium ${CUISINE_COLORS[m.cuisine] ?? "bg-muted text-muted-foreground"}`}
+                        variant="outline"
+                      >
+                        {m.cuisine}
+                      </Badge>
+                      <div className="flex items-center gap-1">
+                        {m.isGlutenFree && (
+                          <Badge variant="outline" className="text-xs border-green-600 text-green-600">GF</Badge>
+                        )}
+                        <button
+                          onClick={(e) => handleToggleFavorite(e, m)}
+                          className={`p-1 rounded-full transition-colors ${m.isFavorited ? "text-amber-400 hover:text-amber-500" : "text-muted-foreground hover:text-amber-400"}`}
+                          title={m.isFavorited ? "Remove from favorites" : "Add to favorites"}
+                        >
+                          <Star className={`w-4 h-4 ${m.isFavorited ? "fill-amber-400" : ""}`} />
+                        </button>
+                      </div>
+                    </div>
+                    <CardTitle className="text-lg font-serif leading-tight group-hover:text-primary transition-colors">
+                      {m.name}
+                    </CardTitle>
+                    <CardDescription className="text-sm line-clamp-2">{m.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex-1 pb-2">
+                    <div className="flex gap-3 text-sm text-muted-foreground">
+                      <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{m.cookTimeMinutes}m</span>
+                      <span className="flex items-center gap-1"><Flame className="w-3.5 h-3.5" />{m.calories} kcal</span>
+                      <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />Serves {m.servings}</span>
+                    </div>
+                    <div className="mt-2">
+                      <Badge variant="secondary" className="text-xs">{m.protein}</Badge>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="pt-2 pb-4">
+                    <Button
+                      className="w-full"
                       variant="outline"
+                      size="sm"
+                      onClick={(e) => { e.stopPropagation(); handleOpenMeal(m); }}
                     >
-                      {meal.cuisine}
-                    </Badge>
-                    {meal.isGlutenFree && (
-                      <Badge variant="outline" className="text-xs border-green-600 text-green-600">GF</Badge>
-                    )}
-                  </div>
-                  <CardTitle className="text-lg font-serif leading-tight group-hover:text-primary transition-colors">
-                    {meal.name}
-                  </CardTitle>
-                  <CardDescription className="text-sm line-clamp-2">{meal.description}</CardDescription>
-                </CardHeader>
-                <CardContent className="flex-1 pb-2">
-                  <div className="flex gap-3 text-sm text-muted-foreground">
-                    <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{meal.cookTimeMinutes}m</span>
-                    <span className="flex items-center gap-1"><Flame className="w-3.5 h-3.5" />{meal.calories} kcal</span>
-                    <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />Serves {meal.servings}</span>
-                  </div>
-                  <div className="mt-2">
-                    <Badge variant="secondary" className="text-xs">{meal.protein}</Badge>
-                  </div>
-                </CardContent>
-                <CardFooter className="pt-2 pb-4">
-                  <Button
-                    className="w-full"
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => { e.stopPropagation(); handleOpenMeal(meal as Meal); }}
-                  >
-                    View Recipe
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
+                      View Recipe
+                    </Button>
+                  </CardFooter>
+                </Card>
+              );
+            })}
 
             {/* AI generation skeleton cards */}
             {generateAiMealsMutation.isPending && (
@@ -383,11 +435,11 @@ export function Discover() {
 
       {/* Meal Detail Dialog */}
       <Dialog open={!!selectedMeal} onOpenChange={(open) => { if (!open) setSelectedMeal(null); }}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           {selectedMeal && (
             <>
               <DialogHeader>
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <Badge className={`text-xs ${CUISINE_COLORS[selectedMeal.cuisine] ?? "bg-muted"}`} variant="outline">
                     {selectedMeal.cuisine}
                   </Badge>
@@ -395,6 +447,13 @@ export function Discover() {
                     <Badge variant="outline" className="text-xs border-green-600 text-green-600">Gluten-Free</Badge>
                   )}
                   <Badge variant="secondary" className="text-xs">{selectedMeal.protein}</Badge>
+                  <button
+                    onClick={(e) => handleToggleFavorite(e, selectedMeal)}
+                    className={`ml-auto p-1.5 rounded-full transition-colors flex items-center gap-1 text-sm ${selectedMeal.isFavorited ? "text-amber-400 hover:text-amber-500" : "text-muted-foreground hover:text-amber-400"}`}
+                  >
+                    <Star className={`w-4 h-4 ${selectedMeal.isFavorited ? "fill-amber-400" : ""}`} />
+                    {selectedMeal.isFavorited ? "Favorited" : "Favorite"}
+                  </button>
                 </div>
                 <DialogTitle className="text-2xl font-serif">{selectedMeal.name}</DialogTitle>
                 <DialogDescription>{selectedMeal.description}</DialogDescription>
@@ -448,6 +507,27 @@ export function Discover() {
                   </div>
                 ) : null}
               </div>
+
+              {/* Recipe Instructions */}
+              {selectedMeal.instructions && (
+                <div className="space-y-2">
+                  <button
+                    className="w-full flex items-center justify-between text-sm font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground transition-colors"
+                    onClick={() => setShowInstructions((v) => !v)}
+                  >
+                    <span className="flex items-center gap-2">
+                      <BookOpen className="w-4 h-4" />
+                      Recipe Instructions
+                    </span>
+                    {showInstructions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </button>
+                  {showInstructions && (
+                    <div className="p-4 rounded-lg bg-muted/50 border text-sm leading-relaxed whitespace-pre-line">
+                      {selectedMeal.instructions}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Sides */}
               {selectedMeal.availableSides && selectedMeal.availableSides.length > 0 && (

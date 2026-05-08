@@ -6,15 +6,19 @@ import weeklyRouter from "./weekly";
 import groceryRouter from "./grocery";
 import pantryRouter from "./pantry";
 import scheduleRouter from "./schedule";
+import preferencesRouter from "./preferences";
+import analyzeRecipeRouter from "./analyze-recipe";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(mealsRouter);
 router.use(aiMealsRouter);
+router.use(analyzeRecipeRouter);
 router.use(weeklyRouter);
 router.use(groceryRouter);
 router.use(pantryRouter);
 router.use(scheduleRouter);
+router.use(preferencesRouter);
 
 export default router;

@@ -41,6 +41,8 @@ export const ListMealsResponseItem = zod.object({
   servings: zod.number(),
   calories: zod.number(),
   imageUrl: zod.string().nullish(),
+  isFavorited: zod.boolean(),
+  instructions: zod.string().nullish(),
   ingredients: zod.array(
     zod.object({
       id: zod.number(),
@@ -82,6 +84,8 @@ export const GetMealResponse = zod.object({
   servings: zod.number(),
   calories: zod.number(),
   imageUrl: zod.string().nullish(),
+  isFavorited: zod.boolean(),
+  instructions: zod.string().nullish(),
   ingredients: zod.array(
     zod.object({
       id: zod.number(),
@@ -149,6 +153,8 @@ export const GenerateAiMealsResponseItem = zod.object({
   servings: zod.number(),
   calories: zod.number(),
   imageUrl: zod.string().nullish(),
+  isFavorited: zod.boolean(),
+  instructions: zod.string().nullish(),
   ingredients: zod.array(
     zod.object({
       id: zod.number(),
@@ -173,10 +179,118 @@ export const GenerateAiMealsResponseItem = zod.object({
 export const GenerateAiMealsResponse = zod.array(GenerateAiMealsResponseItem);
 
 /**
+ * @summary Toggle favorite status of a meal
+ */
+export const ToggleMealFavoriteParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ToggleMealFavoriteResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string(),
+  cuisine: zod.string(),
+  protein: zod.string(),
+  isGlutenFree: zod.boolean(),
+  cookTimeMinutes: zod.number(),
+  servings: zod.number(),
+  calories: zod.number(),
+  imageUrl: zod.string().nullish(),
+  isFavorited: zod.boolean(),
+  instructions: zod.string().nullish(),
+  ingredients: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      quantity: zod.string(),
+      unit: zod.string(),
+      category: zod.string().describe("produce, dairy, meat, pantry, etc."),
+      isCommonPantryItem: zod
+        .boolean()
+        .describe("Common spices\/staples likely already in pantry"),
+    }),
+  ),
+  availableSides: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      description: zod.string(),
+    }),
+  ),
+  tags: zod.array(zod.string()),
+});
+
+/**
+ * @summary Analyze a recipe URL with AI and extract ingredients
+ */
+export const AnalyzeRecipeUrlBody = zod.object({
+  url: zod.string().describe("URL of the recipe page to analyze"),
+});
+
+export const AnalyzeRecipeUrlResponse = zod.object({
+  recipeName: zod.string(),
+  ingredients: zod.array(
+    zod.object({
+      name: zod.string(),
+      quantity: zod.string(),
+      unit: zod.string().nullish(),
+      category: zod.string(),
+      inPantry: zod
+        .boolean()
+        .describe("Whether this ingredient is already in the pantry"),
+    }),
+  ),
+  haveCount: zod.number(),
+  needCount: zod.number(),
+});
+
+/**
  * @summary List all available side dish options
  */
 export const ListSidesResponseItem = zod.string();
 export const ListSidesResponse = zod.array(ListSidesResponseItem);
+
+/**
+ * @summary Get weekly meal plan generation preferences
+ */
+export const GetWeeklyPlanPreferencesResponse = zod.object({
+  cuisine: zod.string().nullish(),
+  proteins: zod.array(zod.string()).optional(),
+  glutenFree: zod.boolean().nullish(),
+  activeDays: zod
+    .array(zod.string())
+    .optional()
+    .describe(
+      'Days of week to plan meals for (e.g. [\"monday\",\"wednesday\",\"friday\"]). If empty, all 7 days.',
+    ),
+});
+
+/**
+ * @summary Save weekly meal plan generation preferences
+ */
+export const SaveWeeklyPlanPreferencesBody = zod.object({
+  cuisine: zod.string().nullish(),
+  proteins: zod.array(zod.string()).optional(),
+  glutenFree: zod.boolean().nullish(),
+  activeDays: zod
+    .array(zod.string())
+    .optional()
+    .describe(
+      'Days of week to plan meals for (e.g. [\"monday\",\"wednesday\",\"friday\"]). If empty, all 7 days.',
+    ),
+});
+
+export const SaveWeeklyPlanPreferencesResponse = zod.object({
+  cuisine: zod.string().nullish(),
+  proteins: zod.array(zod.string()).optional(),
+  glutenFree: zod.boolean().nullish(),
+  activeDays: zod
+    .array(zod.string())
+    .optional()
+    .describe(
+      'Days of week to plan meals for (e.g. [\"monday\",\"wednesday\",\"friday\"]). If empty, all 7 days.',
+    ),
+});
 
 /**
  * @summary Get the current weekly meal plan
@@ -199,6 +313,8 @@ export const GetWeeklyPlanResponse = zod.object({
           servings: zod.number(),
           calories: zod.number(),
           imageUrl: zod.string().nullish(),
+          isFavorited: zod.boolean(),
+          instructions: zod.string().nullish(),
           ingredients: zod.array(
             zod.object({
               id: zod.number(),
@@ -256,6 +372,8 @@ export const GenerateWeeklyPlanResponse = zod.object({
           servings: zod.number(),
           calories: zod.number(),
           imageUrl: zod.string().nullish(),
+          isFavorited: zod.boolean(),
+          instructions: zod.string().nullish(),
           ingredients: zod.array(
             zod.object({
               id: zod.number(),
@@ -287,6 +405,14 @@ export const GenerateWeeklyPlanResponse = zod.object({
 });
 
 /**
+ * @summary Add all meals from the current weekly plan to the grocery list
+ */
+export const AddWeekToGroceryListResponse = zod.object({
+  added: zod.number(),
+  mealsProcessed: zod.number(),
+});
+
+/**
  * @summary Assign a meal to a specific day
  */
 export const UpdateDayMealParams = zod.object({
@@ -312,6 +438,8 @@ export const UpdateDayMealResponse = zod.object({
       servings: zod.number(),
       calories: zod.number(),
       imageUrl: zod.string().nullish(),
+      isFavorited: zod.boolean(),
+      instructions: zod.string().nullish(),
       ingredients: zod.array(
         zod.object({
           id: zod.number(),
@@ -564,6 +692,23 @@ export const UpdatePantryItemResponse = zod.object({
  */
 export const DeletePantryItemParams = zod.object({
   id: zod.coerce.number(),
+});
+
+/**
+ * @summary Add a pantry item to the grocery list then optionally remove from pantry
+ */
+export const MovePantryItemToGroceryParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const MovePantryItemToGroceryBody = zod.object({
+  removeFromPantry: zod
+    .boolean()
+    .describe("If true, delete item from pantry after adding to grocery"),
+});
+
+export const MovePantryItemToGroceryResponse = zod.object({
+  success: zod.boolean(),
 });
 
 /**

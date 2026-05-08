@@ -14,6 +14,8 @@ export const mealsTable = pgTable("meals", {
   calories: integer("calories").notNull(),
   imageUrl: text("image_url"),
   tags: text("tags").array().notNull().default([]),
+  isFavorited: boolean("is_favorited").notNull().default(false),
+  instructions: text("instructions"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

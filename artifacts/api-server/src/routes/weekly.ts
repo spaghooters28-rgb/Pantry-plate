@@ -1,11 +1,11 @@
 import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
-import { db, mealsTable, ingredientsTable, sidesTable, weeklyPlansTable, weeklyPlanDaysTable } from "@workspace/db";
+import { db, mealsTable, ingredientsTable, sidesTable, weeklyPlansTable, weeklyPlanDaysTable, groceryItemsTable, pantryItemsTable } from "@workspace/db";
 import { GenerateWeeklyPlanBody, UpdateDayMealBody, UpdateDayMealParams } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
-const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+const ALL_DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 
 async function getMealDetails(mealId: number | null | undefined) {
   if (!mealId) return null;
@@ -13,7 +13,7 @@ async function getMealDetails(mealId: number | null | undefined) {
   if (!meal) return null;
   const ingredients = await db.select().from(ingredientsTable).where(eq(ingredientsTable.mealId, mealId));
   const sides = await db.select().from(sidesTable).where(eq(sidesTable.mealId, mealId));
-  return { ...meal, imageUrl: meal.imageUrl ?? null, ingredients, availableSides: sides };
+  return { ...meal, imageUrl: meal.imageUrl ?? null, instructions: meal.instructions ?? null, ingredients, availableSides: sides };
 }
 
 async function buildPlanResponse(plan: typeof weeklyPlansTable.$inferSelect) {
@@ -60,7 +60,7 @@ router.get("/weekly-plan", async (_req, res): Promise<void> => {
       id: 0,
       weekStartDate: weekStart,
       generatedAt: new Date().toISOString(),
-      days: DAYS.map((day) => ({ day, meal: null, selectedSideId: null })),
+      days: ALL_DAYS.map((day) => ({ day, meal: null, selectedSideId: null })),
     });
     return;
   }
@@ -83,7 +83,15 @@ router.post("/weekly-plan", async (req, res): Promise<void> => {
   if (proteins && proteins.length > 0) allMeals = allMeals.filter((m) => proteins.includes(m.protein));
 
   const shuffled = [...allMeals].sort(() => Math.random() - 0.5);
-  const selected = shuffled.slice(0, 7);
+
+  // Support activeDays from body (not in GenerateWeeklyPlanBody schema yet, read raw)
+  const rawBody = req.body as Record<string, unknown>;
+  const activeDays: string[] = Array.isArray(rawBody.activeDays) && (rawBody.activeDays as unknown[]).every((d) => typeof d === "string")
+    ? (rawBody.activeDays as string[]).filter((d) => ALL_DAYS.includes(d))
+    : ALL_DAYS;
+
+  const planDays = activeDays.length > 0 ? activeDays : ALL_DAYS;
+  const selected = shuffled.slice(0, planDays.length);
 
   const weekStart = getWeekStart();
 
@@ -92,16 +100,94 @@ router.post("/weekly-plan", async (req, res): Promise<void> => {
     .values({ weekStartDate: weekStart })
     .returning();
 
+  // Build all 7 days — active days get meals, inactive days get null
   await db.insert(weeklyPlanDaysTable).values(
-    DAYS.map((day, i) => ({
-      planId: newPlan.id,
-      day,
-      mealId: selected[i]?.id ?? null,
-      selectedSideId: null,
-    }))
+    ALL_DAYS.map((day, i) => {
+      const activeIndex = planDays.indexOf(day);
+      return {
+        planId: newPlan.id,
+        day,
+        mealId: activeIndex >= 0 ? (selected[activeIndex]?.id ?? null) : null,
+        selectedSideId: null,
+      };
+    })
   );
 
   res.json(await buildPlanResponse(newPlan));
+});
+
+router.post("/weekly-plan/add-to-grocery", async (_req, res): Promise<void> => {
+  const [plan] = await db
+    .select()
+    .from(weeklyPlansTable)
+    .orderBy(desc(weeklyPlansTable.id))
+    .limit(1);
+
+  if (!plan) {
+    res.status(404).json({ error: "No weekly plan exists yet" });
+    return;
+  }
+
+  const planDays = await db
+    .select()
+    .from(weeklyPlanDaysTable)
+    .where(eq(weeklyPlanDaysTable.planId, plan.id));
+
+  const mealIds = [...new Set(planDays.map((d) => d.mealId).filter((id): id is number => id !== null))];
+
+  if (mealIds.length === 0) {
+    res.json({ added: 0, mealsProcessed: 0 });
+    return;
+  }
+
+  const pantryItems = await db.select().from(pantryItemsTable).where(eq(pantryItemsTable.inStock, true));
+
+  let totalAdded = 0;
+
+  for (const mealId of mealIds) {
+    const [meal] = await db.select().from(mealsTable).where(eq(mealsTable.id, mealId));
+    if (!meal) continue;
+
+    const ingredients = await db
+      .select()
+      .from(ingredientsTable)
+      .where(eq(ingredientsTable.mealId, mealId));
+
+    for (const ingredient of ingredients) {
+      // Skip if already in grocery list for this meal
+      const existing = await db
+        .select()
+        .from(groceryItemsTable)
+        .where(eq(groceryItemsTable.name, ingredient.name));
+
+      if (existing.some((e) => e.mealId === mealId)) continue;
+
+      // Skip common pantry items that are in stock
+      if (ingredient.isCommonPantryItem) {
+        const inPantry = pantryItems.find(
+          (p) =>
+            p.name.toLowerCase().includes(ingredient.name.toLowerCase()) ||
+            ingredient.name.toLowerCase().includes(p.name.toLowerCase())
+        );
+        if (inPantry) continue;
+      }
+
+      await db.insert(groceryItemsTable).values({
+        name: ingredient.name,
+        quantity: ingredient.quantity,
+        unit: ingredient.unit,
+        category: ingredient.category,
+        isChecked: false,
+        isCustom: false,
+        mealId: meal.id,
+        mealName: meal.name,
+      });
+
+      totalAdded++;
+    }
+  }
+
+  res.json({ added: totalAdded, mealsProcessed: mealIds.length });
 });
 
 router.put("/weekly-plan/days/:day/meal", async (req, res): Promise<void> => {

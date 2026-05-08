@@ -37,6 +37,8 @@ export interface Meal {
   servings: number;
   calories: number;
   imageUrl?: string | null;
+  isFavorited: boolean;
+  instructions?: string | null;
   ingredients: Ingredient[];
   availableSides: Side[];
   tags: string[];
@@ -203,6 +205,40 @@ export interface CreateScheduledItemBody {
   scheduleDaysInterval?: number | null;
 }
 
+export interface MovePantryToGroceryBody {
+  /** If true, delete item from pantry after adding to grocery */
+  removeFromPantry: boolean;
+}
+
+export interface WeeklyPlanPreferences {
+  cuisine?: string | null;
+  proteins?: string[];
+  glutenFree?: boolean | null;
+  /** Days of week to plan meals for (e.g. ["monday","wednesday","friday"]). If empty, all 7 days. */
+  activeDays?: string[];
+}
+
+export interface AnalyzeRecipeBody {
+  /** URL of the recipe page to analyze */
+  url: string;
+}
+
+export interface RecipeIngredient {
+  name: string;
+  quantity: string;
+  unit?: string | null;
+  category: string;
+  /** Whether this ingredient is already in the pantry */
+  inPantry: boolean;
+}
+
+export interface AnalyzeRecipeResult {
+  recipeName: string;
+  ingredients: RecipeIngredient[];
+  haveCount: number;
+  needCount: number;
+}
+
 export interface UpdateScheduledItemBody {
   name?: string | null;
   quantity?: string | null;
@@ -226,4 +262,13 @@ export type ListMealsParams = {
    * Filter by side dish type
    */
   side?: string;
+};
+
+export type AddWeekToGroceryList200 = {
+  added: number;
+  mealsProcessed: number;
+};
+
+export type MovePantryItemToGrocery200 = {
+  success: boolean;
 };

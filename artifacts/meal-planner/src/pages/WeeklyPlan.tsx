@@ -4,10 +4,15 @@ import {
   getGetWeeklyPlanQueryKey,
   useGenerateWeeklyPlan,
   useUpdateDayMeal,
-  useAddMealToGroceryList,
+  useAddWeekToGroceryList,
+  useGetWeeklyPlanPreferences,
+  useSaveWeeklyPlanPreferences,
   useListMeals,
+  useListCuisines,
+  useListProteins,
   getListMealsQueryKey,
   getGetGroceryListQueryKey,
+  getGetWeeklyPlanPreferencesQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,24 +20,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Clock, Flame, Shuffle, ShoppingCart, ChevronRight, Calendar } from "lucide-react";
+import { Clock, Flame, Shuffle, ShoppingCart, ChevronRight, Calendar, Settings2, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-type DayMeal = {
-  id: number;
-  name: string;
-  cuisine: string;
-  cookTimeMinutes: number;
-  calories: number;
-  protein: string;
-  isGlutenFree: boolean;
-};
-
-type Day = {
-  day: string;
-  dayIndex: number;
-  meal: DayMeal | null;
-};
+const ALL_DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 
 const DAY_SHORT: Record<string, string> = {
   monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu",
@@ -51,6 +42,13 @@ function capitalizeDay(day: string) {
 export function WeeklyPlan() {
   const [swapDay, setSwapDay] = useState<string | null>(null);
   const [swapSearch, setSwapSearch] = useState("");
+  const [showPrefs, setShowPrefs] = useState(false);
+  const [localPrefs, setLocalPrefs] = useState<{
+    cuisine: string;
+    proteins: string[];
+    glutenFree: boolean;
+    activeDays: string[];
+  } | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -58,15 +56,86 @@ export function WeeklyPlan() {
     query: { queryKey: getGetWeeklyPlanQueryKey() },
   });
 
+  const { data: preferences } = useGetWeeklyPlanPreferences({
+    query: { queryKey: getGetWeeklyPlanPreferencesQueryKey() },
+  });
+
+  // Sync server preferences to local state on first load
+  if (preferences && !localPrefs) {
+    const p = preferences as { cuisine?: string | null; proteins?: string[]; glutenFree?: boolean | null; activeDays?: string[] };
+    setLocalPrefs({
+      cuisine: p.cuisine ?? "",
+      proteins: p.proteins ?? [],
+      glutenFree: p.glutenFree ?? false,
+      activeDays: p.activeDays ?? [],
+    });
+  }
+
   const { data: allMeals } = useListMeals({}, { query: { queryKey: getListMealsQueryKey({}), enabled: !!swapDay } });
+  const { data: cuisines } = useListCuisines();
+  const { data: proteins } = useListProteins();
 
   const generateMutation = useGenerateWeeklyPlan();
   const updateDayMealMutation = useUpdateDayMeal();
-  const addMealMutation = useAddMealToGroceryList();
+  const addWeekToGroceryMutation = useAddWeekToGroceryList();
+  const savePreferencesMutation = useSaveWeeklyPlanPreferences();
+
+  const prefs = localPrefs ?? {
+    cuisine: (preferences as { cuisine?: string | null } | undefined)?.cuisine ?? "",
+    proteins: (preferences as { proteins?: string[] } | undefined)?.proteins ?? [],
+    glutenFree: (preferences as { glutenFree?: boolean | null } | undefined)?.glutenFree ?? false,
+    activeDays: (preferences as { activeDays?: string[] } | undefined)?.activeDays ?? [],
+  };
+
+  function handleSavePreferences() {
+    savePreferencesMutation.mutate(
+      {
+        data: {
+          cuisine: prefs.cuisine || null,
+          proteins: prefs.proteins,
+          glutenFree: prefs.glutenFree || null,
+          activeDays: prefs.activeDays,
+        },
+      },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetWeeklyPlanPreferencesQueryKey() });
+          setShowPrefs(false);
+          toast({ title: "Preferences saved!", description: "They'll be used next time you generate a plan." });
+        },
+        onError: () => toast({ title: "Error", description: "Could not save preferences.", variant: "destructive" }),
+      }
+    );
+  }
+
+  function toggleProtein(p: string) {
+    setLocalPrefs((prev) => {
+      if (!prev) return prev;
+      const has = prev.proteins.includes(p);
+      return { ...prev, proteins: has ? prev.proteins.filter((x) => x !== p) : [...prev.proteins, p] };
+    });
+  }
+
+  function toggleActiveDay(day: string) {
+    setLocalPrefs((prev) => {
+      if (!prev) return prev;
+      const has = prev.activeDays.includes(day);
+      return { ...prev, activeDays: has ? prev.activeDays.filter((d) => d !== day) : [...prev.activeDays, day] };
+    });
+  }
 
   function handleGenerate() {
+    const activeDays = prefs.activeDays.length > 0 ? prefs.activeDays : ALL_DAYS;
     generateMutation.mutate(
-      { data: {} },
+      {
+        data: {
+          cuisine: prefs.cuisine || null,
+          glutenFree: prefs.glutenFree || null,
+          proteins: prefs.proteins.length > 0 ? prefs.proteins : undefined,
+          // Pass activeDays as extra field (server reads from raw body)
+          ...(prefs.activeDays.length > 0 ? { activeDays } : {}),
+        } as Parameters<typeof generateMutation.mutate>[0]["data"],
+      },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetWeeklyPlanQueryKey() });
@@ -95,39 +164,23 @@ export function WeeklyPlan() {
 
   function handleAddAllToGrocery() {
     if (!plan) return;
-    const mealIds = plan.days.filter((d) => d.meal).map((d) => d.meal!.id);
-    const unique = [...new Set(mealIds)];
-    let done = 0;
-    let added = 0;
-
-    if (unique.length === 0) {
+    const plannedMeals = plan.days.filter((d) => d.meal);
+    if (plannedMeals.length === 0) {
       toast({ title: "No meals planned", description: "Add meals to your week first." });
       return;
     }
 
-    toast({ title: "Adding all meals…", description: `Adding ${unique.length} meals to your grocery list.` });
-
-    for (const id of unique) {
-      addMealMutation.mutate(
-        { mealId: id },
-        {
-          onSuccess: () => {
-            added++;
-            done++;
-            if (done === unique.length) {
-              queryClient.invalidateQueries({ queryKey: getGetGroceryListQueryKey() });
-              toast({ title: "All meals added!", description: `${added} meals added to your grocery list.` });
-            }
-          },
-          onError: () => {
-            done++;
-            if (done === unique.length) {
-              queryClient.invalidateQueries({ queryKey: getGetGroceryListQueryKey() });
-            }
-          },
-        }
-      );
-    }
+    addWeekToGroceryMutation.mutate(undefined, {
+      onSuccess: (result) => {
+        queryClient.invalidateQueries({ queryKey: getGetGroceryListQueryKey() });
+        const r = result as { added: number; mealsProcessed: number };
+        toast({
+          title: "Week added to grocery list!",
+          description: `${r.added} ingredients added from ${r.mealsProcessed} meal${r.mealsProcessed !== 1 ? "s" : ""}.`,
+        });
+      },
+      onError: () => toast({ title: "Error", description: "Could not add week to grocery list.", variant: "destructive" }),
+    });
   }
 
   const filteredMeals = allMeals?.filter((m) =>
@@ -138,6 +191,8 @@ export function WeeklyPlan() {
   const totalCalories = plan?.days.reduce((sum, d) => sum + (d.meal?.calories ?? 0), 0) ?? 0;
   const plannedDays = plan?.days.filter((d) => d.meal).length ?? 0;
 
+  const prefsActive = prefs.cuisine || prefs.proteins.length > 0 || prefs.glutenFree || prefs.activeDays.length > 0;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -146,9 +201,23 @@ export function WeeklyPlan() {
           <p className="text-muted-foreground">Your week at a glance.</p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" onClick={handleAddAllToGrocery} disabled={!plan || plannedDays === 0}>
+          <Button
+            variant="outline"
+            onClick={handleAddAllToGrocery}
+            disabled={!plan || plannedDays === 0 || addWeekToGroceryMutation.isPending}
+          >
             <ShoppingCart className="w-4 h-4 mr-2" />
-            Add Week to Grocery List
+            {addWeekToGroceryMutation.isPending ? "Adding…" : "Add Week to Grocery List"}
+          </Button>
+          <Button
+            variant={showPrefs ? "secondary" : "outline"}
+            onClick={() => setShowPrefs((v) => !v)}
+            className="gap-1.5"
+          >
+            <Settings2 className="w-4 h-4" />
+            Preferences
+            {prefsActive && <span className="w-2 h-2 rounded-full bg-primary" />}
+            {showPrefs ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </Button>
           <Button onClick={handleGenerate} disabled={generateMutation.isPending}>
             <Shuffle className="w-4 h-4 mr-2" />
@@ -156,6 +225,115 @@ export function WeeklyPlan() {
           </Button>
         </div>
       </div>
+
+      {/* Preferences Panel */}
+      {showPrefs && (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Settings2 className="w-4 h-4" />
+              Generation Preferences
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Active Days */}
+            <div>
+              <label className="text-sm font-medium mb-2 block">Active Days (leave empty for all 7)</label>
+              <div className="flex flex-wrap gap-2">
+                {ALL_DAYS.map((day) => (
+                  <button
+                    key={day}
+                    onClick={() => toggleActiveDay(day)}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                      prefs.activeDays.includes(day)
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-card border-border text-muted-foreground hover:border-primary hover:text-primary"
+                    }`}
+                  >
+                    {DAY_SHORT[day]}
+                  </button>
+                ))}
+                {prefs.activeDays.length > 0 && (
+                  <button
+                    onClick={() => setLocalPrefs((p) => p ? { ...p, activeDays: [] } : p)}
+                    className="px-3 py-1.5 rounded-full text-sm text-muted-foreground hover:text-foreground transition-colors border border-dashed border-border"
+                  >
+                    All days
+                  </button>
+                )}
+              </div>
+              {prefs.activeDays.length > 0 && (
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  Planning {prefs.activeDays.length} day{prefs.activeDays.length !== 1 ? "s" : ""} — blank days will have no meal assigned.
+                </p>
+              )}
+            </div>
+
+            {/* Cuisine */}
+            <div>
+              <label className="text-sm font-medium mb-2 block">Preferred Cuisine</label>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setLocalPrefs((p) => p ? { ...p, cuisine: "" } : p)}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                    !prefs.cuisine ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border text-muted-foreground hover:border-primary"
+                  }`}
+                >
+                  Any
+                </button>
+                {cuisines?.map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setLocalPrefs((p) => p ? { ...p, cuisine: p.cuisine === c ? "" : c } : p)}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                      prefs.cuisine === c ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border text-muted-foreground hover:border-primary"
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Proteins */}
+            <div>
+              <label className="text-sm font-medium mb-2 block">Protein Types (select multiple)</label>
+              <div className="flex flex-wrap gap-2">
+                {proteins?.map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => toggleProtein(p)}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                      prefs.proteins.includes(p) ? "bg-secondary text-secondary-foreground border-secondary" : "bg-card border-border text-muted-foreground hover:border-secondary"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Gluten Free */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setLocalPrefs((p) => p ? { ...p, glutenFree: !p.glutenFree } : p)}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                  prefs.glutenFree ? "bg-green-600 text-white border-green-600" : "bg-card border-border text-muted-foreground hover:border-green-600"
+                }`}
+              >
+                Gluten-Free Only
+              </button>
+            </div>
+
+            <div className="flex gap-2 justify-end pt-2 border-t">
+              <Button variant="ghost" size="sm" onClick={() => setShowPrefs(false)}>Cancel</Button>
+              <Button size="sm" onClick={handleSavePreferences} disabled={savePreferencesMutation.isPending}>
+                {savePreferencesMutation.isPending ? "Saving…" : "Save Preferences"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Week summary */}
       {!isLoading && plan && plannedDays > 0 && (
@@ -209,7 +387,7 @@ export function WeeklyPlan() {
                       </div>
                     ) : (
                       <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground text-sm">No meal planned</span>
+                        <span className="text-muted-foreground text-sm italic">Rest day</span>
                         <Button variant="outline" size="sm" onClick={() => setSwapDay(day.day)}>
                           <ChevronRight className="w-3.5 h-3.5 mr-1" />
                           Pick Meal

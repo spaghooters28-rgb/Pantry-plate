@@ -5,6 +5,9 @@ import {
   useUpdatePantryItem,
   useAddPantryItem,
   useDeletePantryItem,
+  useMovePantryItemToGrocery,
+  useAnalyzeRecipeUrl,
+  getGetGroceryListQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { PackageSearch, Plus, Trash2, CheckCircle2, AlertTriangle, ChefHat } from "lucide-react";
+import { PackageSearch, Plus, Trash2, CheckCircle2, AlertTriangle, ChefHat, ShoppingCart, Link, Loader2, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const CATEGORIES = ["Pantry", "Produce", "Dairy & Eggs", "Meat & Seafood", "Grains & Bread", "Frozen", "Beverages", "Other"];
@@ -28,10 +31,31 @@ type PantryItem = {
   usedInMeals?: string[];
 };
 
+type RemoveAction = { item: PantryItem } | null;
+
+type RecipeIngredient = {
+  name: string;
+  quantity: string;
+  unit: string | null;
+  category: string;
+  inPantry: boolean;
+};
+
+type AnalyzeResult = {
+  recipeName: string;
+  ingredients: RecipeIngredient[];
+  haveCount: number;
+  needCount: number;
+};
+
 export function Pantry() {
   const [addOpen, setAddOpen] = useState(false);
   const [filter, setFilter] = useState<"all" | "in-stock" | "depleted">("all");
   const [newItem, setNewItem] = useState({ name: "", quantity: "", category: "Pantry", notes: "" });
+  const [removeAction, setRemoveAction] = useState<RemoveAction>(null);
+  const [analyzerOpen, setAnalyzerOpen] = useState(false);
+  const [recipeUrl, setRecipeUrl] = useState("");
+  const [analyzeResult, setAnalyzeResult] = useState<AnalyzeResult | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const qKey = getListPantryItemsQueryKey();
@@ -41,6 +65,8 @@ export function Pantry() {
   const updateMutation = useUpdatePantryItem();
   const addMutation = useAddPantryItem();
   const deleteMutation = useDeletePantryItem();
+  const movePantryMutation = useMovePantryItemToGrocery();
+  const analyzeRecipeMutation = useAnalyzeRecipeUrl();
 
   const filteredItems = items?.filter((item) => {
     if (filter === "in-stock") return item.inStock;
@@ -73,12 +99,31 @@ export function Pantry() {
     );
   }
 
+  function handleAddToGroceryAndRemove(item: PantryItem, removeFromPantry: boolean) {
+    movePantryMutation.mutate(
+      { id: item.id, data: { removeFromPantry } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: qKey });
+          queryClient.invalidateQueries({ queryKey: getGetGroceryListQueryKey() });
+          setRemoveAction(null);
+          toast({
+            title: removeFromPantry ? `${item.name} moved to grocery list` : `${item.name} added to grocery list`,
+            description: removeFromPantry ? "Removed from pantry and added to your grocery list." : "Added to your grocery list.",
+          });
+        },
+        onError: () => toast({ title: "Error", description: "Could not update item.", variant: "destructive" }),
+      }
+    );
+  }
+
   function handleDelete(id: number, name: string) {
     deleteMutation.mutate(
       { id },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: qKey });
+          setRemoveAction(null);
           toast({ title: `${name} removed from pantry.` });
         },
       }
@@ -109,6 +154,57 @@ export function Pantry() {
     );
   }
 
+  function handleAnalyzeRecipe(e: React.FormEvent) {
+    e.preventDefault();
+    if (!recipeUrl.trim()) return;
+    setAnalyzeResult(null);
+    analyzeRecipeMutation.mutate(
+      { data: { url: recipeUrl.trim() } },
+      {
+        onSuccess: (result) => {
+          setAnalyzeResult(result as AnalyzeResult);
+        },
+        onError: () => toast({ title: "Error", description: "Could not analyze recipe. Make sure the URL is accessible.", variant: "destructive" }),
+      }
+    );
+  }
+
+  function handleAddMissingToGrocery() {
+    if (!analyzeResult) return;
+    const missing = analyzeResult.ingredients.filter((i) => !i.inPantry);
+    if (missing.length === 0) {
+      toast({ title: "You have everything!", description: "All ingredients are already in your pantry." });
+      return;
+    }
+    // We'll add them to grocery list as custom items via the grocery endpoint
+    // Use the grocery-list/items endpoint for each missing item
+    Promise.all(
+      missing.map((ing) =>
+        fetch("/api/grocery-list/items", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: ing.name,
+            quantity: ing.quantity || "1",
+            unit: ing.unit ?? undefined,
+            category: ing.category,
+          }),
+        })
+      )
+    ).then(() => {
+      queryClient.invalidateQueries({ queryKey: getGetGroceryListQueryKey() });
+      toast({
+        title: `${missing.length} item${missing.length !== 1 ? "s" : ""} added to grocery list!`,
+        description: `Missing ingredients from "${analyzeResult.recipeName}" added.`,
+      });
+      setAnalyzerOpen(false);
+      setRecipeUrl("");
+      setAnalyzeResult(null);
+    }).catch(() => {
+      toast({ title: "Error", description: "Some items could not be added.", variant: "destructive" });
+    });
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -116,10 +212,16 @@ export function Pantry() {
           <h1 className="text-3xl font-serif font-bold text-primary mb-1">Pantry</h1>
           <p className="text-muted-foreground">Track what you have at home.</p>
         </div>
-        <Button onClick={() => setAddOpen(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add Item
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => { setAnalyzerOpen(true); setAnalyzeResult(null); setRecipeUrl(""); }}>
+            <Link className="w-4 h-4 mr-2" />
+            Recipe Analyzer
+          </Button>
+          <Button onClick={() => setAddOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Item
+          </Button>
+        </div>
       </div>
 
       {/* Summary stats */}
@@ -197,7 +299,8 @@ export function Pantry() {
                     </button>
                     <button
                       className="p-1 text-muted-foreground hover:text-destructive transition-colors"
-                      onClick={() => handleDelete(item.id, item.name)}
+                      onClick={() => setRemoveAction({ item: item as PantryItem })}
+                      title="Remove options"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -234,6 +337,130 @@ export function Pantry() {
           ))}
         </div>
       )}
+
+      {/* Remove Action Dialog */}
+      <Dialog open={!!removeAction} onOpenChange={(open) => { if (!open) setRemoveAction(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-serif">Remove "{removeAction?.item.name}"</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">What would you like to do with this item?</p>
+          <div className="flex flex-col gap-2 pt-1">
+            <Button
+              variant="outline"
+              className="justify-start gap-2"
+              onClick={() => removeAction && handleAddToGroceryAndRemove(removeAction.item, false)}
+              disabled={movePantryMutation.isPending}
+            >
+              <ShoppingCart className="w-4 h-4 text-primary" />
+              Add to Grocery List (keep in pantry)
+            </Button>
+            <Button
+              variant="outline"
+              className="justify-start gap-2"
+              onClick={() => removeAction && handleAddToGroceryAndRemove(removeAction.item, true)}
+              disabled={movePantryMutation.isPending}
+            >
+              <ShoppingCart className="w-4 h-4 text-amber-600" />
+              Add to Grocery List &amp; Remove from Pantry
+            </Button>
+            <Button
+              variant="destructive"
+              className="justify-start gap-2"
+              onClick={() => removeAction && handleDelete(removeAction.item.id, removeAction.item.name)}
+              disabled={deleteMutation.isPending}
+            >
+              <Trash2 className="w-4 h-4" />
+              Remove from Pantry Only
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Recipe Link Analyzer Dialog */}
+      <Dialog open={analyzerOpen} onOpenChange={(open) => { if (!open) { setAnalyzerOpen(false); setAnalyzeResult(null); setRecipeUrl(""); } }}>
+        <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="font-serif flex items-center gap-2">
+              <Link className="w-5 h-5" />
+              Recipe Link Analyzer
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Paste a recipe URL — AI will extract the ingredients and cross-check your pantry.</p>
+
+          <form onSubmit={handleAnalyzeRecipe} className="flex gap-2">
+            <input
+              className="flex-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+              placeholder="https://www.allrecipes.com/recipe/..."
+              value={recipeUrl}
+              onChange={(e) => setRecipeUrl(e.target.value)}
+              type="url"
+              required
+            />
+            <Button type="submit" disabled={analyzeRecipeMutation.isPending || !recipeUrl.trim()} className="shrink-0 gap-1.5">
+              {analyzeRecipeMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Analyzing…
+                </>
+              ) : (
+                <>
+                  <Search className="w-4 h-4" />
+                  Analyze
+                </>
+              )}
+            </Button>
+          </form>
+
+          {analyzeResult && (
+            <div className="flex-1 overflow-y-auto space-y-4 mt-2">
+              <div>
+                <h3 className="font-semibold text-base font-serif">{analyzeResult.recipeName}</h3>
+                <div className="flex gap-3 text-sm mt-1">
+                  <span className="flex items-center gap-1 text-green-700">
+                    <CheckCircle2 className="w-4 h-4" />
+                    {analyzeResult.haveCount} in pantry
+                  </span>
+                  <span className="flex items-center gap-1 text-amber-700">
+                    <ShoppingCart className="w-4 h-4" />
+                    {analyzeResult.needCount} to buy
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                {analyzeResult.ingredients.map((ing, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm border ${
+                      ing.inPantry ? "bg-green-50 border-green-200" : "bg-amber-50 border-amber-200"
+                    }`}
+                  >
+                    <span className={ing.inPantry ? "text-green-800" : "text-amber-800"}>
+                      {ing.quantity} {ing.unit ? `${ing.unit} ` : ""}{ing.name}
+                    </span>
+                    <span className={`text-xs font-medium ${ing.inPantry ? "text-green-600" : "text-amber-600"}`}>
+                      {ing.inPantry ? "✓ Have it" : "Need it"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {analyzeResult.needCount > 0 && (
+                <Button className="w-full gap-2" onClick={handleAddMissingToGrocery}>
+                  <ShoppingCart className="w-4 h-4" />
+                  Add {analyzeResult.needCount} Missing Item{analyzeResult.needCount !== 1 ? "s" : ""} to Grocery List
+                </Button>
+              )}
+              {analyzeResult.needCount === 0 && (
+                <div className="text-center py-3 text-green-700 font-medium text-sm">
+                  🎉 You have everything for this recipe!
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Add Item Dialog */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>

@@ -1,12 +1,14 @@
 import { Router, type IRouter } from "express";
 import { eq, ilike } from "drizzle-orm";
-import { db, pantryItemsTable, ingredientsTable, mealsTable } from "@workspace/db";
+import { db, pantryItemsTable, ingredientsTable, mealsTable, groceryItemsTable } from "@workspace/db";
 import {
   AddPantryItemBody,
   UpdatePantryItemParams,
   UpdatePantryItemBody,
   DeletePantryItemParams,
   CheckPantryForMealBody,
+  MovePantryItemToGroceryParams,
+  MovePantryItemToGroceryBody,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -129,6 +131,44 @@ router.delete("/pantry/items/:id", async (req, res): Promise<void> => {
   }
 
   res.sendStatus(204);
+});
+
+router.post("/pantry/items/:id/to-grocery", async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const params = MovePantryItemToGroceryParams.safeParse({ id: raw });
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const parsed = MovePantryItemToGroceryBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const [item] = await db.select().from(pantryItemsTable).where(eq(pantryItemsTable.id, params.data.id));
+  if (!item) {
+    res.status(404).json({ error: "Pantry item not found" });
+    return;
+  }
+
+  await db.insert(groceryItemsTable).values({
+    name: item.name,
+    quantity: item.quantity ?? "1",
+    unit: null,
+    category: item.category,
+    isChecked: false,
+    isCustom: true,
+    mealId: null,
+    mealName: null,
+  });
+
+  if (parsed.data.removeFromPantry) {
+    await db.delete(pantryItemsTable).where(eq(pantryItemsTable.id, params.data.id));
+  }
+
+  res.json({ success: true });
 });
 
 router.post("/pantry/check", async (req, res): Promise<void> => {

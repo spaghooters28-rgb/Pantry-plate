@@ -20,6 +20,9 @@ import type {
   AddGroceryItemBody,
   AddMealResult,
   AddPantryItemBody,
+  AddWeekToGroceryList200,
+  AnalyzeRecipeBody,
+  AnalyzeRecipeResult,
   CheckPantryBody,
   CreateScheduledItemBody,
   GenerateAiMealsBody,
@@ -30,6 +33,8 @@ import type {
   HealthStatus,
   ListMealsParams,
   Meal,
+  MovePantryItemToGrocery200,
+  MovePantryToGroceryBody,
   PantryCheckResult,
   PantryItem,
   ScheduledItem,
@@ -39,6 +44,7 @@ import type {
   UpdateScheduledItemBody,
   WeeklyPlan,
   WeeklyPlanDay,
+  WeeklyPlanPreferences,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -533,6 +539,176 @@ export const useGenerateAiMeals = <
 };
 
 /**
+ * @summary Toggle favorite status of a meal
+ */
+export const getToggleMealFavoriteUrl = (id: number) => {
+  return `/api/meals/${id}/toggle-favorite`;
+};
+
+export const toggleMealFavorite = async (
+  id: number,
+  options?: RequestInit,
+): Promise<Meal> => {
+  return customFetch<Meal>(getToggleMealFavoriteUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getToggleMealFavoriteMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof toggleMealFavorite>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof toggleMealFavorite>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["toggleMealFavorite"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof toggleMealFavorite>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return toggleMealFavorite(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ToggleMealFavoriteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof toggleMealFavorite>>
+>;
+
+export type ToggleMealFavoriteMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Toggle favorite status of a meal
+ */
+export const useToggleMealFavorite = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof toggleMealFavorite>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof toggleMealFavorite>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getToggleMealFavoriteMutationOptions(options));
+};
+
+/**
+ * @summary Analyze a recipe URL with AI and extract ingredients
+ */
+export const getAnalyzeRecipeUrlUrl = () => {
+  return `/api/meals/analyze-recipe`;
+};
+
+export const analyzeRecipeUrl = async (
+  analyzeRecipeBody: AnalyzeRecipeBody,
+  options?: RequestInit,
+): Promise<AnalyzeRecipeResult> => {
+  return customFetch<AnalyzeRecipeResult>(getAnalyzeRecipeUrlUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(analyzeRecipeBody),
+  });
+};
+
+export const getAnalyzeRecipeUrlMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof analyzeRecipeUrl>>,
+    TError,
+    { data: BodyType<AnalyzeRecipeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof analyzeRecipeUrl>>,
+  TError,
+  { data: BodyType<AnalyzeRecipeBody> },
+  TContext
+> => {
+  const mutationKey = ["analyzeRecipeUrl"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof analyzeRecipeUrl>>,
+    { data: BodyType<AnalyzeRecipeBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return analyzeRecipeUrl(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AnalyzeRecipeUrlMutationResult = NonNullable<
+  Awaited<ReturnType<typeof analyzeRecipeUrl>>
+>;
+export type AnalyzeRecipeUrlMutationBody = BodyType<AnalyzeRecipeBody>;
+export type AnalyzeRecipeUrlMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Analyze a recipe URL with AI and extract ingredients
+ */
+export const useAnalyzeRecipeUrl = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof analyzeRecipeUrl>>,
+    TError,
+    { data: BodyType<AnalyzeRecipeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof analyzeRecipeUrl>>,
+  TError,
+  { data: BodyType<AnalyzeRecipeBody> },
+  TContext
+> => {
+  return useMutation(getAnalyzeRecipeUrlMutationOptions(options));
+};
+
+/**
  * @summary List all available side dish options
  */
 export const getListSidesUrl = () => {
@@ -596,6 +772,169 @@ export function useListSides<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Get weekly meal plan generation preferences
+ */
+export const getGetWeeklyPlanPreferencesUrl = () => {
+  return `/api/preferences/weekly-plan`;
+};
+
+export const getWeeklyPlanPreferences = async (
+  options?: RequestInit,
+): Promise<WeeklyPlanPreferences> => {
+  return customFetch<WeeklyPlanPreferences>(getGetWeeklyPlanPreferencesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetWeeklyPlanPreferencesQueryKey = () => {
+  return [`/api/preferences/weekly-plan`] as const;
+};
+
+export const getGetWeeklyPlanPreferencesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getWeeklyPlanPreferences>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getWeeklyPlanPreferences>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetWeeklyPlanPreferencesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getWeeklyPlanPreferences>>
+  > = ({ signal }) => getWeeklyPlanPreferences({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getWeeklyPlanPreferences>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetWeeklyPlanPreferencesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getWeeklyPlanPreferences>>
+>;
+export type GetWeeklyPlanPreferencesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get weekly meal plan generation preferences
+ */
+
+export function useGetWeeklyPlanPreferences<
+  TData = Awaited<ReturnType<typeof getWeeklyPlanPreferences>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getWeeklyPlanPreferences>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetWeeklyPlanPreferencesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Save weekly meal plan generation preferences
+ */
+export const getSaveWeeklyPlanPreferencesUrl = () => {
+  return `/api/preferences/weekly-plan`;
+};
+
+export const saveWeeklyPlanPreferences = async (
+  weeklyPlanPreferences: WeeklyPlanPreferences,
+  options?: RequestInit,
+): Promise<WeeklyPlanPreferences> => {
+  return customFetch<WeeklyPlanPreferences>(getSaveWeeklyPlanPreferencesUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(weeklyPlanPreferences),
+  });
+};
+
+export const getSaveWeeklyPlanPreferencesMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof saveWeeklyPlanPreferences>>,
+    TError,
+    { data: BodyType<WeeklyPlanPreferences> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof saveWeeklyPlanPreferences>>,
+  TError,
+  { data: BodyType<WeeklyPlanPreferences> },
+  TContext
+> => {
+  const mutationKey = ["saveWeeklyPlanPreferences"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof saveWeeklyPlanPreferences>>,
+    { data: BodyType<WeeklyPlanPreferences> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return saveWeeklyPlanPreferences(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SaveWeeklyPlanPreferencesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof saveWeeklyPlanPreferences>>
+>;
+export type SaveWeeklyPlanPreferencesMutationBody =
+  BodyType<WeeklyPlanPreferences>;
+export type SaveWeeklyPlanPreferencesMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Save weekly meal plan generation preferences
+ */
+export const useSaveWeeklyPlanPreferences = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof saveWeeklyPlanPreferences>>,
+    TError,
+    { data: BodyType<WeeklyPlanPreferences> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof saveWeeklyPlanPreferences>>,
+  TError,
+  { data: BodyType<WeeklyPlanPreferences> },
+  TContext
+> => {
+  return useMutation(getSaveWeeklyPlanPreferencesMutationOptions(options));
+};
 
 /**
  * @summary Get the current weekly meal plan
@@ -756,6 +1095,87 @@ export const useGenerateWeeklyPlan = <
   TContext
 > => {
   return useMutation(getGenerateWeeklyPlanMutationOptions(options));
+};
+
+/**
+ * @summary Add all meals from the current weekly plan to the grocery list
+ */
+export const getAddWeekToGroceryListUrl = () => {
+  return `/api/weekly-plan/add-to-grocery`;
+};
+
+export const addWeekToGroceryList = async (
+  options?: RequestInit,
+): Promise<AddWeekToGroceryList200> => {
+  return customFetch<AddWeekToGroceryList200>(getAddWeekToGroceryListUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getAddWeekToGroceryListMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addWeekToGroceryList>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addWeekToGroceryList>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["addWeekToGroceryList"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addWeekToGroceryList>>,
+    void
+  > = () => {
+    return addWeekToGroceryList(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddWeekToGroceryListMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addWeekToGroceryList>>
+>;
+
+export type AddWeekToGroceryListMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Add all meals from the current weekly plan to the grocery list
+ */
+export const useAddWeekToGroceryList = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addWeekToGroceryList>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addWeekToGroceryList>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getAddWeekToGroceryListMutationOptions(options));
 };
 
 /**
@@ -1748,6 +2168,97 @@ export const useDeletePantryItem = <
   TContext
 > => {
   return useMutation(getDeletePantryItemMutationOptions(options));
+};
+
+/**
+ * @summary Add a pantry item to the grocery list then optionally remove from pantry
+ */
+export const getMovePantryItemToGroceryUrl = (id: number) => {
+  return `/api/pantry/items/${id}/to-grocery`;
+};
+
+export const movePantryItemToGrocery = async (
+  id: number,
+  movePantryToGroceryBody: MovePantryToGroceryBody,
+  options?: RequestInit,
+): Promise<MovePantryItemToGrocery200> => {
+  return customFetch<MovePantryItemToGrocery200>(
+    getMovePantryItemToGroceryUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(movePantryToGroceryBody),
+    },
+  );
+};
+
+export const getMovePantryItemToGroceryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof movePantryItemToGrocery>>,
+    TError,
+    { id: number; data: BodyType<MovePantryToGroceryBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof movePantryItemToGrocery>>,
+  TError,
+  { id: number; data: BodyType<MovePantryToGroceryBody> },
+  TContext
+> => {
+  const mutationKey = ["movePantryItemToGrocery"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof movePantryItemToGrocery>>,
+    { id: number; data: BodyType<MovePantryToGroceryBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return movePantryItemToGrocery(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MovePantryItemToGroceryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof movePantryItemToGrocery>>
+>;
+export type MovePantryItemToGroceryMutationBody =
+  BodyType<MovePantryToGroceryBody>;
+export type MovePantryItemToGroceryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Add a pantry item to the grocery list then optionally remove from pantry
+ */
+export const useMovePantryItemToGrocery = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof movePantryItemToGrocery>>,
+    TError,
+    { id: number; data: BodyType<MovePantryToGroceryBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof movePantryItemToGrocery>>,
+  TError,
+  { id: number; data: BodyType<MovePantryToGroceryBody> },
+  TContext
+> => {
+  return useMutation(getMovePantryItemToGroceryMutationOptions(options));
 };
 
 /**
