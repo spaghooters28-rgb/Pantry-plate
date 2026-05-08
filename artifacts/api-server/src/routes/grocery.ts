@@ -11,7 +11,11 @@ import {
 
 const router: IRouter = Router();
 
-const CATEGORY_ORDER = ["Produce", "Meat & Seafood", "Dairy & Eggs", "Pantry", "Grains & Bread", "Frozen", "Beverages", "Other"];
+const CATEGORY_ORDER = [
+  "Produce", "Meat & Seafood", "Dairy & Eggs", "Grains & Bread", "Bakery",
+  "Canned Goods", "Condiments & Sauces", "Snacks", "Desserts", "Beverages",
+  "Frozen", "Pantry", "Cleaning", "Personal Care", "Other",
+];
 
 function groupByCategory(items: (typeof groceryItemsTable.$inferSelect)[]) {
   const grouped: Record<string, (typeof groceryItemsTable.$inferSelect)[]> = {};
@@ -40,7 +44,27 @@ function groupByCategory(items: (typeof groceryItemsTable.$inferSelect)[]) {
   }));
 }
 
+async function deduplicateGroceryList() {
+  const items = await db.select().from(groceryItemsTable).orderBy(asc(groceryItemsTable.id));
+  const seen = new Map<string, number>(); // lowercase name → first id to keep
+  const toDelete: number[] = [];
+  for (const item of items) {
+    const key = item.name.toLowerCase().trim();
+    if (seen.has(key)) {
+      toDelete.push(item.id);
+    } else {
+      seen.set(key, item.id);
+    }
+  }
+  if (toDelete.length > 0) {
+    for (const id of toDelete) {
+      await db.delete(groceryItemsTable).where(eq(groceryItemsTable.id, id));
+    }
+  }
+}
+
 async function buildGroceryListResponse() {
+  await deduplicateGroceryList();
   const items = await db.select().from(groceryItemsTable).orderBy(asc(groceryItemsTable.id));
   const categories = groupByCategory(items);
   return {

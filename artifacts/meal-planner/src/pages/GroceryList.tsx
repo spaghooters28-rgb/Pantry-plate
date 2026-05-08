@@ -19,7 +19,24 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Plus, Trash2, ShoppingBag, Sparkles, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const CATEGORIES = ["Produce", "Meat & Seafood", "Dairy & Eggs", "Pantry", "Grains & Bread", "Frozen", "Beverages", "Other"];
+const CATEGORIES = [
+  "Produce",
+  "Meat & Seafood",
+  "Dairy & Eggs",
+  "Grains & Bread",
+  "Bakery",
+  "Canned Goods",
+  "Condiments & Sauces",
+  "Snacks",
+  "Desserts",
+  "Beverages",
+  "Frozen",
+  "Pantry",
+  "Cleaning",
+  "Personal Care",
+  "Other",
+];
+
 const SCHEDULE_OPTIONS = [
   { value: "none", label: "No schedule" },
   { value: "weekly", label: "Weekly" },
@@ -33,47 +50,79 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
   "Produce": [
     "apple", "banana", "orange", "lemon", "lime", "grape", "berry", "berries", "tomato", "potato",
     "onion", "garlic", "carrot", "broccoli", "spinach", "lettuce", "kale", "cucumber", "pepper",
-    "zucchini", "mushroom", "avocado", "celery", "corn", "pea", "herb", "basil", "parsley",
-    "cilantro", "mint", "ginger", "jalapeño", "chile", "chili", "squash", "melon", "watermelon",
-    "mango", "pineapple", "strawberry", "blueberry", "raspberry", "cherry", "peach", "plum",
-    "pear", "arugula", "cabbage", "chard", "beet", "radish", "turnip", "asparagus", "artichoke",
+    "zucchini", "mushroom", "avocado", "celery", "corn", "pea", "basil", "parsley", "cilantro",
+    "mint", "ginger", "jalapeño", "chile", "chili", "squash", "melon", "watermelon", "mango",
+    "pineapple", "strawberry", "blueberry", "raspberry", "cherry", "peach", "plum", "pear",
+    "arugula", "cabbage", "chard", "beet", "radish", "turnip", "asparagus", "artichoke",
     "eggplant", "leek", "scallion", "shallot", "yam", "sweet potato", "fennel", "cauliflower",
-    "bok choy", "edamame", "snap peas", "green bean", "okra", "plantain",
+    "bok choy", "edamame", "snap peas", "green bean", "okra", "plantain", "herb", "fresh herb",
   ],
   "Meat & Seafood": [
     "chicken", "beef", "pork", "turkey", "lamb", "duck", "veal", "steak", "bacon", "ham",
     "sausage", "salmon", "tuna", "shrimp", "fish", "cod", "tilapia", "halibut", "crab",
     "lobster", "scallop", "clam", "mussel", "anchovy", "sardine", "trout", "catfish",
     "meatball", "ground beef", "ground turkey", "brisket", "rib", "tenderloin", "filet",
-    "pepperoni", "salami", "prosciutto", "chorizo", "kielbasa",
+    "pepperoni", "salami", "prosciutto", "chorizo", "kielbasa", "hot dog", "deli meat",
   ],
   "Dairy & Eggs": [
     "milk", "cheese", "butter", "yogurt", "cream", "egg", "sour cream", "cream cheese",
     "mozzarella", "cheddar", "parmesan", "feta", "brie", "ricotta", "cottage cheese",
     "whipped cream", "half and half", "kefir", "ghee", "gouda", "swiss", "provolone",
+    "almond milk", "oat milk", "soy milk", "heavy cream",
   ],
   "Grains & Bread": [
     "bread", "rice", "pasta", "flour", "oat", "cereal", "quinoa", "barley", "wheat",
-    "noodle", "tortilla", "pita", "bagel", "muffin", "cracker", "granola", "couscous",
-    "polenta", "panko", "breadcrumb", "bun", "roll", "baguette", "wrap", "rye", "sourdough",
+    "noodle", "tortilla", "pita", "bagel", "cracker", "granola", "couscous", "polenta",
+    "panko", "breadcrumb", "bun", "roll", "baguette", "wrap", "rye", "sourdough", "oatmeal",
+  ],
+  "Bakery": [
+    "cake", "cookie", "brownie", "croissant", "donut", "pie", "tart", "pastry", "muffin",
+    "cupcake", "cheesecake", "scone", "danish", "cinnamon roll", "macaron",
+  ],
+  "Canned Goods": [
+    "canned", "can of", "tomato sauce", "tomato paste", "coconut milk", "broth", "stock",
+    "soup", "chili", "beans in", "lentils in", "chickpeas in", "tuna in", "sardines in",
+    "anchovy in", "pumpkin puree", "condensed milk", "evaporated milk", "olives in",
+  ],
+  "Condiments & Sauces": [
+    "ketchup", "mustard", "mayo", "mayonnaise", "dressing", "salsa", "relish", "hot sauce",
+    "soy sauce", "vinegar", "sriracha", "worcestershire", "teriyaki", "barbecue", "bbq",
+    "hoisin", "fish sauce", "oyster sauce", "tahini", "pesto", "marinara", "aioli",
+    "ranch", "honey mustard", "sweet chili", "buffalo sauce",
+  ],
+  "Snacks": [
+    "chips", "popcorn", "pretzel", "trail mix", "granola bar", "protein bar", "jerky",
+    "rice cake", "pita chip", "tortilla chip", "cheese cracker", "nut mix", "sunflower seed",
+  ],
+  "Desserts": [
+    "ice cream", "gelato", "sorbet", "chocolate bar", "candy", "gummy", "pudding", "jello",
+    "popsicle", "frozen yogurt", "caramel", "marshmallow", "whipped topping",
   ],
   "Beverages": [
-    "juice", "soda", "coffee", "tea", "wine", "beer", "lemonade", "kombucha", "beverage",
-    "coconut water", "sparkling water", "sports drink", "energy drink", "almond milk",
-    "oat milk", "soy milk",
+    "juice", "soda", "coffee", "tea", "wine", "beer", "lemonade", "kombucha", "sports drink",
+    "energy drink", "coconut water", "sparkling water", "lager", "ale", "cider", "espresso",
+    "cold brew", "protein shake", "smoothie mix",
   ],
   "Frozen": [
-    "frozen", "ice cream", "ice", "popsicle", "frozen pizza", "frozen meal",
+    "frozen", "ice cream", "popsicle", "frozen pizza", "frozen meal", "frozen vegetable",
+    "frozen fruit", "frozen waffle", "frozen burrito",
   ],
   "Pantry": [
-    "oil", "vinegar", "soy sauce", "salt", "pepper", "sugar", "honey", "syrup", "sauce",
-    "ketchup", "mustard", "mayo", "mayonnaise", "dressing", "jam", "jelly", "peanut butter",
-    "almond butter", "nutella", "canned", "broth", "stock", "tomato paste", "coconut milk",
-    "lentil", "chickpea", "tofu", "tempeh", "nut", "almond", "cashew", "walnut", "pecan",
-    "pistachio", "peanut", "seed", "raisin", "dried", "spice", "cinnamon", "cumin",
-    "paprika", "turmeric", "oregano", "thyme", "rosemary", "baking soda", "baking powder",
-    "yeast", "chocolate", "cocoa", "vanilla", "sriracha", "hot sauce", "worcestershire",
-    "olive oil", "vegetable oil", "sesame oil", "coconut oil",
+    "oil", "olive oil", "vegetable oil", "sesame oil", "coconut oil", "sugar", "honey",
+    "syrup", "maple syrup", "jam", "jelly", "peanut butter", "almond butter", "nutella",
+    "nut", "almond", "cashew", "walnut", "pecan", "pistachio", "peanut", "seed",
+    "raisin", "dried fruit", "spice", "cinnamon", "cumin", "paprika", "turmeric", "oregano",
+    "thyme", "rosemary", "baking soda", "baking powder", "yeast", "cocoa", "vanilla",
+    "salt", "pepper", "flour", "corn starch", "gelatin",
+  ],
+  "Cleaning": [
+    "dish soap", "laundry", "detergent", "bleach", "cleaner", "sponge", "paper towel",
+    "trash bag", "garbage bag", "plastic wrap", "aluminum foil", "zip bag", "ziploc",
+    "toilet paper", "tissue", "napkin", "wipe",
+  ],
+  "Personal Care": [
+    "shampoo", "conditioner", "soap", "body wash", "toothpaste", "deodorant", "lotion",
+    "moisturizer", "sunscreen", "razor", "cotton", "band aid", "vitamin",
   ],
 };
 
@@ -86,11 +135,34 @@ function detectCategory(name: string): string | null {
   return null;
 }
 
+function parseQty(q: string): number {
+  const n = parseFloat(q);
+  return isNaN(n) ? 1 : n;
+}
+
+function addQty(a: string, b: string): string {
+  const sum = parseQty(a) + parseQty(b);
+  return Number.isInteger(sum) ? String(sum) : sum.toFixed(1).replace(/\.0$/, "");
+}
+
+type GroceryItemType = {
+  id: number;
+  name: string;
+  quantity: string;
+  unit: string | null;
+  category: string;
+  isChecked: boolean;
+  isCustom: boolean;
+  mealId: number | null;
+  mealName: string | null;
+};
+
 export function GroceryList() {
   const [addOpen, setAddOpen] = useState(false);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [newItem, setNewItem] = useState({ name: "", quantity: "1", unit: "", category: "Other", scheduleType: "none", scheduleDaysInterval: 7 });
   const [categoryAutoDetected, setCategoryAutoDetected] = useState(false);
+  const [duplicateItem, setDuplicateItem] = useState<GroceryItemType | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const qKey = getGetGroceryListQueryKey();
@@ -148,9 +220,30 @@ export function GroceryList() {
     });
   }
 
+  function findExistingItem(name: string): GroceryItemType | null {
+    if (!list) return null;
+    const lower = name.trim().toLowerCase();
+    for (const cat of list.categories) {
+      const found = cat.items.find((i) => i.name.toLowerCase() === lower);
+      if (found) return found as GroceryItemType;
+    }
+    return null;
+  }
+
   function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     if (!newItem.name.trim()) return;
+
+    const existing = findExistingItem(newItem.name);
+    if (existing) {
+      setDuplicateItem(existing);
+      return;
+    }
+
+    doAdd();
+  }
+
+  function doAdd() {
     addMutation.mutate(
       {
         data: {
@@ -175,7 +268,31 @@ export function GroceryList() {
     );
   }
 
+  function handleIncreaseQuantity() {
+    if (!duplicateItem) return;
+    const newQty = addQty(duplicateItem.quantity, newItem.quantity);
+    updateMutation.mutate(
+      { id: duplicateItem.id, data: { quantity: newQty } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: qKey });
+          setDuplicateItem(null);
+          setAddOpen(false);
+          setNewItem({ name: "", quantity: "1", unit: "", category: "Other", scheduleType: "none", scheduleDaysInterval: 7 });
+          setCategoryAutoDetected(false);
+          toast({ title: "Quantity updated!", description: `${duplicateItem.name} is now ${newQty}.` });
+        },
+        onError: () => toast({ title: "Error", description: "Could not update quantity.", variant: "destructive" }),
+      }
+    );
+  }
+
   function handleAddSuggestion(suggestion: { name: string; category: string }) {
+    const existing = findExistingItem(suggestion.name);
+    if (existing) {
+      toast({ title: `${suggestion.name} is already in your list!` });
+      return;
+    }
     addMutation.mutate(
       { data: { name: suggestion.name, quantity: "1", category: suggestion.category } },
       {
@@ -285,7 +402,9 @@ export function GroceryList() {
                               });
                             }}
                           >
-                            {item.quantity}{item.unit ? ` ${item.unit}` : ""}
+                            {item.unit && !item.quantity.toLowerCase().includes(item.unit.toLowerCase())
+                              ? `${item.quantity} ${item.unit}`
+                              : item.quantity}
                           </button>
                           {item.mealName && (
                             <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded-full">{item.mealName}</span>
@@ -335,6 +454,38 @@ export function GroceryList() {
           </div>
         </div>
       )}
+
+      {/* Duplicate Item Dialog */}
+      <Dialog open={!!duplicateItem} onOpenChange={(open) => { if (!open) setDuplicateItem(null); }}>
+        <DialogContent className="max-w-sm top-4 translate-y-0">
+          <DialogHeader>
+            <DialogTitle className="font-serif">Already in Your List</DialogTitle>
+          </DialogHeader>
+          {duplicateItem && (
+            <div className="space-y-4">
+              <div className="px-3 py-2.5 rounded-lg bg-muted border text-sm">
+                <p className="font-medium">{duplicateItem.name}</p>
+                <p className="text-muted-foreground text-xs mt-0.5">Current quantity: {duplicateItem.quantity}{duplicateItem.unit ? ` ${duplicateItem.unit}` : ""}</p>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Would you like to increase the quantity by <strong>{newItem.quantity}</strong> (to <strong>{addQty(duplicateItem.quantity, newItem.quantity)}</strong>), or cancel?
+              </p>
+              <div className="flex flex-col gap-2">
+                <Button
+                  className="w-full"
+                  onClick={handleIncreaseQuantity}
+                  disabled={updateMutation.isPending}
+                >
+                  {updateMutation.isPending ? "Updating…" : `Add ${newItem.quantity} More (total: ${addQty(duplicateItem.quantity, newItem.quantity)})`}
+                </Button>
+                <Button variant="outline" className="w-full" onClick={() => setDuplicateItem(null)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Add Item Dialog */}
       <Dialog open={addOpen} onOpenChange={(open) => { setAddOpen(open); if (!open) setCategoryAutoDetected(false); }}>

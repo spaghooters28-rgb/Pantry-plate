@@ -17,8 +17,31 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { PackageSearch, Plus, Trash2, CheckCircle2, AlertTriangle, ChefHat, ShoppingCart } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const CATEGORIES = ["Pantry", "Produce", "Dairy & Eggs", "Meat & Seafood", "Grains & Bread", "Frozen", "Beverages", "Other"];
+const CATEGORIES = [
+  "Produce",
+  "Meat & Seafood",
+  "Dairy & Eggs",
+  "Grains & Bread",
+  "Bakery",
+  "Canned Goods",
+  "Condiments & Sauces",
+  "Snacks",
+  "Desserts",
+  "Beverages",
+  "Frozen",
+  "Pantry",
+  "Cleaning",
+  "Personal Care",
+  "Other",
+];
+
 const COMMON_QUANTITIES = ["½", "1", "2", "3", "4", "5", "6", "8", "10", "12"];
+
+const CATEGORY_ORDER = [
+  "Produce", "Meat & Seafood", "Dairy & Eggs", "Grains & Bread", "Bakery",
+  "Canned Goods", "Condiments & Sauces", "Snacks", "Desserts", "Beverages",
+  "Frozen", "Pantry", "Cleaning", "Personal Care", "Other",
+];
 
 type PantryItem = {
   id: number;
@@ -73,10 +96,26 @@ export function Pantry() {
     if (filter === "in-stock") return item.inStock;
     if (filter === "depleted") return !item.inStock;
     return true;
-  });
+  }) ?? [];
 
   const inStockCount = items?.filter((i) => i.inStock).length ?? 0;
   const depletedCount = items?.filter((i) => !i.inStock).length ?? 0;
+
+  // Group items by category
+  const grouped: Record<string, PantryItem[]> = {};
+  for (const item of filteredItems) {
+    const cat = item.category || "Other";
+    if (!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push(item as PantryItem);
+  }
+  const sortedCategories = Object.keys(grouped).sort((a, b) => {
+    const ai = CATEGORY_ORDER.indexOf(a);
+    const bi = CATEGORY_ORDER.indexOf(b);
+    if (ai === -1 && bi === -1) return a.localeCompare(b);
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
 
   function handleToggleStock(item: PantryItem) {
     updateMutation.mutate(
@@ -192,7 +231,7 @@ export function Pantry() {
       )}
 
       {/* Depleted alert */}
-      {!isLoading && depletedCount > 0 && (
+      {!isLoading && depletedCount > 0 && filter !== "in-stock" && (
         <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200">
           <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
           <div>
@@ -207,87 +246,105 @@ export function Pantry() {
       )}
 
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
+        <div className="space-y-6">
+          {[1, 2].map((i) => (
+            <div key={i} className="space-y-2">
+              <Skeleton className="h-5 w-32" />
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {[1, 2, 3].map((j) => <Skeleton key={j} className="h-28 rounded-xl" />)}
+              </div>
+            </div>
+          ))}
         </div>
-      ) : filteredItems?.length === 0 ? (
+      ) : filteredItems.length === 0 ? (
         <div className="py-16 text-center text-muted-foreground">
           <PackageSearch className="w-12 h-12 mx-auto mb-3 opacity-30" />
           <p className="font-medium mb-1">{filter === "depleted" ? "Nothing is depleted!" : "Your pantry is empty."}</p>
           <p className="text-sm">{filter === "all" ? "Add pantry items to track what you have at home." : "Try switching the filter."}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredItems?.map((item) => (
-            <Card key={item.id} className={`overflow-hidden transition-opacity ${!item.inStock ? "opacity-70" : ""}`}>
-              <div className={`h-1 w-full ${item.inStock ? "bg-green-500" : "bg-destructive"}`} />
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <h3 className="font-semibold text-base leading-tight flex-1">{item.name}</h3>
-                  <div className="flex items-center gap-1">
-                    <button
-                      className={`p-1 rounded-full transition-colors ${item.inStock ? "text-green-600 hover:bg-green-100" : "text-muted-foreground hover:bg-muted"}`}
-                      onClick={() => handleToggleStock(item as PantryItem)}
-                      title={item.inStock ? "Mark depleted" : "Mark in stock"}
-                    >
-                      {item.inStock ? <CheckCircle2 className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
-                    </button>
-                    <button
-                      className="p-1 text-muted-foreground hover:text-destructive transition-colors"
-                      onClick={() => setRemoveAction({ item: item as PantryItem })}
-                      title="Remove options"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
+        <div className="space-y-6">
+          {sortedCategories.map((category) => (
+            <div key={category} className="space-y-2">
+              <h3 className="font-serif text-base font-semibold text-muted-foreground flex items-center gap-2">
+                {category}
+                <span className="text-xs font-normal bg-muted px-1.5 py-0.5 rounded-full">
+                  {grouped[category].length}
+                </span>
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {grouped[category].map((item) => (
+                  <Card key={item.id} className={`overflow-hidden transition-opacity ${!item.inStock ? "opacity-70" : ""}`}>
+                    <div className={`h-1 w-full ${item.inStock ? "bg-green-500" : "bg-destructive"}`} />
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <h3 className="font-semibold text-base leading-tight flex-1">{item.name}</h3>
+                        <div className="flex items-center gap-1">
+                          <button
+                            className={`p-1 rounded-full transition-colors ${item.inStock ? "text-green-600 hover:bg-green-100" : "text-muted-foreground hover:bg-muted"}`}
+                            onClick={() => handleToggleStock(item)}
+                            title={item.inStock ? "Mark depleted" : "Mark in stock"}
+                          >
+                            {item.inStock ? <CheckCircle2 className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
+                          </button>
+                          <button
+                            className="p-1 text-muted-foreground hover:text-destructive transition-colors"
+                            onClick={() => setRemoveAction({ item })}
+                            title="Remove options"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
 
-                <div className="flex items-center gap-1.5 flex-wrap mb-2">
-                  <Badge variant={item.inStock ? "default" : "destructive"} className="text-xs">
-                    {item.inStock ? "In Stock" : "Depleted"}
-                  </Badge>
-                  <Badge variant="secondary" className="text-xs">{item.category}</Badge>
-                </div>
+                      <div className="flex items-center gap-1.5 flex-wrap mb-2">
+                        <Badge variant={item.inStock ? "default" : "destructive"} className="text-xs">
+                          {item.inStock ? "In Stock" : "Depleted"}
+                        </Badge>
+                      </div>
 
-                <div className="flex items-center gap-1 mt-0.5">
-                  <span className="text-xs text-muted-foreground">Qty:</span>
-                  <button
-                    data-qty-picker
-                    className="text-xs text-muted-foreground hover:text-primary underline decoration-dotted transition-colors"
-                    onPointerDown={(e) => { e.stopPropagation(); pointerStartRef.current = { x: e.clientX, y: e.clientY }; }}
-                    onPointerUp={(e) => {
-                      e.stopPropagation();
-                      const start = pointerStartRef.current;
-                      pointerStartRef.current = null;
-                      if (!start || Math.abs(e.clientX - start.x) > 6 || Math.abs(e.clientY - start.y) > 6) return;
-                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                      setQtyOpen((prev) => prev?.id === item.id ? null : {
-                        id: item.id,
-                        top: rect.bottom + 6,
-                        left: Math.min(rect.left, window.innerWidth - 220),
-                      });
-                    }}
-                  >
-                    {item.quantity ?? "—"}
-                  </button>
-                </div>
-                {item.notes && (
-                  <p className="text-xs text-muted-foreground italic mt-0.5">{item.notes}</p>
-                )}
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <span className="text-xs text-muted-foreground">Qty:</span>
+                        <button
+                          data-qty-picker
+                          className="text-xs text-muted-foreground hover:text-primary underline decoration-dotted transition-colors"
+                          onPointerDown={(e) => { e.stopPropagation(); pointerStartRef.current = { x: e.clientX, y: e.clientY }; }}
+                          onPointerUp={(e) => {
+                            e.stopPropagation();
+                            const start = pointerStartRef.current;
+                            pointerStartRef.current = null;
+                            if (!start || Math.abs(e.clientX - start.x) > 6 || Math.abs(e.clientY - start.y) > 6) return;
+                            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                            setQtyOpen((prev) => prev?.id === item.id ? null : {
+                              id: item.id,
+                              top: rect.bottom + 6,
+                              left: Math.min(rect.left, window.innerWidth - 220),
+                            });
+                          }}
+                        >
+                          {item.quantity ?? "—"}
+                        </button>
+                      </div>
+                      {item.notes && (
+                        <p className="text-xs text-muted-foreground italic mt-0.5">{item.notes}</p>
+                      )}
 
-                {(item as PantryItem).usedInMeals && (item as PantryItem).usedInMeals!.length > 0 && (
-                  <div className="mt-2 pt-2 border-t">
-                    <p className="text-[10px] text-muted-foreground flex items-center gap-1 mb-1">
-                      <ChefHat className="w-3 h-3" /> Used in:
-                    </p>
-                    <p className="text-xs text-muted-foreground line-clamp-1">
-                      {(item as PantryItem).usedInMeals!.slice(0, 2).join(", ")}
-                      {(item as PantryItem).usedInMeals!.length > 2 && ` +${(item as PantryItem).usedInMeals!.length - 2} more`}
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                      {item.usedInMeals && item.usedInMeals.length > 0 && (
+                        <div className="mt-2 pt-2 border-t">
+                          <p className="text-[10px] text-muted-foreground flex items-center gap-1 mb-1">
+                            <ChefHat className="w-3 h-3" /> Used in:
+                          </p>
+                          <p className="text-xs text-muted-foreground line-clamp-1">
+                            {item.usedInMeals.slice(0, 2).join(", ")}
+                            {item.usedInMeals.length > 2 && ` +${item.usedInMeals.length - 2} more`}
+                          </p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       )}

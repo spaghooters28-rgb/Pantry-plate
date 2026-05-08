@@ -67,7 +67,7 @@ Return a JSON object (no markdown, no code fences, ONLY valid JSON) with this sh
       "name": "string (ingredient name, cleaned up, e.g. 'chicken breast')",
       "quantity": "string (amount, e.g. '2', '1/2', '200')",
       "unit": "string or null (e.g. 'cup', 'tbsp', 'g', 'oz', or null if unitless)",
-      "category": "string (one of: Produce, Dairy & Eggs, Meat & Seafood, Pantry, Grains & Bread, Frozen, Beverages, Other)"
+      "category": "string (one of: Produce, Meat & Seafood, Dairy & Eggs, Grains & Bread, Bakery, Canned Goods, Condiments & Sauces, Snacks, Desserts, Beverages, Frozen, Pantry, Other)"
     }
   ]
 }
