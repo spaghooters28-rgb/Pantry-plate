@@ -152,6 +152,15 @@ Rules:
 
 const ALL_DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 
+function getWeekStart(): string {
+  const now = new Date();
+  const day = now.getDay();
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(now);
+  monday.setDate(diff);
+  return monday.toISOString().split("T")[0];
+}
+
 router.post("/meals/save-recipe", async (req, res): Promise<void> => {
   const body = req.body as {
     recipeName?: string;
@@ -220,13 +229,24 @@ router.post("/meals/save-recipe", async (req, res): Promise<void> => {
   });
 
   if (body.assignToDay && ALL_DAYS.includes(body.assignToDay)) {
-    const [plan] = await db.select().from(weeklyPlansTable).orderBy(desc(weeklyPlansTable.id)).limit(1);
-    if (plan) {
-      const dayRows = await db.select().from(weeklyPlanDaysTable).where(eq(weeklyPlanDaysTable.planId, plan.id));
-      const dayRow = dayRows.find((d) => d.day === body.assignToDay);
-      if (dayRow) {
-        await db.update(weeklyPlanDaysTable).set({ mealId: meal.id }).where(eq(weeklyPlanDaysTable.id, dayRow.id));
-      }
+    let plan = (await db.select().from(weeklyPlansTable).orderBy(desc(weeklyPlansTable.id)).limit(1))[0];
+
+    if (!plan) {
+      // No plan exists yet — create an empty one so we can assign to the day
+      [plan] = await db.insert(weeklyPlansTable).values({ weekStartDate: getWeekStart() }).returning();
+      await db.insert(weeklyPlanDaysTable).values(
+        ALL_DAYS.map((day) => ({ planId: plan.id, day, mealId: null as number | null, selectedSideId: null as number | null }))
+      );
+    }
+
+    const dayRows = await db.select().from(weeklyPlanDaysTable).where(eq(weeklyPlanDaysTable.planId, plan.id));
+    const dayRow = dayRows.find((d) => d.day === body.assignToDay);
+
+    if (dayRow) {
+      await db.update(weeklyPlanDaysTable).set({ mealId: meal.id }).where(eq(weeklyPlanDaysTable.id, dayRow.id));
+    } else {
+      // Day row missing from plan — insert it
+      await db.insert(weeklyPlanDaysTable).values({ planId: plan.id, day: body.assignToDay!, mealId: meal.id, selectedSideId: null });
     }
   }
 

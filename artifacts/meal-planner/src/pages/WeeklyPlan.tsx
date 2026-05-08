@@ -90,6 +90,7 @@ export function WeeklyPlan() {
   const [analyzerDay, setAnalyzerDay] = useState("");
   const [analyzerInstructionsOpen, setAnalyzerInstructionsOpen] = useState(false);
   const [recipeSaved, setRecipeSaved] = useState(false);
+  const [replacingMealName, setReplacingMealName] = useState<string | null>(null);
   const [localPrefs, setLocalPrefs] = useState<{
     cuisine: string;
     proteins: string[];
@@ -643,7 +644,7 @@ export function WeeklyPlan() {
       <Dialog
         open={analyzerOpen}
         onOpenChange={(open) => {
-          if (!open) { setAnalyzerOpen(false); setAnalyzeResult(null); setRecipeUrl(""); setAnalyzerDay(""); setAnalyzerInstructionsOpen(false); setRecipeSaved(false); }
+          if (!open) { setAnalyzerOpen(false); setAnalyzeResult(null); setRecipeUrl(""); setAnalyzerDay(""); setAnalyzerInstructionsOpen(false); setRecipeSaved(false); setReplacingMealName(null); }
         }}
       >
         <DialogContent className="top-4 translate-y-0 max-w-sm max-h-[80vh] flex flex-col gap-3">
@@ -749,21 +750,48 @@ export function WeeklyPlan() {
                   Add to Weekly Plan (optional)
                 </p>
                 <div className="flex flex-wrap gap-1">
-                  {ALL_DAYS.map((day) => (
-                    <button
-                      key={day}
-                      type="button"
-                      onClick={() => setAnalyzerDay((d) => d === day ? "" : day)}
-                      className={`px-2 py-0.5 rounded-full text-[11px] font-medium transition-colors border ${
-                        analyzerDay === day
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "bg-card border-border text-muted-foreground hover:border-primary"
-                      }`}
-                    >
-                      {DAY_SHORT[day]}
-                    </button>
-                  ))}
+                  {ALL_DAYS.map((day) => {
+                    const existingMeal = plan?.days.find((d) => d.day === day)?.meal;
+                    const isSelected = analyzerDay === day;
+                    const hasMeal = !!existingMeal;
+                    return (
+                      <button
+                        key={day}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setAnalyzerDay("");
+                            setReplacingMealName(null);
+                          } else {
+                            setAnalyzerDay(day);
+                            setReplacingMealName(hasMeal ? existingMeal!.name : null);
+                          }
+                        }}
+                        className={`px-2 py-0.5 rounded-full text-[11px] font-medium transition-colors border relative ${
+                          isSelected
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : hasMeal
+                            ? "bg-amber-50 border-amber-300 text-amber-800 hover:border-primary hover:bg-primary/10 hover:text-primary"
+                            : "bg-card border-border text-muted-foreground hover:border-primary"
+                        }`}
+                      >
+                        {DAY_SHORT[day]}
+                        {hasMeal && !isSelected && (
+                          <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400 border border-white" />
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
+                {/* Replace warning */}
+                {replacingMealName && analyzerDay && (
+                  <div className="flex items-start gap-1.5 mt-1 px-2 py-1.5 rounded-md bg-amber-50 border border-amber-200">
+                    <span className="text-amber-500 text-xs mt-0.5">⚠</span>
+                    <p className="text-[11px] text-amber-800 leading-snug">
+                      <span className="font-semibold">"{replacingMealName}"</span> is already on {DAY_SHORT[analyzerDay]}. Saving will replace it.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Action buttons */}
@@ -777,13 +805,15 @@ export function WeeklyPlan() {
                 {!recipeSaved ? (
                   <Button
                     size="sm"
-                    className="w-full gap-1.5"
+                    className={`w-full gap-1.5 ${replacingMealName ? "bg-amber-600 hover:bg-amber-700" : ""}`}
                     onClick={handleSaveAsRecipe}
                     disabled={saveRecipeMutation.isPending}
                   >
                     <BookOpen className="w-3.5 h-3.5" />
                     {saveRecipeMutation.isPending
                       ? "Saving…"
+                      : replacingMealName && analyzerDay
+                      ? `Replace & Save to ${DAY_SHORT[analyzerDay]}`
                       : analyzerDay
                       ? `Save & Add to ${DAY_SHORT[analyzerDay] ?? analyzerDay}`
                       : "Save as Recipe in My App"}
