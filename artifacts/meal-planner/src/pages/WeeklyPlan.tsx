@@ -22,7 +22,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Clock, Flame, Shuffle, ShoppingCart, Calendar, Settings2, ChevronDown, ChevronUp, BookOpen, Star, History, Link, Loader2, Search, CheckCircle2 } from "lucide-react";
+import { Clock, Flame, Shuffle, ShoppingCart, Calendar, Settings2, ChevronDown, ChevronUp, BookOpen, Star, History, Link, Loader2, Search, CheckCircle2, Trash2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 
 const ALL_DAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
@@ -77,6 +78,7 @@ type AnalyzeResult = {
 };
 
 export function WeeklyPlan() {
+  const [selectedDays, setSelectedDays] = useState<Set<string>>(new Set());
   const [swapDay, setSwapDay] = useState<string | null>(null);
   const [swapSearch, setSwapSearch] = useState("");
   const [swapIgnorePrefs, setSwapIgnorePrefs] = useState(false);
@@ -229,6 +231,31 @@ export function WeeklyPlan() {
     );
   }
 
+  async function handleRemoveSelected() {
+    const days = [...selectedDays];
+    await Promise.all(
+      days.map((day) =>
+        new Promise<void>((resolve, reject) =>
+          updateDayMealMutation.mutate(
+            { day, data: { mealId: null } },
+            { onSuccess: () => resolve(), onError: reject }
+          )
+        )
+      )
+    );
+    queryClient.invalidateQueries({ queryKey: getGetWeeklyPlanQueryKey() });
+    setSelectedDays(new Set());
+    toast({ title: `${days.length} recipe${days.length > 1 ? "s" : ""} removed.` });
+  }
+
+  function toggleDaySelection(day: string) {
+    setSelectedDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(day)) next.delete(day); else next.add(day);
+      return next;
+    });
+  }
+
   function handleAnalyzeRecipe(e: React.FormEvent) {
     e.preventDefault();
     if (!recipeUrl.trim()) return;
@@ -376,6 +403,12 @@ export function WeeklyPlan() {
           <p className="text-muted-foreground">Your week at a glance.</p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          {selectedDays.size > 0 && (
+            <Button variant="destructive" size="sm" onClick={handleRemoveSelected} disabled={updateDayMealMutation.isPending}>
+              <Trash2 className="w-4 h-4 mr-2" />
+              Remove Recipe{selectedDays.size > 1 ? "s" : ""} ({selectedDays.size})
+            </Button>
+          )}
           <Button
             variant="outline"
             onClick={handleAddAllToGrocery}
@@ -422,19 +455,28 @@ export function WeeklyPlan() {
             <div>
               <label className="text-sm font-medium mb-2 block">Active Days (leave empty for all 7)</label>
               <div className="flex flex-wrap gap-2">
-                {ALL_DAYS.map((day) => (
-                  <button
-                    key={day}
-                    onClick={() => toggleActiveDay(day)}
-                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
-                      prefs.activeDays.includes(day)
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-card border-border text-muted-foreground hover:border-primary hover:text-primary"
-                    }`}
-                  >
-                    {DAY_SHORT[day]}
-                  </button>
-                ))}
+                {ALL_DAYS.map((day) => {
+                  const hasMeal = !!plan?.days.find((d) => d.day === day)?.meal;
+                  const isActive = prefs.activeDays.includes(day);
+                  return (
+                    <button
+                      key={day}
+                      onClick={() => toggleActiveDay(day)}
+                      className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border relative ${
+                        isActive
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : hasMeal
+                          ? "bg-green-50 border-green-400 text-green-800 hover:border-primary hover:text-primary"
+                          : "bg-card border-border text-muted-foreground hover:border-primary hover:text-primary"
+                      }`}
+                    >
+                      {DAY_SHORT[day]}
+                      {hasMeal && !isActive && (
+                        <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-green-500 border border-white" />
+                      )}
+                    </button>
+                  );
+                })}
                 {prefs.activeDays.length > 0 && (
                   <button
                     onClick={() => setLocalPrefs((p) => p ? { ...p, activeDays: [] } : p)}
@@ -553,18 +595,25 @@ export function WeeklyPlan() {
                   <div className="flex-1 min-w-0 p-4">
                     {day.meal ? (
                       <div className="flex items-start justify-between gap-3">
-                        <button
-                          className="flex-1 min-w-0 text-left hover:opacity-80 transition-opacity"
-                          onClick={() => { setSelectedMeal(day.meal as PlanMeal); setShowInstructions(false); }}
-                        >
-                          <p className="font-semibold text-base leading-snug">{day.meal.name}</p>
-                          <div className="flex flex-wrap gap-2 mt-1 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-0.5"><Clock className="w-3 h-3" />{day.meal.cookTimeMinutes}m</span>
-                            <span className="flex items-center gap-0.5"><Flame className="w-3 h-3" />{day.meal.calories} kcal</span>
-                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{day.meal.cuisine}</Badge>
-                            {day.meal.isGlutenFree && <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-green-500 text-green-600">GF</Badge>}
-                          </div>
-                        </button>
+                        <div className="flex items-start gap-2.5 flex-1 min-w-0">
+                          <Checkbox
+                            className="mt-1 shrink-0 w-3.5 h-3.5"
+                            checked={selectedDays.has(day.day)}
+                            onCheckedChange={() => toggleDaySelection(day.day)}
+                          />
+                          <button
+                            className="flex-1 min-w-0 text-left hover:opacity-80 transition-opacity"
+                            onClick={() => { setSelectedMeal(day.meal as PlanMeal); setShowInstructions(false); }}
+                          >
+                            <p className="font-semibold text-base leading-snug">{day.meal.name}</p>
+                            <div className="flex flex-wrap gap-2 mt-1 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-0.5"><Clock className="w-3 h-3" />{day.meal.cookTimeMinutes}m</span>
+                              <span className="flex items-center gap-0.5"><Flame className="w-3 h-3" />{day.meal.calories} kcal</span>
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{day.meal.cuisine}</Badge>
+                              {day.meal.isGlutenFree && <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-green-500 text-green-600">GF</Badge>}
+                            </div>
+                          </button>
+                        </div>
                         <Button variant="ghost" size="sm" className="shrink-0 mt-0.5" onClick={() => setSwapDay(day.day)}>
                           <Shuffle className="w-3.5 h-3.5 mr-1" />
                           Swap
