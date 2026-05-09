@@ -9,7 +9,10 @@ import {
   useToggleMealFavorite,
   useDeleteGroceryItem,
   getGetGroceryListQueryKey,
+  useUpdateDayMeal,
+  getGetWeeklyPlanQueryKey,
 } from "@workspace/api-client-react";
+import { AiChatPanel, type ChatAction } from "@/components/AiChatPanel";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -80,7 +83,7 @@ export function Discover() {
   };
 
   const { data: allMeals, isLoading } = useListMeals(params, {
-    query: { queryKey: getListMealsQueryKey(params) },
+    query: { queryKey: getListMealsQueryKey(params), staleTime: 5 * 60 * 1000 },
   });
 
   const meals = favoritesOnly ? allMeals?.filter((m) => (m as Meal).isFavorited) : allMeals;
@@ -92,6 +95,7 @@ export function Discover() {
   const checkPantryMutation = useCheckPantryForMeal();
   const toggleFavoriteMutation = useToggleMealFavorite();
   const deleteGroceryItemMutation = useDeleteGroceryItem();
+  const updateDayMealMutation = useUpdateDayMeal();
 
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiProgress, setAiProgress] = useState(0);
@@ -167,7 +171,6 @@ export function Discover() {
       {
         onSuccess: (updated) => {
           queryClient.invalidateQueries({ queryKey: ["/api/meals"] });
-          // Update dialog meal if open
           if (selectedMeal?.id === meal.id) {
             setSelectedMeal((prev) => prev ? { ...prev, isFavorited: (updated as Meal).isFavorited } : null);
           }
@@ -175,6 +178,67 @@ export function Discover() {
         onError: () => toast({ title: "Error", description: "Could not update favorite.", variant: "destructive" }),
       }
     );
+  }
+
+  async function handleAiAction(actions: ChatAction[]) {
+    for (const action of actions) {
+      if (action.type === "assign_meal" && action.day && action.mealName) {
+        const allMealsForSearch = queryClient.getQueryData<Meal[]>(getListMealsQueryKey({})) ?? (allMeals as Meal[] | undefined) ?? [];
+        const nameLower = action.mealName.toLowerCase();
+        const meal = allMealsForSearch.find(
+          (m) => m.name.toLowerCase() === nameLower || m.name.toLowerCase().includes(nameLower)
+        );
+        if (meal) {
+          await new Promise<void>((resolve, reject) =>
+            updateDayMealMutation.mutate(
+              { day: action.day!, data: { mealId: meal.id } },
+              {
+                onSuccess: () => {
+                  queryClient.invalidateQueries({ queryKey: getGetWeeklyPlanQueryKey() });
+                  toast({ title: `${meal.name} added to ${action.day!.charAt(0).toUpperCase() + action.day!.slice(1)}!` });
+                  resolve();
+                },
+                onError: reject,
+              }
+            )
+          );
+        } else {
+          toast({
+            title: `Couldn't find "${action.mealName}"`,
+            description: "Try browsing meals first so the AI can reference them by name.",
+            variant: "destructive",
+          });
+        }
+      } else if (action.type === "toggle_favorite" && action.mealName) {
+        const allMealsForSearch = queryClient.getQueryData<Meal[]>(getListMealsQueryKey({})) ?? (allMeals as Meal[] | undefined) ?? [];
+        const nameLower = action.mealName.toLowerCase();
+        const meal = allMealsForSearch.find(
+          (m) => m.name.toLowerCase() === nameLower || m.name.toLowerCase().includes(nameLower)
+        );
+        if (meal) {
+          await new Promise<void>((resolve, reject) =>
+            toggleFavoriteMutation.mutate(
+              { id: meal.id },
+              {
+                onSuccess: (updated) => {
+                  queryClient.invalidateQueries({ queryKey: ["/api/meals"] });
+                  const nowFavorited = (updated as Meal).isFavorited;
+                  toast({ title: nowFavorited ? `${meal.name} added to favorites!` : `${meal.name} removed from favorites.` });
+                  resolve();
+                },
+                onError: reject,
+              }
+            )
+          );
+        } else {
+          toast({
+            title: `Couldn't find "${action.mealName}"`,
+            description: "Try browsing meals first so the AI can reference them.",
+            variant: "destructive",
+          });
+        }
+      }
+    }
   }
 
   async function handleGenerateAi() {
@@ -291,6 +355,9 @@ export function Discover() {
           )}
         </Button>
       </div>
+
+      {/* AI Chat Panel */}
+      <AiChatPanel onAction={handleAiAction} />
 
       {/* AI generation loading banner */}
       {aiGenerating && (

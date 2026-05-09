@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { AiChatPanel } from "@/components/AiChatPanel";
+import { useState, useEffect } from "react";
 import {
   useGetWeeklyPlan,
   getGetWeeklyPlanQueryKey,
@@ -83,6 +82,7 @@ export function WeeklyPlan() {
   const [selectedDays, setSelectedDays] = useState<Set<string>>(new Set());
   const [swapDay, setSwapDay] = useState<string | null>(null);
   const [swapSearch, setSwapSearch] = useState("");
+  const [leftoverDays, setLeftoverDays] = useState<Set<string>>(new Set());
   const [swapIgnorePrefs, setSwapIgnorePrefs] = useState(false);
   const [swapTab, setSwapTab] = useState<"all" | "favorites" | "history">("all");
   const [showPrefs, setShowPrefs] = useState(false);
@@ -107,6 +107,18 @@ export function WeeklyPlan() {
   const { data: plan, isLoading } = useGetWeeklyPlan({
     query: { queryKey: getGetWeeklyPlanQueryKey() },
   });
+
+  const planId = (plan as { id?: number } | undefined)?.id;
+
+  useEffect(() => {
+    if (!planId) return;
+    try {
+      const stored = localStorage.getItem(`pp-leftovers-${planId}`);
+      setLeftoverDays(stored ? new Set(JSON.parse(stored) as string[]) : new Set());
+    } catch {
+      setLeftoverDays(new Set());
+    }
+  }, [planId]);
 
   const { data: preferences } = useGetWeeklyPlanPreferences({
     query: { queryKey: getGetWeeklyPlanPreferencesQueryKey() },
@@ -219,16 +231,48 @@ export function WeeklyPlan() {
 
   function handleSwapMeal(mealId: number) {
     if (!swapDay) return;
+    const day = swapDay;
     updateDayMealMutation.mutate(
-      { day: swapDay, data: { mealId } },
+      { day, data: { mealId } },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetWeeklyPlanQueryKey() });
+          setLeftoverDays((prev) => {
+            const next = new Set(prev);
+            next.delete(day);
+            if (planId) localStorage.setItem(`pp-leftovers-${planId}`, JSON.stringify([...next]));
+            return next;
+          });
           setSwapDay(null);
           setSwapSearch("");
           toast({ title: "Meal swapped!" });
         },
         onError: () => toast({ title: "Error", description: "Could not swap meal.", variant: "destructive" }),
+      }
+    );
+  }
+
+  function handleSetLeftover() {
+    if (!swapDay) return;
+    const day = swapDay;
+    updateDayMealMutation.mutate(
+      { day, data: { mealId: null } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetWeeklyPlanQueryKey() });
+          setLeftoverDays((prev) => {
+            const next = new Set(prev);
+            next.add(day);
+            if (planId) localStorage.setItem(`pp-leftovers-${planId}`, JSON.stringify([...next]));
+            return next;
+          });
+          setSwapDay(null);
+          setSwapSearch("");
+          setSwapIgnorePrefs(false);
+          setSwapTab("all");
+          toast({ title: "Day set to Leftovers!" });
+        },
+        onError: () => toast({ title: "Error", description: "Could not update day.", variant: "destructive" }),
       }
     );
   }
@@ -592,6 +636,20 @@ export function WeeklyPlan() {
                           Swap
                         </Button>
                       </div>
+                    ) : leftoverDays.has(day.day) ? (
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-xl">♻️</span>
+                          <div>
+                            <p className="font-medium text-sm leading-tight">Leftovers</p>
+                            <p className="text-xs text-muted-foreground">Eating leftovers today</p>
+                          </div>
+                        </div>
+                        <Button variant="ghost" size="sm" className="shrink-0" onClick={() => setSwapDay(day.day)}>
+                          <Shuffle className="w-3.5 h-3.5 mr-1" />
+                          Change
+                        </Button>
+                      </div>
                     ) : (
                       <div className="flex items-center justify-between">
                         <span className="text-muted-foreground text-sm italic">No meal planned</span>
@@ -608,9 +666,6 @@ export function WeeklyPlan() {
           ))}
         </div>
       )}
-
-      {/* AI Chat Panel */}
-      <AiChatPanel />
 
       {/* Meal detail dialog */}
       <Dialog open={!!selectedMeal} onOpenChange={(open) => { if (!open) { setSelectedMeal(null); setShowInstructions(false); } }}>
@@ -877,6 +932,23 @@ export function WeeklyPlan() {
             <DialogHeader>
               <DialogTitle className="font-serif">Pick a Meal for {swapDay ? capitalizeDay(swapDay) : ""}</DialogTitle>
             </DialogHeader>
+          </div>
+
+          {/* Leftovers quick-set */}
+          <div className="px-6 pb-3">
+            <button
+              className="w-full text-left px-3 py-2.5 rounded-xl border border-dashed border-muted-foreground/30 hover:border-primary hover:bg-primary/5 transition-colors disabled:opacity-50"
+              onClick={handleSetLeftover}
+              disabled={updateDayMealMutation.isPending}
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-xl">♻️</span>
+                <div>
+                  <p className="font-medium text-sm">Set as Leftovers</p>
+                  <p className="text-xs text-muted-foreground">Mark this day for eating leftovers</p>
+                </div>
+              </div>
+            </button>
           </div>
 
           {/* Tabs */}
