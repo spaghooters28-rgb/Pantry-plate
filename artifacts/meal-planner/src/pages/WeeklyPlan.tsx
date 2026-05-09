@@ -10,6 +10,8 @@ import {
   useListMeals,
   useListCuisines,
   useListProteins,
+  useToggleMealFavorite,
+  useAddMealToGroceryList,
   getListMealsQueryKey,
   getGetGroceryListQueryKey,
   getGetWeeklyPlanPreferencesQueryKey,
@@ -137,7 +139,7 @@ export function WeeklyPlan() {
     });
   }
 
-  const { data: allMeals } = useListMeals({}, { query: { queryKey: getListMealsQueryKey({}), enabled: !!swapDay } });
+  const { data: allMeals } = useListMeals({}, { query: { queryKey: getListMealsQueryKey({}), staleTime: 5 * 60 * 1000 } });
   const { data: cuisines } = useListCuisines();
   const { data: proteins } = useListProteins();
 
@@ -164,6 +166,12 @@ export function WeeklyPlan() {
   const savePreferencesMutation = useSaveWeeklyPlanPreferences();
   const analyzeRecipeMutation = useAnalyzeRecipeUrl();
   const saveRecipeMutation = useSaveAnalyzedRecipe();
+  const toggleFavoriteMutation = useToggleMealFavorite();
+  const addMealToGroceryMutation = useAddMealToGroceryList();
+
+  const mealFavoriteMap = new Map<number, boolean>(
+    ((allMeals ?? []) as Array<{ id: number; isFavorited: boolean }>).map((m) => [m.id, m.isFavorited])
+  );
 
   const prefs = localPrefs ?? {
     cuisine: (preferences as { cuisine?: string | null } | undefined)?.cuisine ?? "",
@@ -277,6 +285,53 @@ export function WeeklyPlan() {
         onError: () => toast({ title: "Error", description: "Could not update day.", variant: "destructive" }),
       }
     );
+  }
+
+  function handleClearLeftover(day: string) {
+    setLeftoverDays((prev) => {
+      const next = new Set(prev);
+      next.delete(day);
+      if (planId) localStorage.setItem(`pp-leftovers-${planId}`, JSON.stringify([...next]));
+      return next;
+    });
+    toast({ title: "Leftover day cleared." });
+  }
+
+  async function handleSaveSelectedToFavorites() {
+    const mealsToToggle = [...selectedDays]
+      .map((day) => plan?.days.find((d) => d.day === day)?.meal)
+      .filter((m): m is NonNullable<typeof m> => m != null);
+    if (mealsToToggle.length === 0) return;
+    await Promise.all(
+      mealsToToggle.map(
+        (meal) =>
+          new Promise<void>((resolve) =>
+            toggleFavoriteMutation.mutate({ id: meal.id }, { onSuccess: () => resolve(), onError: () => resolve() })
+          )
+      )
+    );
+    queryClient.invalidateQueries({ queryKey: getListMealsQueryKey({}) });
+    setSelectedDays(new Set());
+    toast({ title: `${mealsToToggle.length} meal${mealsToToggle.length > 1 ? "s" : ""} saved to favorites!` });
+  }
+
+  async function handleAddSelectedToGrocery() {
+    const mealsToAdd = [...selectedDays]
+      .map((day) => plan?.days.find((d) => d.day === day)?.meal)
+      .filter((m): m is NonNullable<typeof m> => m != null);
+    if (mealsToAdd.length === 0) return;
+    let added = 0;
+    for (const meal of mealsToAdd) {
+      await new Promise<void>((resolve) =>
+        addMealToGroceryMutation.mutate(
+          { mealId: meal.id },
+          { onSuccess: () => { added++; resolve(); }, onError: () => resolve() }
+        )
+      );
+    }
+    queryClient.invalidateQueries({ queryKey: getGetGroceryListQueryKey() });
+    setSelectedDays(new Set());
+    toast({ title: `${added} meal${added !== 1 ? "s" : ""} added to grocery list!` });
   }
 
   async function handleRemoveSelected() {
@@ -465,10 +520,32 @@ export function WeeklyPlan() {
         </div>
         <div className="flex gap-2 flex-wrap">
           {selectedDays.size > 0 && (
-            <Button variant="destructive" size="sm" onClick={handleRemoveSelected} disabled={updateDayMealMutation.isPending}>
-              <Trash2 className="w-4 h-4 mr-2" />
-              Remove Recipe{selectedDays.size > 1 ? "s" : ""} ({selectedDays.size})
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSaveSelectedToFavorites}
+                disabled={toggleFavoriteMutation.isPending}
+                className="gap-1.5"
+              >
+                <Star className="w-4 h-4" />
+                Save to Favorites ({selectedDays.size})
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleAddSelectedToGrocery}
+                disabled={addMealToGroceryMutation.isPending}
+                className="gap-1.5"
+              >
+                <ShoppingCart className="w-4 h-4" />
+                Add to Grocery ({selectedDays.size})
+              </Button>
+              <Button variant="destructive" size="sm" onClick={handleRemoveSelected} disabled={updateDayMealMutation.isPending}>
+                <Trash2 className="w-4 h-4 mr-1.5" />
+                Remove ({selectedDays.size})
+              </Button>
+            </>
           )}
           <Button
             variant="outline"
@@ -636,10 +713,19 @@ export function WeeklyPlan() {
                             </div>
                           </button>
                         </div>
-                        <Button variant="ghost" size="sm" className="shrink-0 mt-0.5" onClick={() => setSwapDay(day.day)}>
-                          <Shuffle className="w-3.5 h-3.5 mr-1" />
-                          Swap
-                        </Button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            className={`p-1.5 rounded transition-colors ${mealFavoriteMap.get(day.meal.id) ? "text-amber-400 hover:text-amber-500" : "text-muted-foreground hover:text-amber-400"}`}
+                            title={mealFavoriteMap.get(day.meal.id) ? "Remove from favorites" : "Add to favorites"}
+                            onClick={() => toggleFavoriteMutation.mutate({ id: day.meal!.id }, { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListMealsQueryKey({}) }) })}
+                          >
+                            <Star className={`w-3.5 h-3.5 ${mealFavoriteMap.get(day.meal.id) ? "fill-amber-400" : ""}`} />
+                          </button>
+                          <Button variant="ghost" size="sm" className="shrink-0" onClick={() => setSwapDay(day.day)}>
+                            <Shuffle className="w-3.5 h-3.5 mr-1" />
+                            Swap
+                          </Button>
+                        </div>
                       </div>
                     ) : leftoverDays.has(day.day) ? (
                       <div className="flex items-center justify-between">
@@ -650,10 +736,19 @@ export function WeeklyPlan() {
                             <p className="text-xs text-muted-foreground">Eating leftovers today</p>
                           </div>
                         </div>
-                        <Button variant="ghost" size="sm" className="shrink-0" onClick={() => setSwapDay(day.day)}>
-                          <Shuffle className="w-3.5 h-3.5 mr-1" />
-                          Change
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="sm" className="shrink-0" onClick={() => setSwapDay(day.day)}>
+                            <Shuffle className="w-3.5 h-3.5 mr-1" />
+                            Change
+                          </Button>
+                          <button
+                            className="p-1.5 text-muted-foreground hover:text-destructive transition-colors rounded"
+                            title="Remove leftover day"
+                            onClick={() => handleClearLeftover(day.day)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <div className="flex items-center justify-between">
