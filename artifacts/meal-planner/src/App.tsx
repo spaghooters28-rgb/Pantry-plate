@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AiChatProvider } from "@/contexts/AiChatContext";
+import { useProteinReminder } from "@/hooks/useProteinReminder";
 
 import { Discover } from "@/pages/Discover";
 import { WeeklyPlan } from "@/pages/WeeklyPlan";
@@ -16,6 +17,11 @@ import { Favorites } from "@/pages/Favorites";
 import { Settings } from "@/pages/Settings";
 
 const queryClient = new QueryClient();
+
+function ProteinReminderManager() {
+  useProteinReminder();
+  return null;
+}
 
 function Router() {
   return (
@@ -40,6 +46,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AiChatProvider>
+          <ProteinReminderManager />
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
             <Router />
           </WouterRouter>
