@@ -44,6 +44,34 @@ function groupByCategory(items: (typeof groceryItemsTable.$inferSelect)[]) {
   }));
 }
 
+const FRACTIONS: [string, number][] = [
+  ["½", 0.5], ["¼", 0.25], ["¾", 0.75],
+  ["⅓", 1 / 3], ["⅔", 2 / 3], ["⅛", 0.125], ["⅜", 0.375], ["⅝", 0.625], ["⅞", 0.875],
+];
+
+function parseQty(s: string): number {
+  const trimmed = s.trim();
+  for (const [sym, val] of FRACTIONS) {
+    if (trimmed === sym) return val;
+    if (trimmed.includes(sym)) {
+      const rest = trimmed.replace(sym, "").trim();
+      return (parseFloat(rest) || 0) + val;
+    }
+  }
+  return parseFloat(trimmed) || 0;
+}
+
+function formatQty(n: number): string {
+  if (n <= 0) return "0";
+  const whole = Math.floor(n);
+  const frac = n - whole;
+  for (const [sym, val] of FRACTIONS) {
+    if (Math.abs(frac - val) < 0.02) return whole > 0 ? `${whole} ${sym}` : sym;
+  }
+  if (frac < 0.02) return String(whole);
+  return String(Math.round(n * 100) / 100);
+}
+
 async function deduplicateGroceryList() {
   const items = await db.select().from(groceryItemsTable).orderBy(asc(groceryItemsTable.id));
   const seen = new Map<string, number>(); // lowercase name → first id to keep
@@ -227,10 +255,6 @@ router.post("/grocery-list/from-meal/:mealId", async (req, res): Promise<void> =
 
   const pantryItems = await db.select().from(pantryItemsTable).where(eq(pantryItemsTable.inStock, true));
 
-  // Load existing grocery names once for dedup check
-  const existingGrocery = await db.select({ name: groceryItemsTable.name }).from(groceryItemsTable);
-  const existingNames = new Set(existingGrocery.map((g) => g.name.toLowerCase()));
-
   const addedItems: (typeof groceryItemsTable.$inferSelect)[] = [];
   const pantryPrompts: Array<{
     pantryItemId: number;
@@ -240,8 +264,27 @@ router.post("/grocery-list/from-meal/:mealId", async (req, res): Promise<void> =
   }> = [];
 
   for (const ingredient of ingredients) {
-    // Skip if an item with the same name is already in the grocery list
-    if (existingNames.has(ingredient.name.toLowerCase())) continue;
+    // Check if an item with the same name already exists in the grocery list
+    const [existing] = await db
+      .select()
+      .from(groceryItemsTable)
+      .where(ilike(groceryItemsTable.name, ingredient.name));
+
+    if (existing) {
+      // Same or compatible unit → combine quantities
+      const sameUnit =
+        !existing.unit || !ingredient.unit ||
+        existing.unit.toLowerCase().trim() === ingredient.unit.toLowerCase().trim();
+      if (sameUnit) {
+        const combined = parseQty(existing.quantity) + parseQty(ingredient.quantity);
+        await db
+          .update(groceryItemsTable)
+          .set({ quantity: formatQty(combined) })
+          .where(eq(groceryItemsTable.id, existing.id));
+      }
+      // Either way don't insert a duplicate row
+      continue;
+    }
 
     const [inserted] = await db
       .insert(groceryItemsTable)
@@ -259,7 +302,7 @@ router.post("/grocery-list/from-meal/:mealId", async (req, res): Promise<void> =
 
     addedItems.push(inserted);
 
-    // Check if this ingredient is in pantry (pantry prompt for common pantry items)
+    // Pantry prompt for common pantry items already in stock
     if (ingredient.isCommonPantryItem) {
       const pantryMatch = pantryItems.find(
         (p) =>

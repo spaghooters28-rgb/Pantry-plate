@@ -9,6 +9,8 @@ import {
   getGetGroceryListQueryKey,
   useGetAvailableRecipes,
   getGetAvailableRecipesQueryKey,
+  useToggleMealFavorite,
+  getListMealsQueryKey,
   type AvailableRecipe,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -17,35 +19,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { PackageSearch, Plus, Trash2, ChefHat, ShoppingCart, Sparkles, Clock, Flame, CheckCircle2, AlertCircle } from "lucide-react";
+import {
+  PackageSearch, Plus, Trash2, ChefHat, ShoppingCart, Sparkles,
+  Clock, Flame, CheckCircle2, AlertCircle, Star, ShoppingBag,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const CATEGORIES = [
-  "Produce",
-  "Meat & Seafood",
-  "Dairy & Eggs",
-  "Grains & Bread",
-  "Bakery",
-  "Canned Goods",
-  "Condiments & Sauces",
-  "Snacks",
-  "Desserts",
-  "Beverages",
-  "Frozen",
-  "Pantry",
-  "Cleaning",
-  "Personal Care",
-  "Other",
-];
-
-const COMMON_QUANTITIES = ["½", "1", "2", "3", "4", "5", "6", "8", "10", "12"];
-
-const CATEGORY_ORDER = [
   "Produce", "Meat & Seafood", "Dairy & Eggs", "Grains & Bread", "Bakery",
   "Canned Goods", "Condiments & Sauces", "Snacks", "Desserts", "Beverages",
   "Frozen", "Pantry", "Cleaning", "Personal Care", "Other",
 ];
-void CATEGORY_ORDER;
+
+const COMMON_QUANTITIES = ["½", "1", "2", "3", "4", "5", "6", "8", "10", "12"];
 
 type PantryItem = {
   id: number;
@@ -74,8 +60,44 @@ function MatchBadge({ score }: { score: number }) {
   );
 }
 
-function RecipeCard({ recipe }: { recipe: AvailableRecipe }) {
+function RecipeCard({ recipe: initialRecipe }: { recipe: AvailableRecipe }) {
+  const [recipe, setRecipe] = useState(initialRecipe);
   const [expanded, setExpanded] = useState(false);
+  const [addingToGrocery, setAddingToGrocery] = useState(false);
+  const [addedToGrocery, setAddedToGrocery] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const toggleFavMutation = useToggleMealFavorite();
+
+  const missingNames = new Set(recipe.missingIngredients.map((n) => n.toLowerCase()));
+
+  function handleToggleFavorite() {
+    toggleFavMutation.mutate(
+      { id: recipe.id },
+      {
+        onSuccess: (updated) => {
+          setRecipe((prev) => ({ ...prev, isFavorited: (updated as { isFavorited: boolean }).isFavorited }));
+          queryClient.invalidateQueries({ queryKey: getListMealsQueryKey() });
+        },
+        onError: () => toast({ title: "Error", description: "Could not update favorite.", variant: "destructive" }),
+      }
+    );
+  }
+
+  async function handleAddToGrocery() {
+    setAddingToGrocery(true);
+    try {
+      const res = await fetch(`/api/grocery-list/from-meal/${recipe.id}`, { method: "POST" });
+      if (!res.ok) throw new Error("Failed");
+      queryClient.invalidateQueries({ queryKey: getGetGroceryListQueryKey() });
+      setAddedToGrocery(true);
+      toast({ title: "Added to grocery list", description: recipe.name });
+    } catch {
+      toast({ title: "Error", description: "Could not add to grocery list.", variant: "destructive" });
+    } finally {
+      setAddingToGrocery(false);
+    }
+  }
 
   return (
     <Card className="overflow-hidden hover:shadow-md transition-shadow">
@@ -84,51 +106,82 @@ function RecipeCard({ recipe }: { recipe: AvailableRecipe }) {
         style={{ background: recipe.matchScore === 1 ? "#10b981" : "#f59e0b" }}
       />
       <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-2 mb-2">
+        {/* Header row */}
+        <div className="flex items-start gap-2 mb-2">
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-sm leading-tight mb-1">{recipe.name}</h3>
-            <div className="flex flex-wrap gap-1.5 mb-2">
+            <h3 className="font-semibold text-sm leading-tight mb-1.5">{recipe.name}</h3>
+            <div className="flex flex-wrap gap-1.5">
               <MatchBadge score={recipe.matchScore} />
               <Badge variant="outline" className="text-xs">{recipe.cuisine}</Badge>
               <Badge variant="outline" className="text-xs">{recipe.protein}</Badge>
             </div>
           </div>
+          {/* Favorite button */}
+          <button
+            className={`p-1.5 rounded-full shrink-0 transition-colors ${recipe.isFavorited ? "text-amber-400 hover:text-amber-500" : "text-muted-foreground hover:text-amber-400"}`}
+            onClick={handleToggleFavorite}
+            disabled={toggleFavMutation.isPending}
+            title={recipe.isFavorited ? "Remove from favorites" : "Add to favorites"}
+          >
+            <Star className={`w-4 h-4 ${recipe.isFavorited ? "fill-amber-400" : ""}`} />
+          </button>
         </div>
 
+        {/* Stats */}
         <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
           <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{recipe.cookTimeMinutes}m</span>
           <span className="flex items-center gap-1"><Flame className="w-3 h-3" />{recipe.calories} kcal</span>
+          <span className="flex items-center gap-1">Serves {recipe.servings}</span>
         </div>
 
-        {recipe.missingIngredients.length > 0 && (
-          <div className="mb-3">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Still need:</p>
-            <div className="flex flex-wrap gap-1">
-              {recipe.missingIngredients.map((ing) => (
-                <span key={ing} className="text-xs bg-red-50 text-red-700 border border-red-200 px-1.5 py-0.5 rounded-full">
-                  {ing}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* Ingredients list */}
+        <div className="mb-3">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+            Ingredients
+          </p>
+          <ul className="space-y-0.5">
+            {recipe.ingredients.map((ing) => {
+              const isMissing = missingNames.has(ing.name.toLowerCase());
+              return (
+                <li
+                  key={ing.id}
+                  className={`text-xs flex items-baseline gap-1 ${isMissing ? "text-red-600" : "text-foreground"}`}
+                >
+                  <span className="shrink-0 font-medium tabular-nums">
+                    {ing.quantity}{ing.unit ? ` ${ing.unit}` : ""}
+                  </span>
+                  <span className={isMissing ? "" : "text-muted-foreground"}>{ing.name}</span>
+                  {isMissing && <span className="ml-auto text-[9px] font-semibold text-red-500 uppercase">needed</span>}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
 
-        <button
-          className="text-xs text-primary hover:underline"
-          onClick={() => setExpanded((v) => !v)}
-        >
-          {expanded ? "Hide details" : "View recipe details"}
-        </button>
+        {/* Action row */}
+        <div className="flex items-center gap-2 pt-2 border-t">
+          <Button
+            size="sm"
+            variant={addedToGrocery ? "outline" : "default"}
+            className="flex-1 text-xs h-8"
+            onClick={handleAddToGrocery}
+            disabled={addingToGrocery}
+          >
+            <ShoppingBag className="w-3.5 h-3.5 mr-1.5" />
+            {addingToGrocery ? "Adding…" : addedToGrocery ? "Added!" : "Add to Grocery List"}
+          </Button>
+          <button
+            className="text-xs text-muted-foreground hover:text-foreground underline decoration-dotted"
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {expanded ? "Hide" : "Instructions"}
+          </button>
+        </div>
 
-        {expanded && (
-          <div className="mt-3 pt-3 border-t space-y-2">
-            <p className="text-xs text-muted-foreground">{recipe.description}</p>
-            {recipe.instructions && (
-              <div>
-                <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground mb-1">Instructions</p>
-                <p className="text-xs text-muted-foreground whitespace-pre-line">{recipe.instructions}</p>
-              </div>
-            )}
+        {expanded && recipe.instructions && (
+          <div className="mt-3 pt-3 border-t">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Instructions</p>
+            <p className="text-xs text-muted-foreground whitespace-pre-line">{recipe.instructions}</p>
           </div>
         )}
       </CardContent>
@@ -263,7 +316,6 @@ export function Pantry() {
           </Button>
         </div>
       </div>
-
 
       {isLoading ? (
         <div className="space-y-6">
@@ -458,14 +510,14 @@ export function Pantry() {
               Recipes You Can Make
             </DialogTitle>
             <p className="text-sm text-muted-foreground">
-              Based on what's in your pantry right now
+              Based on what's in your pantry right now. Red ingredients are what you still need.
             </p>
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto min-h-0 -mx-6 px-6">
             {recipesLoading ? (
               <div className="space-y-3 py-4">
-                {[1, 2, 3].map((i) => <Skeleton key={i} className="h-32 rounded-xl" />)}
+                {[1, 2, 3].map((i) => <Skeleton key={i} className="h-48 rounded-xl" />)}
               </div>
             ) : !availableRecipes || availableRecipes.length === 0 ? (
               <div className="py-12 text-center text-muted-foreground">

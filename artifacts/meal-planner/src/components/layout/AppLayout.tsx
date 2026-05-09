@@ -24,10 +24,7 @@ const routes = [
   { name: "Saved", path: "/history", icon: History },
 ];
 
-const bottomRoutes = [
-  ...routes.slice(0, 4),
-  { name: "Settings", path: "/settings", icon: Settings },
-];
+const bottomRoutes = routes.slice(0, 4);
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
