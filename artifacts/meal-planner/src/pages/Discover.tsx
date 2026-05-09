@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   useListMeals,
   getListMealsQueryKey,
@@ -6,7 +6,6 @@ import {
   useListProteins,
   useAddMealToGroceryList,
   useCheckPantryForMeal,
-  useGenerateAiMeals,
   useToggleMealFavorite,
   useDeleteGroceryItem,
   getGetGroceryListQueryKey,
@@ -91,9 +90,12 @@ export function Discover() {
 
   const addMealMutation = useAddMealToGroceryList();
   const checkPantryMutation = useCheckPantryForMeal();
-  const generateAiMealsMutation = useGenerateAiMeals();
   const toggleFavoriteMutation = useToggleMealFavorite();
   const deleteGroceryItemMutation = useDeleteGroceryItem();
+
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiProgress, setAiProgress] = useState(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   function handleOpenMeal(meal: Meal) {
     setSelectedMeal(meal);
@@ -175,33 +177,80 @@ export function Discover() {
     );
   }
 
-  function handleGenerateAi() {
-    generateAiMealsMutation.mutate(
-      {
-        data: {
+  async function handleGenerateAi() {
+    if (aiGenerating) return;
+    setAiGenerating(true);
+    setAiProgress(0);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    try {
+      const response = await fetch("/api/meals/generate-ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           cuisine: cuisine || undefined,
           protein: protein || undefined,
           glutenFree: glutenFreeOnly || undefined,
-          count: 10,
-        },
-      },
-      {
-        onSuccess: (newMeals) => {
-          queryClient.invalidateQueries({ queryKey: getListMealsQueryKey(params) });
-          toast({
-            title: `${newMeals.length} new meal ideas added!`,
-            description: "AI-generated meals are now in your list.",
-          });
-        },
-        onError: () => {
-          toast({
-            title: "Could not generate meals",
-            description: "AI generation failed. Please try again.",
-            variant: "destructive",
-          });
-        },
+          count: 5,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok || !response.body) {
+        throw new Error("Generation failed");
       }
-    );
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let savedCount = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const event = JSON.parse(line.slice(6)) as {
+              type: string;
+              meal?: unknown;
+              count?: number;
+            };
+            if (event.type === "meal") {
+              savedCount++;
+              setAiProgress(savedCount);
+              queryClient.invalidateQueries({ queryKey: getListMealsQueryKey(params) });
+            } else if (event.type === "done") {
+              toast({
+                title: `${event.count ?? savedCount} new meal ideas added!`,
+                description: "AI-generated meals are now in your list.",
+              });
+            }
+          } catch {
+            // malformed SSE line — skip
+          }
+        }
+      }
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") {
+        toast({
+          title: "Could not generate meals",
+          description: "AI generation failed. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setAiGenerating(false);
+      setAiProgress(0);
+      abortRef.current = null;
+    }
   }
 
   const activeFilters = [
@@ -220,14 +269,14 @@ export function Discover() {
         </div>
         <Button
           onClick={handleGenerateAi}
-          disabled={generateAiMealsMutation.isPending}
+          disabled={aiGenerating}
           className="gap-2 shrink-0"
           variant="outline"
         >
-          {generateAiMealsMutation.isPending ? (
+          {aiGenerating ? (
             <>
               <RefreshCw className="w-4 h-4 animate-spin" />
-              Generating…
+              {aiProgress > 0 ? `${aiProgress} added…` : "Generating…"}
             </>
           ) : (
             <>
@@ -244,13 +293,13 @@ export function Discover() {
       </div>
 
       {/* AI generation loading banner */}
-      {generateAiMealsMutation.isPending && (
+      {aiGenerating && (
         <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 flex items-center gap-3 text-sm text-primary">
           <Sparkles className="w-4 h-4 shrink-0 animate-pulse" />
           <span>
-            AI is searching for new{" "}
-            {activeFilters.length > 0 ? activeFilters.join(", ").toLowerCase() + " " : ""}
-            meal ideas and adding them to your library…
+            AI is creating new{" "}
+            {activeFilters.length > 0 ? activeFilters.join(" + ").toLowerCase() + " " : ""}
+            meal ideas…{aiProgress > 0 ? ` ${aiProgress} added so far.` : ""}
           </span>
         </div>
       )}
@@ -332,11 +381,11 @@ export function Discover() {
           </p>
           <button
             onClick={handleGenerateAi}
-            disabled={generateAiMealsMutation.isPending}
+            disabled={aiGenerating}
             className="text-xs text-primary hover:underline flex items-center gap-1 disabled:opacity-50"
           >
             <Sparkles className="w-3 h-3" />
-            {generateAiMealsMutation.isPending ? "Generating…" : "Find more with AI"}
+            {aiGenerating ? "Generating…" : "Find more with AI"}
           </button>
         </div>
       )}
@@ -355,9 +404,9 @@ export function Discover() {
             {favoritesOnly ? "You haven't starred any meals yet." : "No meals match your filters yet."}
           </p>
           {!favoritesOnly && (
-            <Button onClick={handleGenerateAi} disabled={generateAiMealsMutation.isPending} className="gap-2">
+            <Button onClick={handleGenerateAi} disabled={aiGenerating} className="gap-2">
               <Sparkles className="w-4 h-4" />
-              {generateAiMealsMutation.isPending ? "Generating…" : "Generate Meals with AI"}
+              {aiGenerating ? "Generating…" : "Generate Meals with AI"}
             </Button>
           )}
         </div>
@@ -420,7 +469,7 @@ export function Discover() {
             })}
 
             {/* AI generation skeleton cards */}
-            {generateAiMealsMutation.isPending && (
+            {aiGenerating && (
               [1, 2, 3].map((i) => (
                 <Card key={`ai-loading-${i}`} className="overflow-hidden flex flex-col opacity-60">
                   <div className="h-3 w-full bg-gradient-to-r from-primary/30 via-primary/60 to-primary/30 animate-pulse" />
@@ -453,11 +502,13 @@ export function Discover() {
             <Button
               variant="outline"
               onClick={handleGenerateAi}
-              disabled={generateAiMealsMutation.isPending}
+              disabled={aiGenerating}
               className="gap-2 text-sm"
             >
               <Sparkles className="w-4 h-4" />
-              {generateAiMealsMutation.isPending ? "Generating 10 more…" : "Generate 10 More with AI"}
+              {aiGenerating
+                ? aiProgress > 0 ? `${aiProgress} added, generating more…` : "Generating…"
+                : "Generate 5 More with AI"}
             </Button>
           </div>
         </>

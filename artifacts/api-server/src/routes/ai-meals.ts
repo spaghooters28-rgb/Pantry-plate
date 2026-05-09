@@ -29,129 +29,196 @@ interface AiMealSuggestion {
   }>;
 }
 
+function buildPrompt(
+  cuisineFilter: string | null,
+  proteinFilter: string | null,
+  glutenFreeFilter: boolean | null,
+  existingNames: string[]
+): string {
+  const cuisineVal = cuisineFilter ?? "any (pick one of: American, Asian, BBQ & Grilled, Breakfast, Caribbean, Chinese, Desserts, French, Greek, Indian, Italian, Japanese, Korean, Mediterranean, Mexican, Middle Eastern, Side Dishes, Thai, Other)";
+  const proteinVal = proteinFilter ?? "any (pick one of: Beef, Chicken, Duck, Eggs, Fish, Lamb, Pork, Salmon, Sausage, Shrimp, Steak, Tofu, Turkey, Vegetarian, Other)";
+
+  const avoidLine =
+    existingNames.length > 0
+      ? `\nDo NOT use any of these names (already exist): ${existingNames.slice(-20).join(", ")}.`
+      : "";
+
+  const gfLine = glutenFreeFilter === true ? "\nMUST be gluten-free (isGlutenFree: true)." : "";
+
+  return `Create one creative ${cuisineFilter ?? "cuisine"} meal featuring ${proteinFilter ?? "protein"}.${gfLine}${avoidLine}
+
+Fill every field with real, specific values. Return ONLY this JSON (no markdown, no extra text):
+{
+  "name": "unique creative meal name",
+  "description": "1-2 appetizing sentences",
+  "cuisine": "${cuisineFilter ?? "<chosen cuisine>"}",
+  "protein": "${proteinFilter ?? "<chosen protein>"}",
+  "isGlutenFree": false,
+  "cookTimeMinutes": 35,
+  "servings": 4,
+  "calories": 480,
+  "tags": ["tag1", "tag2", "tag3"],
+  "instructions": "1. First step.\\n2. Second step.\\n3. Third step.\\n4. Fourth step.\\n5. Fifth step.",
+  "ingredients": [
+    {"name": "Main Ingredient", "quantity": "1", "unit": "lb", "category": "Meat & Seafood", "isCommonPantryItem": false},
+    {"name": "Vegetable", "quantity": "2", "unit": "cups", "category": "Produce", "isCommonPantryItem": false},
+    {"name": "Pantry Item", "quantity": "2", "unit": "tbsp", "category": "Condiments & Sauces", "isCommonPantryItem": true}
+  ],
+  "sides": [
+    {"name": "Side name", "description": "Brief description"},
+    {"name": "Second side", "description": "Brief description"}
+  ]
+}
+
+Rules: cuisine MUST be ${cuisineVal}. protein MUST be ${proteinVal}. Use 5-10 ingredients total. Return ONLY valid JSON.`;
+}
+
+async function generateAndSaveMeal(
+  cuisineFilter: string | null,
+  proteinFilter: string | null,
+  glutenFreeFilter: boolean | null,
+  existingNames: string[]
+): Promise<object | null> {
+  const prompt = buildPrompt(cuisineFilter, proteinFilter, glutenFreeFilter, existingNames);
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-5-nano",
+    max_completion_tokens: 16384,
+    messages: [{ role: "user", content: prompt }],
+  });
+
+  const content = response.choices[0]?.message?.content ?? "";
+  if (!content) return null;
+
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) return null;
+
+  let suggestion: AiMealSuggestion;
+  try {
+    suggestion = JSON.parse(jsonMatch[0]) as AiMealSuggestion;
+  } catch {
+    return null;
+  }
+
+  if (!suggestion.name || existingNames.includes(suggestion.name)) return null;
+
+  // Apply filters on server side in case AI ignored them
+  if (cuisineFilter && suggestion.cuisine !== cuisineFilter) {
+    suggestion.cuisine = cuisineFilter;
+  }
+  if (proteinFilter && suggestion.protein !== proteinFilter) {
+    suggestion.protein = proteinFilter;
+  }
+
+  const [meal] = await db
+    .insert(mealsTable)
+    .values({
+      name: suggestion.name,
+      description: suggestion.description ?? "",
+      cuisine: suggestion.cuisine,
+      protein: suggestion.protein,
+      isGlutenFree: glutenFreeFilter === true ? true : Boolean(suggestion.isGlutenFree),
+      cookTimeMinutes: Number(suggestion.cookTimeMinutes) || 30,
+      servings: Number(suggestion.servings) || 4,
+      calories: Number(suggestion.calories) || 400,
+      imageUrl: null,
+      tags: Array.isArray(suggestion.tags) ? suggestion.tags : [],
+      instructions:
+        typeof suggestion.instructions === "string" && suggestion.instructions.trim()
+          ? suggestion.instructions.trim()
+          : null,
+    })
+    .returning();
+
+  if (!meal) return null;
+
+  if (Array.isArray(suggestion.ingredients) && suggestion.ingredients.length > 0) {
+    await db.insert(ingredientsTable).values(
+      suggestion.ingredients.map((ing) => ({
+        mealId: meal.id,
+        name: ing.name,
+        quantity: String(ing.quantity ?? "1"),
+        unit: String(ing.unit ?? ""),
+        category: String(ing.category ?? "Other"),
+        isCommonPantryItem: Boolean(ing.isCommonPantryItem),
+      }))
+    );
+  }
+
+  if (Array.isArray(suggestion.sides) && suggestion.sides.length > 0) {
+    await db.insert(sidesTable).values(
+      suggestion.sides.map((side) => ({
+        mealId: meal.id,
+        name: side.name,
+        description: side.description ?? "",
+      }))
+    );
+  }
+
+  const ingredients = await db
+    .select()
+    .from(ingredientsTable)
+    .where(eq(ingredientsTable.mealId, meal.id));
+
+  const sides = await db
+    .select()
+    .from(sidesTable)
+    .where(eq(sidesTable.mealId, meal.id));
+
+  return { ...meal, ingredients, availableSides: sides };
+}
+
+// SSE streaming endpoint — generates meals one-by-one and streams each as it's saved
 router.post("/meals/generate-ai", async (req, res): Promise<void> => {
-  const { cuisine, protein, glutenFree, count = 10 } = req.body ?? {};
+  const { cuisine, protein, glutenFree, count = 5 } = req.body ?? {};
 
   const cuisineFilter = typeof cuisine === "string" && cuisine ? cuisine : null;
   const proteinFilter = typeof protein === "string" && protein ? protein : null;
   const glutenFreeFilter = typeof glutenFree === "boolean" ? glutenFree : null;
-  const mealCount = Math.min(Math.max(Number(count) || 10, 5), 20);
+  const mealCount = Math.min(Math.max(Number(count) || 5, 1), 8);
 
-  const filterParts: string[] = [];
-  if (cuisineFilter) filterParts.push(`cuisine: ${cuisineFilter}`);
-  if (proteinFilter) filterParts.push(`protein: ${proteinFilter}`);
-  if (glutenFreeFilter === true) filterParts.push("gluten-free only");
-  const filterDesc = filterParts.length > 0 ? filterParts.join(", ") : "any cuisine and protein";
+  // SSE headers — keeps connection alive through the proxy
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
 
-  const prompt = `You are a culinary expert. Generate exactly ${mealCount} diverse, creative, and delicious meal ideas with these constraints: ${filterDesc}.
+  // Load existing names to avoid duplicates
+  const existingRows = await db
+    .select({ name: mealsTable.name })
+    .from(mealsTable);
+  const existingNames = existingRows.map((r) => r.name);
+  const generatedThisSession: string[] = [];
 
-Return a JSON array (no markdown, no code fences, ONLY valid JSON) with exactly ${mealCount} objects. Each object must have these exact fields:
-- name: string (unique, creative meal name)
-- description: string (2-3 sentences, appetizing)
-- cuisine: string (one of: American, Mexican, Asian, Indian, Italian, Mediterranean)
-- protein: string (one of: Chicken, Beef, Pork, Fish, Shrimp, Tofu, Vegetarian)
-- isGlutenFree: boolean
-- cookTimeMinutes: number (realistic, e.g. 20-180)
-- servings: number (2, 4, or 6)
-- calories: number (per serving, e.g. 250-800)
-- tags: string[] (3-5 lowercase tags, e.g. ["spicy","quick","comfort-food"])
-- instructions: string (numbered step-by-step cooking instructions, 6-10 steps, clear and practical — e.g. "1. Season the chicken...\n2. Heat oil in a pan...")
-- ingredients: array of objects (6-12 items), each with:
-    name: string, quantity: string, unit: string, category: string, isCommonPantryItem: boolean
-    category must be one of: Produce, Dairy, Meat & Seafood, Pantry, Spices & Herbs, Bakery, Frozen, Beverages, Other
-    isCommonPantryItem true for staples like olive oil, salt, garlic, butter, etc.
-- sides: array of objects (2-3 items), each with: name: string, description: string
+  let saved = 0;
 
-IMPORTANT:${glutenFreeFilter === true ? " ALL meals MUST be gluten-free." : ""}${cuisineFilter ? ` ALL meals MUST be ${cuisineFilter} cuisine.` : ""}${proteinFilter ? ` ALL meals MUST feature ${proteinFilter} as the primary protein.` : ""}
-Be creative — avoid generic or duplicated meal names. Return ONLY the JSON array, nothing else.`;
-
-  let suggestions: AiMealSuggestion[] = [];
-
-  try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      max_completion_tokens: 8192,
-      messages: [{ role: "user", content: prompt }],
-    });
-
-    const content = response.choices[0]?.message?.content ?? "";
-    const jsonMatch = content.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
-      res.status(500).json({ error: "AI returned unexpected format" });
-      return;
-    }
-    suggestions = JSON.parse(jsonMatch[0]) as AiMealSuggestion[];
-  } catch (err) {
-    req.log.error({ err }, "AI meal generation failed");
-    res.status(500).json({ error: "Failed to generate meal ideas" });
-    return;
-  }
-
-  const savedMeals = [];
-
-  for (const suggestion of suggestions) {
+  for (let i = 0; i < mealCount; i++) {
     try {
-      const [meal] = await db
-        .insert(mealsTable)
-        .values({
-          name: suggestion.name,
-          description: suggestion.description,
-          cuisine: suggestion.cuisine,
-          protein: suggestion.protein,
-          isGlutenFree: Boolean(suggestion.isGlutenFree),
-          cookTimeMinutes: Number(suggestion.cookTimeMinutes) || 30,
-          servings: Number(suggestion.servings) || 4,
-          calories: Number(suggestion.calories) || 400,
-          imageUrl: null,
-          tags: Array.isArray(suggestion.tags) ? suggestion.tags : [],
-          instructions: typeof suggestion.instructions === "string" && suggestion.instructions.trim()
-            ? suggestion.instructions.trim()
-            : null,
-        })
-        .returning();
+      const allKnownNames = [...existingNames, ...generatedThisSession];
+      const meal = await generateAndSaveMeal(
+        cuisineFilter,
+        proteinFilter,
+        glutenFreeFilter,
+        allKnownNames
+      );
 
-      if (!meal) continue;
-
-      if (Array.isArray(suggestion.ingredients) && suggestion.ingredients.length > 0) {
-        await db.insert(ingredientsTable).values(
-          suggestion.ingredients.map((ing) => ({
-            mealId: meal.id,
-            name: ing.name,
-            quantity: ing.quantity,
-            unit: ing.unit ?? "",
-            category: ing.category ?? "Other",
-            isCommonPantryItem: Boolean(ing.isCommonPantryItem),
-          }))
-        );
+      if (meal) {
+        const mealName = (meal as { name: string }).name;
+        generatedThisSession.push(mealName);
+        saved++;
+        res.write(`data: ${JSON.stringify({ type: "meal", meal })}\n\n`);
+      } else {
+        res.write(`data: ${JSON.stringify({ type: "skip" })}\n\n`);
       }
-
-      if (Array.isArray(suggestion.sides) && suggestion.sides.length > 0) {
-        await db.insert(sidesTable).values(
-          suggestion.sides.map((side) => ({
-            mealId: meal.id,
-            name: side.name,
-            description: side.description ?? "",
-          }))
-        );
-      }
-
-      const ingredients = await db
-        .select()
-        .from(ingredientsTable)
-        .where(eq(ingredientsTable.mealId, meal.id));
-
-      const sides = await db
-        .select()
-        .from(sidesTable)
-        .where(eq(sidesTable.mealId, meal.id));
-
-      savedMeals.push({ ...meal, ingredients, availableSides: sides });
-    } catch {
-      // skip individual insert failures silently
+    } catch (err) {
+      req.log.error({ err }, `AI meal generation failed for item ${i + 1}`);
+      res.write(`data: ${JSON.stringify({ type: "error", message: "One meal failed, continuing…" })}\n\n`);
     }
   }
 
-  res.json(savedMeals);
+  res.write(`data: ${JSON.stringify({ type: "done", count: saved })}\n\n`);
+  res.end();
 });
 
 export default router;
