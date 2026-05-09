@@ -1,29 +1,9 @@
 import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
-import { eq, ilike, asc } from "drizzle-orm";
-import { db, usersTable, pantryItemsTable } from "@workspace/db";
+import { ilike } from "drizzle-orm";
+import { db, usersTable } from "@workspace/db";
 
 const router: IRouter = Router();
-
-const DEFAULT_PANTRY_ITEMS = [
-  { name: "Olive Oil", category: "Pantry", inStock: true },
-  { name: "Salt", category: "Pantry", inStock: true },
-  { name: "Black Pepper", category: "Pantry", inStock: true },
-  { name: "Garlic", category: "Produce", inStock: true },
-  { name: "Onion", category: "Produce", inStock: true },
-  { name: "Butter", category: "Dairy & Eggs", inStock: true },
-  { name: "Eggs", category: "Dairy & Eggs", inStock: true },
-  { name: "Whole Milk", category: "Dairy & Eggs", inStock: true },
-  { name: "All-Purpose Flour", category: "Pantry", inStock: true },
-  { name: "Sugar", category: "Pantry", inStock: true },
-  { name: "Baking Powder", category: "Pantry", inStock: true },
-  { name: "Cumin", category: "Pantry", inStock: true },
-  { name: "Paprika", category: "Pantry", inStock: true },
-  { name: "Chili Powder", category: "Pantry", inStock: true },
-  { name: "Soy Sauce", category: "Condiments & Sauces", inStock: true },
-  { name: "Chicken Broth", category: "Canned Goods", inStock: true },
-  { name: "Basil", category: "Pantry", inStock: false },
-];
 
 router.post("/auth/register", async (req, res): Promise<void> => {
   const { username, password } = req.body as { username?: string; password?: string };
@@ -55,11 +35,6 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     .insert(usersTable)
     .values({ username: trimmedUsername, passwordHash })
     .returning();
-
-  // Seed default pantry items for the new user
-  await db.insert(pantryItemsTable).values(
-    DEFAULT_PANTRY_ITEMS.map((item) => ({ ...item, userId: user.id }))
-  );
 
   req.session.userId = user.id;
   req.session.username = user.username;
