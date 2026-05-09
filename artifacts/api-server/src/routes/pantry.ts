@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, ilike, asc } from "drizzle-orm";
-import { db, pantryItemsTable, ingredientsTable, mealsTable, groceryItemsTable } from "@workspace/db";
+import { db, pantryItemsTable, ingredientsTable, mealsTable, sidesTable, groceryItemsTable } from "@workspace/db";
 import {
   AddPantryItemBody,
   UpdatePantryItemParams,
@@ -177,6 +177,79 @@ router.post("/pantry/items/:id/to-grocery", async (req, res): Promise<void> => {
   }
 
   res.json({ success: true });
+});
+
+router.get("/pantry/available-recipes", async (_req, res): Promise<void> => {
+  // Fetch all in-stock pantry items
+  const pantryItems = await db
+    .select()
+    .from(pantryItemsTable)
+    .where(eq(pantryItemsTable.inStock, true));
+
+  // Fetch all meals
+  const allMeals = await db.select().from(mealsTable);
+
+  // Fetch all ingredients in one query, keyed by mealId
+  const allIngredients = await db.select().from(ingredientsTable);
+  const ingredientsByMeal = new Map<number, (typeof ingredientsTable.$inferSelect)[]>();
+  for (const ing of allIngredients) {
+    const existing = ingredientsByMeal.get(ing.mealId) ?? [];
+    existing.push(ing);
+    ingredientsByMeal.set(ing.mealId, existing);
+  }
+
+  // Fetch all sides in one query
+  const allSides = await db.select().from(sidesTable);
+  const sidesByMeal = new Map<number, (typeof sidesTable.$inferSelect)[]>();
+  for (const side of allSides) {
+    const existing = sidesByMeal.get(side.mealId) ?? [];
+    existing.push(side);
+    sidesByMeal.set(side.mealId, existing);
+  }
+
+  const pantryNames = pantryItems.map((p) => p.name.toLowerCase());
+
+  function isInPantry(ingredientName: string): boolean {
+    const name = ingredientName.toLowerCase();
+    return pantryNames.some((p) => p.includes(name) || name.includes(p));
+  }
+
+  const results: object[] = [];
+
+  for (const meal of allMeals) {
+    const ingredients = ingredientsByMeal.get(meal.id) ?? [];
+    const sides = sidesByMeal.get(meal.id) ?? [];
+
+    // Only consider non-common ingredients (common pantry items like salt/oil always assumed available)
+    const keyIngredients = ingredients.filter((i) => !i.isCommonPantryItem);
+
+    if (keyIngredients.length === 0) continue;
+
+    const missing = keyIngredients.filter((i) => !isInPantry(i.name));
+    const matchScore = (keyIngredients.length - missing.length) / keyIngredients.length;
+
+    // Include meals where at least 50% of key ingredients are covered
+    if (matchScore >= 0.5) {
+      results.push({
+        ...meal,
+        imageUrl: meal.imageUrl ?? null,
+        instructions: meal.instructions ?? null,
+        ingredients,
+        availableSides: sides,
+        matchScore,
+        missingIngredients: missing.map((i) => i.name),
+      });
+    }
+  }
+
+  // Sort: fully makeable first, then by match score desc
+  results.sort((a, b) => {
+    const ra = a as { matchScore: number };
+    const rb = b as { matchScore: number };
+    return rb.matchScore - ra.matchScore;
+  });
+
+  res.json(results);
 });
 
 router.post("/pantry/check", async (req, res): Promise<void> => {

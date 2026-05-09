@@ -583,6 +583,21 @@ paths:
                     type: boolean
                 required: [success]
 
+  /pantry/available-recipes:
+    get:
+      operationId: getAvailableRecipes
+      tags: [pantry]
+      summary: Find recipes that can be made from current pantry stock
+      responses:
+        "200":
+          description: Recipes with pantry match information
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AvailableRecipe"
+
   /pantry/check:
     post:
       operationId: checkPantryForMeal
@@ -731,6 +746,74 @@ components:
         description:
           type: string
       required: [id, name, description]
+
+    AvailableRecipe:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        cuisine:
+          type: string
+        protein:
+          type: string
+        isGlutenFree:
+          type: boolean
+        cookTimeMinutes:
+          type: integer
+        servings:
+          type: integer
+        calories:
+          type: integer
+        imageUrl:
+          type: string
+          nullable: true
+        isFavorited:
+          type: boolean
+        instructions:
+          type: string
+          nullable: true
+        ingredients:
+          type: array
+          items:
+            $ref: "#/components/schemas/Ingredient"
+        availableSides:
+          type: array
+          items:
+            $ref: "#/components/schemas/Side"
+        tags:
+          type: array
+          items:
+            type: string
+        matchScore:
+          type: number
+          description: Fraction of non-common ingredients covered by pantry (0–1)
+        missingIngredients:
+          type: array
+          items:
+            type: string
+          description: Names of ingredients not in pantry
+      required:
+        [
+          id,
+          name,
+          description,
+          cuisine,
+          protein,
+          isGlutenFree,
+          cookTimeMinutes,
+          servings,
+          calories,
+          isFavorited,
+          ingredients,
+          availableSides,
+          tags,
+          matchScore,
+          missingIngredients,
+        ]
 
     Meal:
       type: object

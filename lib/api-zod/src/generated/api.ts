@@ -778,6 +778,53 @@ export const MovePantryItemToGroceryResponse = zod.object({
 });
 
 /**
+ * @summary Find recipes that can be made from current pantry stock
+ */
+export const GetAvailableRecipesResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string(),
+  cuisine: zod.string(),
+  protein: zod.string(),
+  isGlutenFree: zod.boolean(),
+  cookTimeMinutes: zod.number(),
+  servings: zod.number(),
+  calories: zod.number(),
+  imageUrl: zod.string().nullish(),
+  isFavorited: zod.boolean(),
+  instructions: zod.string().nullish(),
+  ingredients: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      quantity: zod.string(),
+      unit: zod.string(),
+      category: zod.string().describe("produce, dairy, meat, pantry, etc."),
+      isCommonPantryItem: zod
+        .boolean()
+        .describe("Common spices\/staples likely already in pantry"),
+    }),
+  ),
+  availableSides: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      description: zod.string(),
+    }),
+  ),
+  tags: zod.array(zod.string()),
+  matchScore: zod
+    .number()
+    .describe("Fraction of non-common ingredients covered by pantry (0–1)"),
+  missingIngredients: zod
+    .array(zod.string())
+    .describe("Names of ingredients not in pantry"),
+});
+export const GetAvailableRecipesResponse = zod.array(
+  GetAvailableRecipesResponseItem,
+);
+
+/**
  * @summary Check which ingredients for a meal are already in pantry
  */
 export const CheckPantryForMealBody = zod.object({

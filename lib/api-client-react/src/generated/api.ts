@@ -23,6 +23,7 @@ import type {
   AddWeekToGroceryList200,
   AnalyzeRecipeBody,
   AnalyzeRecipeResult,
+  AvailableRecipe,
   CheckPantryBody,
   CreateScheduledItemBody,
   GenerateAiMealsBody,
@@ -2507,6 +2508,81 @@ export const useMovePantryItemToGrocery = <
 > => {
   return useMutation(getMovePantryItemToGroceryMutationOptions(options));
 };
+
+/**
+ * @summary Find recipes that can be made from current pantry stock
+ */
+export const getGetAvailableRecipesUrl = () => {
+  return `/api/pantry/available-recipes`;
+};
+
+export const getAvailableRecipes = async (
+  options?: RequestInit,
+): Promise<AvailableRecipe[]> => {
+  return customFetch<AvailableRecipe[]>(getGetAvailableRecipesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAvailableRecipesQueryKey = () => {
+  return [`/api/pantry/available-recipes`] as const;
+};
+
+export const getGetAvailableRecipesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAvailableRecipes>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAvailableRecipes>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetAvailableRecipesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAvailableRecipes>>
+  > = ({ signal }) => getAvailableRecipes({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAvailableRecipes>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAvailableRecipesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAvailableRecipes>>
+>;
+export type GetAvailableRecipesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Find recipes that can be made from current pantry stock
+ */
+
+export function useGetAvailableRecipes<
+  TData = Awaited<ReturnType<typeof getAvailableRecipes>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAvailableRecipes>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAvailableRecipesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Check which ingredients for a meal are already in pantry

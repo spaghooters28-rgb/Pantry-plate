@@ -26,6 +26,28 @@ export interface Side {
   description: string;
 }
 
+export interface AvailableRecipe {
+  id: number;
+  name: string;
+  description: string;
+  cuisine: string;
+  protein: string;
+  isGlutenFree: boolean;
+  cookTimeMinutes: number;
+  servings: number;
+  calories: number;
+  imageUrl?: string | null;
+  isFavorited: boolean;
+  instructions?: string | null;
+  ingredients: Ingredient[];
+  availableSides: Side[];
+  tags: string[];
+  /** Fraction of non-common ingredients covered by pantry (0–1) */
+  matchScore: number;
+  /** Names of ingredients not in pantry */
+  missingIngredients: string[];
+}
+
 export interface Meal {
   id: number;
   name: string;

@@ -10,6 +10,7 @@
     "seed-meals-3": "tsx ./src/seed-meals-3.ts",
     "seed-meals-4": "tsx ./src/seed-meals-4.ts",
     "seed-meals-5": "tsx ./src/seed-meals-5.ts",
+    "seed-pantry": "tsx ./src/seed-pantry.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

@@ -7,13 +7,17 @@ import {
   useDeletePantryItem,
   useMovePantryItemToGrocery,
   getGetGroceryListQueryKey,
+  useGetAvailableRecipes,
+  getGetAvailableRecipesQueryKey,
+  type AvailableRecipe,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { PackageSearch, Plus, Trash2, ChefHat, ShoppingCart } from "lucide-react";
+import { PackageSearch, Plus, Trash2, ChefHat, ShoppingCart, Sparkles, Clock, Flame, CheckCircle2, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const CATEGORIES = [
@@ -41,6 +45,7 @@ const CATEGORY_ORDER = [
   "Canned Goods", "Condiments & Sauces", "Snacks", "Desserts", "Beverages",
   "Frozen", "Pantry", "Cleaning", "Personal Care", "Other",
 ];
+void CATEGORY_ORDER;
 
 type PantryItem = {
   id: number;
@@ -53,14 +58,97 @@ type PantryItem = {
   usedInMeals?: string[];
 };
 
+function MatchBadge({ score }: { score: number }) {
+  const pct = Math.round(score * 100);
+  if (pct === 100) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+        <CheckCircle2 className="w-3 h-3" /> Ready to cook
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+      <AlertCircle className="w-3 h-3" /> {pct}% covered
+    </span>
+  );
+}
+
+function RecipeCard({ recipe }: { recipe: AvailableRecipe }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <Card className="overflow-hidden hover:shadow-md transition-shadow">
+      <div
+        className="h-1 w-full"
+        style={{ background: recipe.matchScore === 1 ? "#10b981" : "#f59e0b" }}
+      />
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-sm leading-tight mb-1">{recipe.name}</h3>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              <MatchBadge score={recipe.matchScore} />
+              <Badge variant="outline" className="text-xs">{recipe.cuisine}</Badge>
+              <Badge variant="outline" className="text-xs">{recipe.protein}</Badge>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
+          <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{recipe.cookTimeMinutes}m</span>
+          <span className="flex items-center gap-1"><Flame className="w-3 h-3" />{recipe.calories} kcal</span>
+        </div>
+
+        {recipe.missingIngredients.length > 0 && (
+          <div className="mb-3">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Still need:</p>
+            <div className="flex flex-wrap gap-1">
+              {recipe.missingIngredients.map((ing) => (
+                <span key={ing} className="text-xs bg-red-50 text-red-700 border border-red-200 px-1.5 py-0.5 rounded-full">
+                  {ing}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <button
+          className="text-xs text-primary hover:underline"
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? "Hide details" : "View recipe details"}
+        </button>
+
+        {expanded && (
+          <div className="mt-3 pt-3 border-t space-y-2">
+            <p className="text-xs text-muted-foreground">{recipe.description}</p>
+            {recipe.instructions && (
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground mb-1">Instructions</p>
+                <p className="text-xs text-muted-foreground whitespace-pre-line">{recipe.instructions}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function Pantry() {
   const [addOpen, setAddOpen] = useState(false);
+  const [recipesOpen, setRecipesOpen] = useState(false);
   const [newItem, setNewItem] = useState({ name: "", quantity: "", category: "Pantry", notes: "" });
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const qKey = getListPantryItemsQueryKey();
+  const recipeQKey = getGetAvailableRecipesQueryKey();
 
   const { data: items, isLoading } = useListPantryItems({ query: { queryKey: qKey } });
+  const { data: availableRecipes, isLoading: recipesLoading, refetch: fetchRecipes } = useGetAvailableRecipes({
+    query: { queryKey: recipeQKey, enabled: false },
+  });
 
   type QtyOpen = { id: number; top: number; left: number } | null;
   const [qtyOpen, setQtyOpen] = useState<QtyOpen>(null);
@@ -87,7 +175,11 @@ export function Pantry() {
     );
   }
 
-  // Group items by category, sorted alphabetically within each group
+  async function handleGenerateRecipes() {
+    setRecipesOpen(true);
+    await fetchRecipes();
+  }
+
   const grouped: Record<string, PantryItem[]> = {};
   for (const item of (items ?? [])) {
     const cat = item.category || "Other";
@@ -150,6 +242,9 @@ export function Pantry() {
     );
   }
 
+  const readyRecipes = availableRecipes?.filter((r) => r.matchScore === 1) ?? [];
+  const almostRecipes = availableRecipes?.filter((r) => r.matchScore < 1) ?? [];
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -158,6 +253,10 @@ export function Pantry() {
           <p className="text-muted-foreground">Track what you have at home.</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={handleGenerateRecipes}>
+            <Sparkles className="w-4 h-4 mr-2" />
+            Find Available Recipes
+          </Button>
           <Button onClick={() => setAddOpen(true)}>
             <Plus className="w-4 h-4 mr-2" />
             Add Item
@@ -347,6 +446,61 @@ export function Pantry() {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Available Recipes Dialog */}
+      <Dialog open={recipesOpen} onOpenChange={setRecipesOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="font-serif flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-primary" />
+              Recipes You Can Make
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Based on what's in your pantry right now
+            </p>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto min-h-0 -mx-6 px-6">
+            {recipesLoading ? (
+              <div className="space-y-3 py-4">
+                {[1, 2, 3].map((i) => <Skeleton key={i} className="h-32 rounded-xl" />)}
+              </div>
+            ) : !availableRecipes || availableRecipes.length === 0 ? (
+              <div className="py-12 text-center text-muted-foreground">
+                <PackageSearch className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                <p className="font-medium mb-1">No recipes found.</p>
+                <p className="text-sm">Add more items to your pantry to unlock recipes.</p>
+              </div>
+            ) : (
+              <div className="py-4 space-y-6">
+                {readyRecipes.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-emerald-700 flex items-center gap-1.5 mb-3">
+                      <CheckCircle2 className="w-4 h-4" />
+                      Ready to Cook ({readyRecipes.length})
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {readyRecipes.map((r) => <RecipeCard key={r.id} recipe={r} />)}
+                    </div>
+                  </div>
+                )}
+
+                {almostRecipes.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-amber-700 flex items-center gap-1.5 mb-3">
+                      <AlertCircle className="w-4 h-4" />
+                      Almost There — Missing a Few Items ({almostRecipes.length})
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {almostRecipes.map((r) => <RecipeCard key={r.id} recipe={r} />)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
