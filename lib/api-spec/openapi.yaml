@@ -24,6 +24,8 @@ tags:
     description: User preferences
   - name: history
     description: Recipe history tracking
+  - name: openai
+    description: OpenAI AI chat operations
 
 paths:
   /healthz:
