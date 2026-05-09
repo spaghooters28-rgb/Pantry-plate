@@ -460,17 +460,6 @@ export function HistoryPage() {
               <Button
                 variant="outline"
                 className="justify-start gap-2 h-auto py-3 px-4"
-                onClick={() => handleUnpin(unpinTarget, "back")}
-              >
-                <History className="w-4 h-4 text-primary shrink-0" />
-                <div className="text-left">
-                  <p className="font-medium text-sm">Move back to Saved</p>
-                  <p className="text-xs text-muted-foreground">Keep in your Saved list, remove from board</p>
-                </div>
-              </Button>
-              <Button
-                variant="outline"
-                className="justify-start gap-2 h-auto py-3 px-4"
                 onClick={() => handleUnpin(unpinTarget, "saved")}
               >
                 <Pin className="w-4 h-4 text-muted-foreground shrink-0" />
