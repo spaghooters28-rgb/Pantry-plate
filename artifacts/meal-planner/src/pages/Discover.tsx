@@ -616,47 +616,64 @@ export function Discover() {
                 <span className="flex items-center gap-1"><Users className="w-4 h-4" />Serves {selectedMeal.servings}</span>
               </div>
 
-              {/* Pantry Check */}
-              <div className="space-y-3">
-                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Pantry Check</h3>
+              {/* Ingredients */}
+              <div className="space-y-2">
+                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                  <ChefHat className="w-4 h-4" />
+                  Ingredients
+                  {pantryCheck && (
+                    <span className="ml-auto flex gap-2 normal-case font-normal text-xs">
+                      <span className="text-green-600 flex items-center gap-0.5"><CheckCircle2 className="w-3 h-3" />{pantryCheck.haveInPantry.length} in pantry</span>
+                      {pantryCheck.needToBuy.length > 0 && (
+                        <span className="text-amber-600 flex items-center gap-0.5"><AlertCircle className="w-3 h-3" />{pantryCheck.needToBuy.length} to buy</span>
+                      )}
+                    </span>
+                  )}
+                </h3>
                 {pantryCheckLoading ? (
-                  <div className="space-y-2">
-                    <Skeleton className="h-8 w-full" />
-                    <Skeleton className="h-8 w-3/4" />
+                  <div className="space-y-1.5">
+                    <Skeleton className="h-7 w-full" />
+                    <Skeleton className="h-7 w-5/6" />
+                    <Skeleton className="h-7 w-4/6" />
                   </div>
-                ) : pantryCheck ? (
-                  <div className="space-y-2">
-                    {pantryCheck.haveInPantry.length > 0 && (
-                      <div className="p-3 rounded-lg bg-green-50 border border-green-200">
-                        <p className="text-xs font-medium text-green-700 mb-1.5 flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          Already in your pantry ({pantryCheck.haveInPantry.length})
-                        </p>
-                        <p className="text-sm text-green-800">
-                          {pantryCheck.haveInPantry.map((p) => p.name).join(", ")}
-                        </p>
-                      </div>
-                    )}
-                    {pantryCheck.needToBuy.length > 0 && (
-                      <div className="p-3 rounded-lg bg-amber-50 border border-amber-200">
-                        <p className="text-xs font-medium text-amber-700 mb-1.5 flex items-center gap-1">
-                          <AlertCircle className="w-3.5 h-3.5" />
-                          You'll need to buy ({pantryCheck.needToBuy.length} items)
-                        </p>
-                        <div className="flex flex-wrap gap-1">
-                          {pantryCheck.needToBuy.map((i) => (
-                            <span key={i.name} className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
-                              {i.name}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {pantryCheck.haveInPantry.length === 0 && pantryCheck.needToBuy.length === 0 && (
-                      <p className="text-sm text-muted-foreground">No ingredient data for this meal yet.</p>
-                    )}
-                  </div>
-                ) : null}
+                ) : selectedMeal.ingredients && selectedMeal.ingredients.length > 0 ? (
+                  <ul className="space-y-1">
+                    {selectedMeal.ingredients.map((ing) => {
+                      const inPantry = pantryCheck
+                        ? pantryCheck.haveInPantry.some((p) => p.name.toLowerCase() === ing.name.toLowerCase())
+                        : null;
+                      return (
+                        <li
+                          key={ing.id}
+                          className={`flex items-baseline gap-2 text-sm px-2.5 py-1.5 rounded-md border ${
+                            inPantry === true
+                              ? "bg-green-50 border-green-200"
+                              : inPantry === false
+                              ? "bg-amber-50 border-amber-200"
+                              : "bg-muted/30 border-border"
+                          }`}
+                        >
+                          <span className={`font-medium tabular-nums shrink-0 ${
+                            inPantry === true ? "text-green-700" : inPantry === false ? "text-amber-700" : "text-foreground"
+                          }`}>
+                            {ing.quantity}{ing.unit ? ` ${ing.unit}` : ""}
+                          </span>
+                          <span className={inPantry === true ? "text-green-800" : inPantry === false ? "text-amber-800" : "text-foreground"}>
+                            {ing.name}
+                          </span>
+                          {inPantry === true && <CheckCircle2 className="w-3 h-3 text-green-500 ml-auto shrink-0" />}
+                          {inPantry === false && <AlertCircle className="w-3 h-3 text-amber-500 ml-auto shrink-0" />}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No ingredient data for this meal yet.</p>
+                )
+                }
+                {!pantryCheckLoading && !pantryCheck && selectedMeal.ingredients && selectedMeal.ingredients.length === 0 && (
+                  <p className="text-sm text-muted-foreground">No ingredient data for this meal yet.</p>
+                )}
               </div>
 
               {/* Recipe Instructions */}

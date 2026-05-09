@@ -53,6 +53,7 @@ type PlanMeal = {
   description?: string;
   instructions?: string | null;
   servings?: number;
+  ingredients?: Array<{ id: number; name: string; quantity: string; unit: string; category: string; isCommonPantryItem: boolean }>;
 };
 
 type RecipeIngredient = {
@@ -615,6 +616,22 @@ export function WeeklyPlan() {
 
               {selectedMeal.description && (
                 <p className="text-sm text-muted-foreground">{selectedMeal.description}</p>
+              )}
+
+              {selectedMeal.ingredients && selectedMeal.ingredients.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ingredients</p>
+                  <ul className="space-y-1 max-h-48 overflow-y-auto">
+                    {selectedMeal.ingredients.map((ing) => (
+                      <li key={ing.id} className="flex items-baseline gap-2 text-sm px-2.5 py-1 rounded-md bg-muted/40 border border-border">
+                        <span className="font-medium tabular-nums shrink-0 text-foreground">
+                          {ing.quantity}{ing.unit ? ` ${ing.unit}` : ""}
+                        </span>
+                        <span className="text-muted-foreground">{ing.name}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
 
               {selectedMeal.instructions ? (
