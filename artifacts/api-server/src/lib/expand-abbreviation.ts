@@ -1,0 +1,130 @@
+const ABBREVIATIONS: Record<string, string> = {
+  // Spreads & condiments
+  "pb": "Peanut Butter",
+  "pb&j": "Peanut Butter and Jelly",
+  "pb & j": "Peanut Butter and Jelly",
+  "pbj": "Peanut Butter and Jelly",
+  "evoo": "Extra Virgin Olive Oil",
+  "oj": "Orange Juice",
+  "acv": "Apple Cider Vinegar",
+  "bbq": "Barbecue Sauce",
+  "bbq sauce": "Barbecue Sauce",
+  "mayo": "Mayonnaise",
+  "worcs": "Worcestershire Sauce",
+  "wors": "Worcestershire Sauce",
+  "worchestershire": "Worcestershire Sauce",
+  "worchestshire": "Worcestershire Sauce",
+  "s&p": "Salt and Pepper",
+  "s & p": "Salt and Pepper",
+  "dijon": "Dijon Mustard",
+  "ranch": "Ranch Dressing",
+
+  // Dairy
+  "hwc": "Heavy Whipping Cream",
+  "heavy cr": "Heavy Cream",
+  "hh": "Half and Half",
+  "half & half": "Half and Half",
+  "sour cr": "Sour Cream",
+  "cr cheese": "Cream Cheese",
+  "alm milk": "Almond Milk",
+  "oat milk": "Oat Milk",
+  "coc milk": "Coconut Milk",
+  "sk milk": "Skim Milk",
+  "parm": "Parmesan Cheese",
+  "parmigiano": "Parmesan Cheese",
+  "mozz": "Mozzarella Cheese",
+  "ched": "Cheddar Cheese",
+  "prov": "Provolone Cheese",
+
+  // Proteins
+  "chx": "Chicken",
+  "chix": "Chicken",
+  "chkn": "Chicken",
+  "gr beef": "Ground Beef",
+  "grnd beef": "Ground Beef",
+  "grd beef": "Ground Beef",
+  "gr turkey": "Ground Turkey",
+  "grnd turkey": "Ground Turkey",
+  "grd turkey": "Ground Turkey",
+  "gr chicken": "Ground Chicken",
+  "grnd chicken": "Ground Chicken",
+
+  // Produce
+  "avo": "Avocado",
+  "jal": "Jalapeño",
+  "jalapeno": "Jalapeño",
+  "jalpeno": "Jalapeño",
+  "jalapeño": "Jalapeño",
+  "sw potato": "Sweet Potato",
+  "sweet pot": "Sweet Potato",
+  "bell pep": "Bell Pepper",
+  "shroom": "Mushrooms",
+  "shrooms": "Mushrooms",
+  "zucc": "Zucchini",
+  "scal": "Scallions",
+  "scall": "Scallions",
+  "cil": "Cilantro",
+  "cilan": "Cilantro",
+  "rom lett": "Romaine Lettuce",
+  "broc": "Broccoli",
+  "spin": "Spinach",
+  "aspar": "Asparagus",
+  "cuke": "Cucumber",
+  "cukes": "Cucumbers",
+
+  // Baking & dry goods
+  "ap flour": "All-Purpose Flour",
+  "apf": "All-Purpose Flour",
+  "ww flour": "Whole Wheat Flour",
+  "sr flour": "Self-Rising Flour",
+  "br sugar": "Brown Sugar",
+  "brn sugar": "Brown Sugar",
+  "pwd sugar": "Powdered Sugar",
+  "conf sugar": "Confectioners Sugar",
+  "ps": "Powdered Sugar",
+  "choc chips": "Chocolate Chips",
+  "choc": "Chocolate",
+  "van ext": "Vanilla Extract",
+  "van": "Vanilla Extract",
+  "bk pwd": "Baking Powder",
+  "bk soda": "Baking Soda",
+
+  // Spices & seasonings
+  "garlic pwd": "Garlic Powder",
+  "gar pwd": "Garlic Powder",
+  "garlic pwdr": "Garlic Powder",
+  "onion pwd": "Onion Powder",
+  "on pwd": "Onion Powder",
+  "onion pwdr": "Onion Powder",
+  "chili pwd": "Chili Powder",
+  "chili pwdr": "Chili Powder",
+  "red pep": "Red Pepper Flakes",
+  "red pep flakes": "Red Pepper Flakes",
+  "blk pepper": "Black Pepper",
+  "blk pep": "Black Pepper",
+  "cayenne pep": "Cayenne Pepper",
+  "cay pep": "Cayenne Pepper",
+  "smoked pap": "Smoked Paprika",
+  "sm pap": "Smoked Paprika",
+
+  // Pantry liquids & sauces
+  "soy": "Soy Sauce",
+  "veg broth": "Vegetable Broth",
+  "chix broth": "Chicken Broth",
+  "chx broth": "Chicken Broth",
+  "chkn broth": "Chicken Broth",
+  "beef brth": "Beef Broth",
+  "coc cream": "Coconut Cream",
+  "hot sauce": "Hot Sauce",
+  "ww": "Whole Wheat",
+};
+
+export function expandAbbreviation(input: string): string {
+  const trimmed = input.trim();
+  const lower = trimmed.toLowerCase();
+
+  const match = ABBREVIATIONS[lower];
+  if (match) return match;
+
+  return trimmed;
+}

@@ -10,6 +10,7 @@ import {
   MovePantryItemToGroceryParams,
   MovePantryItemToGroceryBody,
 } from "@workspace/api-zod";
+import { expandAbbreviation } from "../lib/expand-abbreviation";
 
 const router: IRouter = Router();
 
@@ -48,11 +49,13 @@ router.post("/pantry/items", async (req, res): Promise<void> => {
     return;
   }
 
+  const name = expandAbbreviation(parsed.data.name);
+
   // Check if item already exists (case-insensitive)
   const existing = await db
     .select()
     .from(pantryItemsTable)
-    .where(ilike(pantryItemsTable.name, parsed.data.name));
+    .where(ilike(pantryItemsTable.name, name));
 
   if (existing.length > 0) {
     const [updated] = await db
@@ -67,7 +70,7 @@ router.post("/pantry/items", async (req, res): Promise<void> => {
   const [item] = await db
     .insert(pantryItemsTable)
     .values({
-      name: parsed.data.name,
+      name,
       quantity: parsed.data.quantity ?? null,
       category: parsed.data.category,
       inStock: true,

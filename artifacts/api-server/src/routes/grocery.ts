@@ -8,6 +8,7 @@ import {
   DeleteGroceryItemParams,
   AddMealToGroceryListParams,
 } from "@workspace/api-zod";
+import { expandAbbreviation } from "../lib/expand-abbreviation";
 
 const router: IRouter = Router();
 
@@ -113,11 +114,13 @@ router.post("/grocery-list/items", async (req, res): Promise<void> => {
     return;
   }
 
+  const name = expandAbbreviation(parsed.data.name);
+
   // Prevent duplicates — return existing item if same name already in list
   const [existing] = await db
     .select()
     .from(groceryItemsTable)
-    .where(ilike(groceryItemsTable.name, parsed.data.name));
+    .where(ilike(groceryItemsTable.name, name));
 
   if (existing) {
     res.status(200).json({
@@ -132,7 +135,7 @@ router.post("/grocery-list/items", async (req, res): Promise<void> => {
   const [item] = await db
     .insert(groceryItemsTable)
     .values({
-      name: parsed.data.name,
+      name,
       quantity: parsed.data.quantity,
       unit: parsed.data.unit ?? null,
       category: parsed.data.category,
