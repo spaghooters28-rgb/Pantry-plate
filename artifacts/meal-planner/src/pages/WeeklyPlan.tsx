@@ -235,6 +235,21 @@ export function WeeklyPlan() {
 
   async function handleRemoveSelected() {
     const days = [...selectedDays];
+
+    // Optimistically clear the meals from the cache immediately
+    queryClient.setQueryData(getGetWeeklyPlanQueryKey(), (old: typeof plan) => {
+      if (!old) return old;
+      return {
+        ...old,
+        days: old.days.map((d) =>
+          days.includes(d.day) ? { ...d, meal: null } : d
+        ),
+      };
+    });
+    setSelectedDays(new Set());
+    toast({ title: `${days.length} recipe${days.length > 1 ? "s" : ""} removed.` });
+
+    // Fire off server updates in the background, then re-sync
     await Promise.all(
       days.map((day) =>
         new Promise<void>((resolve, reject) =>
@@ -246,8 +261,6 @@ export function WeeklyPlan() {
       )
     );
     queryClient.invalidateQueries({ queryKey: getGetWeeklyPlanQueryKey() });
-    setSelectedDays(new Set());
-    toast({ title: `${days.length} recipe${days.length > 1 ? "s" : ""} removed.` });
   }
 
   function toggleDaySelection(day: string) {
