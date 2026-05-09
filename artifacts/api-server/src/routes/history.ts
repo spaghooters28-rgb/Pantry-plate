@@ -1,32 +1,12 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, ilike } from "drizzle-orm";
+import { eq, and, desc, ilike } from "drizzle-orm";
 import { db, recipeHistoryTable } from "@workspace/db";
+import { requireAuth } from "../middleware/requireAuth";
 
 const router: IRouter = Router();
 
-/** Upsert by name: skip insert if an entry with this name already exists. Returns the existing or new entry. */
-async function upsertHistory(values: {
-  name: string;
-  cuisine: string;
-  protein: string;
-  isGlutenFree: boolean;
-  cookTimeMinutes: number;
-  calories: number;
-  instructions: string | null;
-  sourceUrl: string | null;
-  mealId: number | null;
-}) {
-  const [existing] = await db
-    .select()
-    .from(recipeHistoryTable)
-    .where(ilike(recipeHistoryTable.name, values.name))
-    .limit(1);
-  if (existing) return existing;
-  const [entry] = await db.insert(recipeHistoryTable).values(values).returning();
-  return entry;
-}
-
-router.post("/history", async (req, res): Promise<void> => {
+router.post("/history", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
   const body = req.body as {
     name?: string;
     cuisine?: string | null;
@@ -44,7 +24,24 @@ router.post("/history", async (req, res): Promise<void> => {
     return;
   }
 
-  const entry = await upsertHistory({
+  const [existing] = await db
+    .select()
+    .from(recipeHistoryTable)
+    .where(and(eq(recipeHistoryTable.userId, userId), ilike(recipeHistoryTable.name, body.name)))
+    .limit(1);
+
+  if (existing) {
+    res.status(201).json({
+      ...existing,
+      instructions: existing.instructions ?? null,
+      sourceUrl: existing.sourceUrl ?? null,
+      mealId: existing.mealId ?? null,
+    });
+    return;
+  }
+
+  const [entry] = await db.insert(recipeHistoryTable).values({
+    userId,
     name: body.name,
     cuisine: body.cuisine ?? "Other",
     protein: body.protein ?? "",
@@ -54,7 +51,7 @@ router.post("/history", async (req, res): Promise<void> => {
     instructions: body.instructions ?? null,
     sourceUrl: body.sourceUrl ?? null,
     mealId: body.mealId ?? null,
-  });
+  }).returning();
 
   res.status(201).json({
     ...entry,
@@ -64,9 +61,12 @@ router.post("/history", async (req, res): Promise<void> => {
   });
 });
 
-router.get("/history", async (_req, res): Promise<void> => {
-  // Auto-clean duplicates: keep lowest id per name, delete the rest
-  const all = await db.select().from(recipeHistoryTable).orderBy(desc(recipeHistoryTable.addedAt));
+router.get("/history", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
+  const all = await db.select().from(recipeHistoryTable)
+    .where(eq(recipeHistoryTable.userId, userId))
+    .orderBy(desc(recipeHistoryTable.addedAt));
+
   const seen = new Map<string, number>();
   for (const e of all) {
     const key = e.name.toLowerCase().trim();
@@ -80,6 +80,7 @@ router.get("/history", async (_req, res): Promise<void> => {
   const entries = await db
     .select()
     .from(recipeHistoryTable)
+    .where(eq(recipeHistoryTable.userId, userId))
     .orderBy(desc(recipeHistoryTable.addedAt));
 
   res.json(
@@ -92,7 +93,7 @@ router.get("/history", async (_req, res): Promise<void> => {
   );
 });
 
-router.delete("/history/:id", async (req, res): Promise<void> => {
+router.delete("/history/:id", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   if (isNaN(id) || id <= 0) {

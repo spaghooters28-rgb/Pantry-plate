@@ -5,7 +5,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AiChatProvider } from "@/contexts/AiChatContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { useProteinReminder } from "@/hooks/useProteinReminder";
+import { LoginPage } from "@/pages/LoginPage";
 
 import { Discover } from "@/pages/Discover";
 import { WeeklyPlan } from "@/pages/WeeklyPlan";
@@ -41,17 +43,42 @@ function Router() {
   );
 }
 
+function AuthenticatedApp() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3 text-muted-foreground">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm">Loading…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
+
+  return (
+    <AiChatProvider>
+      <ProteinReminderManager />
+      <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+        <Router />
+      </WouterRouter>
+      <Toaster />
+    </AiChatProvider>
+  );
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <AiChatProvider>
-          <ProteinReminderManager />
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <Router />
-          </WouterRouter>
-          <Toaster />
-        </AiChatProvider>
+        <AuthProvider>
+          <AuthenticatedApp />
+        </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

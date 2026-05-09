@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, ilike } from "drizzle-orm";
+import { eq, and, desc, ilike } from "drizzle-orm";
 import { db, mealsTable, ingredientsTable, sidesTable, weeklyPlansTable, weeklyPlanDaysTable, groceryItemsTable, pantryItemsTable, recipeHistoryTable } from "@workspace/db";
 import { GenerateWeeklyPlanBody, UpdateDayMealBody, UpdateDayMealParams } from "@workspace/api-zod";
+import { requireAuth } from "../middleware/requireAuth";
 
 const router: IRouter = Router();
 
@@ -30,7 +31,6 @@ async function buildPlanResponse(plan: typeof weeklyPlansTable.$inferSelect) {
     }))
   );
 
-  // Sort by ALL_DAYS order so response is always Sunday-first
   daysWithMeals.sort((a, b) => ALL_DAYS.indexOf(a.day) - ALL_DAYS.indexOf(b.day));
 
   return {
@@ -50,10 +50,12 @@ function getWeekStart(): string {
   return monday.toISOString().split("T")[0];
 }
 
-router.get("/weekly-plan", async (_req, res): Promise<void> => {
+router.get("/weekly-plan", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
   const [plan] = await db
     .select()
     .from(weeklyPlansTable)
+    .where(eq(weeklyPlansTable.userId, userId))
     .orderBy(desc(weeklyPlansTable.id))
     .limit(1);
 
@@ -71,7 +73,8 @@ router.get("/weekly-plan", async (_req, res): Promise<void> => {
   res.json(await buildPlanResponse(plan));
 });
 
-router.post("/weekly-plan", async (req, res): Promise<void> => {
+router.post("/weekly-plan", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
   const parsed = GenerateWeeklyPlanBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -87,7 +90,6 @@ router.post("/weekly-plan", async (req, res): Promise<void> => {
 
   const shuffled = [...allMeals].sort(() => Math.random() - 0.5);
 
-  // Support activeDays from body (not in GenerateWeeklyPlanBody schema yet, read raw)
   const rawBody = req.body as Record<string, unknown>;
   const activeDays: string[] = Array.isArray(rawBody.activeDays) && (rawBody.activeDays as unknown[]).every((d) => typeof d === "string")
     ? (rawBody.activeDays as string[]).filter((d) => ALL_DAYS.includes(d))
@@ -100,12 +102,11 @@ router.post("/weekly-plan", async (req, res): Promise<void> => {
 
   const [newPlan] = await db
     .insert(weeklyPlansTable)
-    .values({ weekStartDate: weekStart })
+    .values({ userId, weekStartDate: weekStart })
     .returning();
 
-  // Build all 7 days — active days get meals, inactive days get null
   await db.insert(weeklyPlanDaysTable).values(
-    ALL_DAYS.map((day, i) => {
+    ALL_DAYS.map((day) => {
       const activeIndex = planDays.indexOf(day);
       return {
         planId: newPlan.id,
@@ -119,10 +120,12 @@ router.post("/weekly-plan", async (req, res): Promise<void> => {
   res.json(await buildPlanResponse(newPlan));
 });
 
-router.post("/weekly-plan/add-to-grocery", async (_req, res): Promise<void> => {
+router.post("/weekly-plan/add-to-grocery", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
   const [plan] = await db
     .select()
     .from(weeklyPlansTable)
+    .where(eq(weeklyPlansTable.userId, userId))
     .orderBy(desc(weeklyPlansTable.id))
     .limit(1);
 
@@ -143,7 +146,8 @@ router.post("/weekly-plan/add-to-grocery", async (_req, res): Promise<void> => {
     return;
   }
 
-  const pantryItems = await db.select().from(pantryItemsTable).where(eq(pantryItemsTable.inStock, true));
+  const pantryItems = await db.select().from(pantryItemsTable)
+    .where(and(eq(pantryItemsTable.userId, userId), eq(pantryItemsTable.inStock, true)));
 
   let totalAdded = 0;
 
@@ -157,15 +161,13 @@ router.post("/weekly-plan/add-to-grocery", async (_req, res): Promise<void> => {
       .where(eq(ingredientsTable.mealId, mealId));
 
     for (const ingredient of ingredients) {
-      // Skip if already in grocery list for this meal
       const existing = await db
         .select()
         .from(groceryItemsTable)
-        .where(eq(groceryItemsTable.name, ingredient.name));
+        .where(and(eq(groceryItemsTable.userId, userId), eq(groceryItemsTable.name, ingredient.name)));
 
       if (existing.some((e) => e.mealId === mealId)) continue;
 
-      // Skip common pantry items that are in stock
       if (ingredient.isCommonPantryItem) {
         const inPantry = pantryItems.find(
           (p) =>
@@ -176,6 +178,7 @@ router.post("/weekly-plan/add-to-grocery", async (_req, res): Promise<void> => {
       }
 
       await db.insert(groceryItemsTable).values({
+        userId,
         name: ingredient.name,
         quantity: ingredient.quantity,
         unit: ingredient.unit,
@@ -189,14 +192,14 @@ router.post("/weekly-plan/add-to-grocery", async (_req, res): Promise<void> => {
       totalAdded++;
     }
 
-    // Record in history (skip if already saved under this name)
     const [existingHistory] = await db
       .select()
       .from(recipeHistoryTable)
-      .where(ilike(recipeHistoryTable.name, meal.name))
+      .where(and(eq(recipeHistoryTable.userId, userId), ilike(recipeHistoryTable.name, meal.name)))
       .limit(1);
     if (!existingHistory) {
       await db.insert(recipeHistoryTable).values({
+        userId,
         name: meal.name,
         cuisine: meal.cuisine,
         protein: meal.protein,
@@ -213,7 +216,8 @@ router.post("/weekly-plan/add-to-grocery", async (_req, res): Promise<void> => {
   res.json({ added: totalAdded, mealsProcessed: mealIds.length });
 });
 
-router.put("/weekly-plan/days/:day/meal", async (req, res): Promise<void> => {
+router.put("/weekly-plan/days/:day/meal", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
   const rawDay = Array.isArray(req.params.day) ? req.params.day[0] : req.params.day;
   const params = UpdateDayMealParams.safeParse({ day: rawDay });
   if (!params.success) {
@@ -230,6 +234,7 @@ router.put("/weekly-plan/days/:day/meal", async (req, res): Promise<void> => {
   const [plan] = await db
     .select()
     .from(weeklyPlansTable)
+    .where(eq(weeklyPlansTable.userId, userId))
     .orderBy(desc(weeklyPlansTable.id))
     .limit(1);
 

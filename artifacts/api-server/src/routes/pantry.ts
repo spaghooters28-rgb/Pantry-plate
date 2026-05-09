@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, asc } from "drizzle-orm";
+import { eq, and, ilike, asc } from "drizzle-orm";
 import { db, pantryItemsTable, ingredientsTable, mealsTable, sidesTable, groceryItemsTable } from "@workspace/db";
 import {
   AddPantryItemBody,
@@ -11,11 +11,11 @@ import {
   MovePantryItemToGroceryBody,
 } from "@workspace/api-zod";
 import { expandAbbreviation } from "../lib/expand-abbreviation";
+import { requireAuth } from "../middleware/requireAuth";
 
 const router: IRouter = Router();
 
 async function buildPantryItemResponse(item: typeof pantryItemsTable.$inferSelect) {
-  // Find meals that use this ingredient
   const matchingIngredients = await db
     .select({ mealId: ingredientsTable.mealId })
     .from(ingredientsTable)
@@ -36,13 +36,17 @@ async function buildPantryItemResponse(item: typeof pantryItemsTable.$inferSelec
   };
 }
 
-router.get("/pantry", async (_req, res): Promise<void> => {
-  const items = await db.select().from(pantryItemsTable).orderBy(asc(pantryItemsTable.id));
+router.get("/pantry", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
+  const items = await db.select().from(pantryItemsTable)
+    .where(eq(pantryItemsTable.userId, userId))
+    .orderBy(asc(pantryItemsTable.id));
   const withMeals = await Promise.all(items.map(buildPantryItemResponse));
   res.json(withMeals);
 });
 
-router.post("/pantry/items", async (req, res): Promise<void> => {
+router.post("/pantry/items", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
   const parsed = AddPantryItemBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -51,11 +55,10 @@ router.post("/pantry/items", async (req, res): Promise<void> => {
 
   const name = expandAbbreviation(parsed.data.name);
 
-  // Check if item already exists (case-insensitive)
   const existing = await db
     .select()
     .from(pantryItemsTable)
-    .where(ilike(pantryItemsTable.name, name));
+    .where(and(eq(pantryItemsTable.userId, userId), ilike(pantryItemsTable.name, name)));
 
   if (existing.length > 0) {
     const [updated] = await db
@@ -70,6 +73,7 @@ router.post("/pantry/items", async (req, res): Promise<void> => {
   const [item] = await db
     .insert(pantryItemsTable)
     .values({
+      userId,
       name,
       quantity: parsed.data.quantity ?? null,
       category: parsed.data.category,
@@ -81,7 +85,7 @@ router.post("/pantry/items", async (req, res): Promise<void> => {
   res.status(201).json(await buildPantryItemResponse(item));
 });
 
-router.patch("/pantry/items/:id", async (req, res): Promise<void> => {
+router.patch("/pantry/items/:id", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = UpdatePantryItemParams.safeParse({ id: raw });
   if (!params.success) {
@@ -115,7 +119,7 @@ router.patch("/pantry/items/:id", async (req, res): Promise<void> => {
   res.json(await buildPantryItemResponse(item));
 });
 
-router.delete("/pantry/items/:id", async (req, res): Promise<void> => {
+router.delete("/pantry/items/:id", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = DeletePantryItemParams.safeParse({ id: raw });
   if (!params.success) {
@@ -136,7 +140,8 @@ router.delete("/pantry/items/:id", async (req, res): Promise<void> => {
   res.sendStatus(204);
 });
 
-router.post("/pantry/items/:id/to-grocery", async (req, res): Promise<void> => {
+router.post("/pantry/items/:id/to-grocery", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = MovePantryItemToGroceryParams.safeParse({ id: raw });
   if (!params.success) {
@@ -156,14 +161,14 @@ router.post("/pantry/items/:id/to-grocery", async (req, res): Promise<void> => {
     return;
   }
 
-  // Prevent duplicates — skip insert if item already in grocery list
   const [existingGrocery] = await db
     .select()
     .from(groceryItemsTable)
-    .where(ilike(groceryItemsTable.name, item.name));
+    .where(and(eq(groceryItemsTable.userId, userId), ilike(groceryItemsTable.name, item.name)));
 
   if (!existingGrocery) {
     await db.insert(groceryItemsTable).values({
+      userId,
       name: item.name,
       quantity: item.quantity ?? "1",
       unit: null,
@@ -182,22 +187,23 @@ router.post("/pantry/items/:id/to-grocery", async (req, res): Promise<void> => {
   res.json({ success: true });
 });
 
-router.delete("/pantry/all", async (_req, res): Promise<void> => {
-  const deleted = await db.delete(pantryItemsTable).returning();
+router.delete("/pantry/all", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
+  const deleted = await db.delete(pantryItemsTable)
+    .where(eq(pantryItemsTable.userId, userId))
+    .returning();
   res.json({ deleted: deleted.length });
 });
 
-router.get("/pantry/available-recipes", async (_req, res): Promise<void> => {
-  // Fetch all in-stock pantry items
+router.get("/pantry/available-recipes", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
   const pantryItems = await db
     .select()
     .from(pantryItemsTable)
-    .where(eq(pantryItemsTable.inStock, true));
+    .where(and(eq(pantryItemsTable.userId, userId), eq(pantryItemsTable.inStock, true)));
 
-  // Fetch all meals
   const allMeals = await db.select().from(mealsTable);
 
-  // Fetch all ingredients in one query, keyed by mealId
   const allIngredients = await db.select().from(ingredientsTable);
   const ingredientsByMeal = new Map<number, (typeof ingredientsTable.$inferSelect)[]>();
   for (const ing of allIngredients) {
@@ -206,7 +212,6 @@ router.get("/pantry/available-recipes", async (_req, res): Promise<void> => {
     ingredientsByMeal.set(ing.mealId, existing);
   }
 
-  // Fetch all sides in one query
   const allSides = await db.select().from(sidesTable);
   const sidesByMeal = new Map<number, (typeof sidesTable.$inferSelect)[]>();
   for (const side of allSides) {
@@ -228,7 +233,6 @@ router.get("/pantry/available-recipes", async (_req, res): Promise<void> => {
     const ingredients = ingredientsByMeal.get(meal.id) ?? [];
     const sides = sidesByMeal.get(meal.id) ?? [];
 
-    // Only consider non-common ingredients (common pantry items like salt/oil always assumed available)
     const keyIngredients = ingredients.filter((i) => !i.isCommonPantryItem);
 
     if (keyIngredients.length === 0) continue;
@@ -236,7 +240,6 @@ router.get("/pantry/available-recipes", async (_req, res): Promise<void> => {
     const missing = keyIngredients.filter((i) => !isInPantry(i.name));
     const matchScore = (keyIngredients.length - missing.length) / keyIngredients.length;
 
-    // Include meals where at least 50% of key ingredients are covered
     if (matchScore >= 0.5) {
       results.push({
         ...meal,
@@ -250,7 +253,6 @@ router.get("/pantry/available-recipes", async (_req, res): Promise<void> => {
     }
   }
 
-  // Sort: fully makeable first, then by match score desc
   results.sort((a, b) => {
     const ra = a as { matchScore: number };
     const rb = b as { matchScore: number };
@@ -260,7 +262,8 @@ router.get("/pantry/available-recipes", async (_req, res): Promise<void> => {
   res.json(results);
 });
 
-router.post("/pantry/check", async (req, res): Promise<void> => {
+router.post("/pantry/check", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
   const parsed = CheckPantryForMealBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -272,7 +275,8 @@ router.post("/pantry/check", async (req, res): Promise<void> => {
     .from(ingredientsTable)
     .where(eq(ingredientsTable.mealId, parsed.data.mealId));
 
-  const pantryItems = await db.select().from(pantryItemsTable).where(eq(pantryItemsTable.inStock, true));
+  const pantryItems = await db.select().from(pantryItemsTable)
+    .where(and(eq(pantryItemsTable.userId, userId), eq(pantryItemsTable.inStock, true)));
 
   const haveInPantry: (typeof pantryItemsTable.$inferSelect)[] = [];
   const needToBuy: (typeof ingredientsTable.$inferSelect)[] = [];

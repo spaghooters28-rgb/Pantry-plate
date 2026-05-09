@@ -2,9 +2,11 @@ import { pgTable, text, serial, integer, boolean, timestamp } from "drizzle-orm/
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { mealsTable } from "./meals";
+import { usersTable } from "./users";
 
 export const groceryItemsTable = pgTable("grocery_items", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => usersTable.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   quantity: text("quantity").notNull(),
   unit: text("unit"),

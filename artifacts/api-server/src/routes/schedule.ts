@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, lte } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db, scheduledItemsTable } from "@workspace/db";
 import {
   CreateScheduledItemBody,
@@ -7,6 +7,7 @@ import {
   UpdateScheduledItemBody,
   DeleteScheduledItemParams,
 } from "@workspace/api-zod";
+import { requireAuth } from "../middleware/requireAuth";
 
 const router: IRouter = Router();
 
@@ -30,8 +31,10 @@ function todayStr(): string {
   return new Date().toISOString().split("T")[0];
 }
 
-router.get("/scheduled-items", async (_req, res): Promise<void> => {
-  const items = await db.select().from(scheduledItemsTable);
+router.get("/scheduled-items", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
+  const items = await db.select().from(scheduledItemsTable)
+    .where(eq(scheduledItemsTable.userId, userId));
   res.json(items.map((i) => ({
     ...i,
     unit: i.unit ?? null,
@@ -40,7 +43,8 @@ router.get("/scheduled-items", async (_req, res): Promise<void> => {
   })));
 });
 
-router.post("/scheduled-items", async (req, res): Promise<void> => {
+router.post("/scheduled-items", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
   const parsed = CreateScheduledItemBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -53,6 +57,7 @@ router.post("/scheduled-items", async (req, res): Promise<void> => {
   const [item] = await db
     .insert(scheduledItemsTable)
     .values({
+      userId,
       name: parsed.data.name,
       quantity: parsed.data.quantity,
       unit: parsed.data.unit ?? null,
@@ -72,7 +77,7 @@ router.post("/scheduled-items", async (req, res): Promise<void> => {
   });
 });
 
-router.patch("/scheduled-items/:id", async (req, res): Promise<void> => {
+router.patch("/scheduled-items/:id", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = UpdateScheduledItemParams.safeParse({ id: raw });
   if (!params.success) {
@@ -113,7 +118,7 @@ router.patch("/scheduled-items/:id", async (req, res): Promise<void> => {
   });
 });
 
-router.delete("/scheduled-items/:id", async (req, res): Promise<void> => {
+router.delete("/scheduled-items/:id", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = DeleteScheduledItemParams.safeParse({ id: raw });
   if (!params.success) {
@@ -134,12 +139,13 @@ router.delete("/scheduled-items/:id", async (req, res): Promise<void> => {
   res.sendStatus(204);
 });
 
-router.get("/scheduled-items/due-today", async (_req, res): Promise<void> => {
+router.get("/scheduled-items/due-today", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
   const today = todayStr();
   const dueItems = await db
     .select()
     .from(scheduledItemsTable)
-    .where(eq(scheduledItemsTable.isActive, true));
+    .where(and(eq(scheduledItemsTable.userId, userId), eq(scheduledItemsTable.isActive, true)));
 
   const due = dueItems.filter((i) => i.nextDueDate <= today);
 

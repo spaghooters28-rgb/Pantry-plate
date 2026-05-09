@@ -1,7 +1,9 @@
 import { pgTable, text, serial, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { usersTable } from "./users";
 
 export const recipeHistoryTable = pgTable("recipe_history", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => usersTable.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   cuisine: text("cuisine").notNull().default("Other"),
   protein: text("protein").notNull().default(""),

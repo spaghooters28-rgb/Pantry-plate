@@ -2,9 +2,11 @@ import { pgTable, text, serial, integer, date, timestamp } from "drizzle-orm/pg-
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { mealsTable } from "./meals";
+import { usersTable } from "./users";
 
 export const weeklyPlansTable = pgTable("weekly_plans", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => usersTable.id, { onDelete: "cascade" }),
   weekStartDate: date("week_start_date").notNull(),
   generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
 });

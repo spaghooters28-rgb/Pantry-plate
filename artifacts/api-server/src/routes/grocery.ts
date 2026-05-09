@@ -9,6 +9,7 @@ import {
   AddMealToGroceryListParams,
 } from "@workspace/api-zod";
 import { expandAbbreviation } from "../lib/expand-abbreviation";
+import { requireAuth } from "../middleware/requireAuth";
 
 const router: IRouter = Router();
 
@@ -73,9 +74,11 @@ function formatQty(n: number): string {
   return String(Math.round(n * 100) / 100);
 }
 
-async function deduplicateGroceryList() {
-  const items = await db.select().from(groceryItemsTable).orderBy(asc(groceryItemsTable.id));
-  const seen = new Map<string, number>(); // lowercase name → first id to keep
+async function deduplicateGroceryList(userId: number) {
+  const items = await db.select().from(groceryItemsTable)
+    .where(eq(groceryItemsTable.userId, userId))
+    .orderBy(asc(groceryItemsTable.id));
+  const seen = new Map<string, number>();
   const toDelete: number[] = [];
   for (const item of items) {
     const key = item.name.toLowerCase().trim();
@@ -92,9 +95,11 @@ async function deduplicateGroceryList() {
   }
 }
 
-async function buildGroceryListResponse() {
-  await deduplicateGroceryList();
-  const items = await db.select().from(groceryItemsTable).orderBy(asc(groceryItemsTable.id));
+async function buildGroceryListResponse(userId: number) {
+  await deduplicateGroceryList(userId);
+  const items = await db.select().from(groceryItemsTable)
+    .where(eq(groceryItemsTable.userId, userId))
+    .orderBy(asc(groceryItemsTable.id));
   const categories = groupByCategory(items);
   return {
     categories,
@@ -103,11 +108,13 @@ async function buildGroceryListResponse() {
   };
 }
 
-router.get("/grocery-list", async (_req, res): Promise<void> => {
-  res.json(await buildGroceryListResponse());
+router.get("/grocery-list", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
+  res.json(await buildGroceryListResponse(userId));
 });
 
-router.post("/grocery-list/items", async (req, res): Promise<void> => {
+router.post("/grocery-list/items", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
   const parsed = AddGroceryItemBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -116,11 +123,10 @@ router.post("/grocery-list/items", async (req, res): Promise<void> => {
 
   const name = expandAbbreviation(parsed.data.name);
 
-  // Prevent duplicates — return existing item if same name already in list
   const [existing] = await db
     .select()
     .from(groceryItemsTable)
-    .where(ilike(groceryItemsTable.name, name));
+    .where(and(eq(groceryItemsTable.userId, userId), ilike(groceryItemsTable.name, name)));
 
   if (existing) {
     res.status(200).json({
@@ -135,6 +141,7 @@ router.post("/grocery-list/items", async (req, res): Promise<void> => {
   const [item] = await db
     .insert(groceryItemsTable)
     .values({
+      userId,
       name,
       quantity: parsed.data.quantity,
       unit: parsed.data.unit ?? null,
@@ -144,7 +151,6 @@ router.post("/grocery-list/items", async (req, res): Promise<void> => {
     })
     .returning();
 
-  // If a schedule was specified, create a scheduled item
   if (parsed.data.scheduleType && parsed.data.scheduleType !== "none") {
     function intervalDays(type: string, custom?: number | null): number {
       switch (type) {
@@ -159,6 +165,7 @@ router.post("/grocery-list/items", async (req, res): Promise<void> => {
     const nextDue = new Date();
     nextDue.setDate(nextDue.getDate() + days);
     await db.insert(scheduledItemsTable).values({
+      userId,
       name: parsed.data.name,
       quantity: parsed.data.quantity,
       unit: parsed.data.unit ?? null,
@@ -178,7 +185,7 @@ router.post("/grocery-list/items", async (req, res): Promise<void> => {
   });
 });
 
-router.patch("/grocery-list/items/:id", async (req, res): Promise<void> => {
+router.patch("/grocery-list/items/:id", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = UpdateGroceryItemParams.safeParse({ id: raw });
   if (!params.success) {
@@ -216,7 +223,7 @@ router.patch("/grocery-list/items/:id", async (req, res): Promise<void> => {
   });
 });
 
-router.delete("/grocery-list/items/:id", async (req, res): Promise<void> => {
+router.delete("/grocery-list/items/:id", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = DeleteGroceryItemParams.safeParse({ id: raw });
   if (!params.success) {
@@ -237,7 +244,8 @@ router.delete("/grocery-list/items/:id", async (req, res): Promise<void> => {
   res.sendStatus(204);
 });
 
-router.post("/grocery-list/from-meal/:mealId", async (req, res): Promise<void> => {
+router.post("/grocery-list/from-meal/:mealId", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
   const raw = Array.isArray(req.params.mealId) ? req.params.mealId[0] : req.params.mealId;
   const params = AddMealToGroceryListParams.safeParse({ mealId: raw });
   if (!params.success) {
@@ -256,7 +264,8 @@ router.post("/grocery-list/from-meal/:mealId", async (req, res): Promise<void> =
     .from(ingredientsTable)
     .where(eq(ingredientsTable.mealId, params.data.mealId));
 
-  const pantryItems = await db.select().from(pantryItemsTable).where(eq(pantryItemsTable.inStock, true));
+  const pantryItems = await db.select().from(pantryItemsTable)
+    .where(and(eq(pantryItemsTable.userId, userId), eq(pantryItemsTable.inStock, true)));
 
   const addedItems: (typeof groceryItemsTable.$inferSelect)[] = [];
   const pantryPrompts: Array<{
@@ -267,14 +276,12 @@ router.post("/grocery-list/from-meal/:mealId", async (req, res): Promise<void> =
   }> = [];
 
   for (const ingredient of ingredients) {
-    // Check if an item with the same name already exists in the grocery list
     const [existing] = await db
       .select()
       .from(groceryItemsTable)
-      .where(ilike(groceryItemsTable.name, ingredient.name));
+      .where(and(eq(groceryItemsTable.userId, userId), ilike(groceryItemsTable.name, ingredient.name)));
 
     if (existing) {
-      // Same or compatible unit → combine quantities
       const sameUnit =
         !existing.unit || !ingredient.unit ||
         existing.unit.toLowerCase().trim() === ingredient.unit.toLowerCase().trim();
@@ -285,13 +292,13 @@ router.post("/grocery-list/from-meal/:mealId", async (req, res): Promise<void> =
           .set({ quantity: formatQty(combined) })
           .where(eq(groceryItemsTable.id, existing.id));
       }
-      // Either way don't insert a duplicate row
       continue;
     }
 
     const [inserted] = await db
       .insert(groceryItemsTable)
       .values({
+        userId,
         name: ingredient.name,
         quantity: ingredient.quantity,
         unit: ingredient.unit,
@@ -305,7 +312,6 @@ router.post("/grocery-list/from-meal/:mealId", async (req, res): Promise<void> =
 
     addedItems.push(inserted);
 
-    // Pantry prompt for common pantry items already in stock
     if (ingredient.isCommonPantryItem) {
       const pantryMatch = pantryItems.find(
         (p) =>
@@ -323,14 +329,14 @@ router.post("/grocery-list/from-meal/:mealId", async (req, res): Promise<void> =
     }
   }
 
-  // Record in history (skip if already saved under this name)
   const [existingHistory] = await db
     .select()
     .from(recipeHistoryTable)
-    .where(ilike(recipeHistoryTable.name, meal.name))
+    .where(and(eq(recipeHistoryTable.userId, userId), ilike(recipeHistoryTable.name, meal.name)))
     .limit(1);
   if (!existingHistory) {
     await db.insert(recipeHistoryTable).values({
+      userId,
       name: meal.name,
       cuisine: meal.cuisine,
       protein: meal.protein,
@@ -354,26 +360,30 @@ router.post("/grocery-list/from-meal/:mealId", async (req, res): Promise<void> =
   });
 });
 
-router.delete("/grocery-list/all", async (_req, res): Promise<void> => {
-  const deleted = await db.delete(groceryItemsTable).returning();
+router.delete("/grocery-list/all", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
+  const deleted = await db.delete(groceryItemsTable)
+    .where(eq(groceryItemsTable.userId, userId))
+    .returning();
   res.json({ deleted: deleted.length });
 });
 
-router.post("/grocery-list/clear", async (_req, res): Promise<void> => {
-  await db.delete(groceryItemsTable).where(eq(groceryItemsTable.isChecked, true));
-  res.json(await buildGroceryListResponse());
+router.post("/grocery-list/clear", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
+  await db.delete(groceryItemsTable)
+    .where(and(eq(groceryItemsTable.userId, userId), eq(groceryItemsTable.isChecked, true)));
+  res.json(await buildGroceryListResponse(userId));
 });
 
-router.get("/grocery-list/suggestions", async (_req, res): Promise<void> => {
-  // Suggest items based on common grocery purchases and pantry state
-  const pantryItems = await db.select().from(pantryItemsTable);
+router.get("/grocery-list/suggestions", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
+  const pantryItems = await db.select().from(pantryItemsTable).where(eq(pantryItemsTable.userId, userId));
   const depleted = pantryItems.filter((p) => !p.inStock);
-  const currentGroceries = await db.select().from(groceryItemsTable);
+  const currentGroceries = await db.select().from(groceryItemsTable).where(eq(groceryItemsTable.userId, userId));
   const currentNames = new Set(currentGroceries.map((g) => g.name.toLowerCase()));
 
   const suggestions: Array<{ name: string; reason: string; category: string; frequency: string }> = [];
 
-  // Suggest depleted pantry items
   for (const item of depleted) {
     if (!currentNames.has(item.name.toLowerCase())) {
       suggestions.push({
@@ -385,7 +395,6 @@ router.get("/grocery-list/suggestions", async (_req, res): Promise<void> => {
     }
   }
 
-  // Add common staples if not already in list
   const staples = [
     { name: "Eggs", category: "Dairy & Eggs", reason: "Common weekly staple" },
     { name: "Whole Milk", category: "Dairy & Eggs", reason: "Common weekly staple" },

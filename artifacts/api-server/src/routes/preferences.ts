@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db, preferencesTable } from "@workspace/db";
+import { requireAuth } from "../middleware/requireAuth";
 
 const router: IRouter = Router();
 
@@ -13,11 +14,11 @@ const DEFAULT_PREFS = {
   activeDays: [] as string[],
 };
 
-async function getPrefs() {
+async function getPrefs(userId: number) {
   const [row] = await db
     .select()
     .from(preferencesTable)
-    .where(eq(preferencesTable.key, WEEKLY_PLAN_KEY));
+    .where(and(eq(preferencesTable.userId, userId), eq(preferencesTable.key, WEEKLY_PLAN_KEY)));
 
   if (!row) return DEFAULT_PREFS;
 
@@ -28,11 +29,13 @@ async function getPrefs() {
   }
 }
 
-router.get("/preferences/weekly-plan", async (_req, res): Promise<void> => {
-  res.json(await getPrefs());
+router.get("/preferences/weekly-plan", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
+  res.json(await getPrefs(userId));
 });
 
-router.put("/preferences/weekly-plan", async (req, res): Promise<void> => {
+router.put("/preferences/weekly-plan", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
   const body = req.body as Record<string, unknown>;
 
   const prefs = {
@@ -47,15 +50,15 @@ router.put("/preferences/weekly-plan", async (req, res): Promise<void> => {
   const existing = await db
     .select()
     .from(preferencesTable)
-    .where(eq(preferencesTable.key, WEEKLY_PLAN_KEY));
+    .where(and(eq(preferencesTable.userId, userId), eq(preferencesTable.key, WEEKLY_PLAN_KEY)));
 
   if (existing.length > 0) {
     await db
       .update(preferencesTable)
       .set({ value, updatedAt: new Date() })
-      .where(eq(preferencesTable.key, WEEKLY_PLAN_KEY));
+      .where(and(eq(preferencesTable.userId, userId), eq(preferencesTable.key, WEEKLY_PLAN_KEY)));
   } else {
-    await db.insert(preferencesTable).values({ key: WEEKLY_PLAN_KEY, value });
+    await db.insert(preferencesTable).values({ userId, key: WEEKLY_PLAN_KEY, value });
   }
 
   res.json(prefs);

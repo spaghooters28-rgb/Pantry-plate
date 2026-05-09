@@ -14,7 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Trash2, Settings as SettingsIcon, Bell, BellOff, FlaskConical } from "lucide-react";
+import { Trash2, Settings as SettingsIcon, Bell, BellOff, FlaskConical, LogOut } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   loadReminderSettings,
@@ -22,10 +22,12 @@ import {
   sendTestNotification,
   type ReminderSettings,
 } from "@/hooks/useProteinReminder";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function Settings() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { user, logout } = useAuth();
 
   const [confirmGrocery, setConfirmGrocery] = useState(false);
   const [confirmPantry, setConfirmPantry] = useState(false);
@@ -199,6 +201,30 @@ export function Settings() {
                 You'll receive a reminder at <strong>{formatTime(reminder.time)}</strong> on days when tomorrow's meal has a protein that needs thawing.
               </p>
             )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── Account ── */}
+      <div className="space-y-4">
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Account</h2>
+        <Card>
+          <CardContent className="p-5 flex items-start justify-between gap-4">
+            <div>
+              <p className="font-semibold mb-0.5">Signed in as <span className="text-primary">@{user?.username}</span></p>
+              <p className="text-sm text-muted-foreground">
+                All your household's grocery list, pantry, and meal plans are tied to this account. Anyone with these credentials can sign in from any device.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0 gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
+              onClick={() => logout()}
+            >
+              <LogOut className="w-4 h-4" />
+              Sign Out
+            </Button>
           </CardContent>
         </Card>
       </div>
