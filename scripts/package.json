@@ -11,6 +11,8 @@
     "seed-meals-4": "tsx ./src/seed-meals-4.ts",
     "seed-meals-5": "tsx ./src/seed-meals-5.ts",
     "seed-pantry": "tsx ./src/seed-pantry.ts",
+    "seed-ingredients-1": "tsx ./src/seed-ingredients-1.ts",
+    "seed-ingredients-2": "tsx ./src/seed-ingredients-2.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
