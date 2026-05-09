@@ -9,6 +9,7 @@ import scheduleRouter from "./schedule";
 import preferencesRouter from "./preferences";
 import analyzeRecipeRouter from "./analyze-recipe";
 import historyRouter from "./history";
+import openaiRouter from "./openai/index";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(pantryRouter);
 router.use(scheduleRouter);
 router.use(preferencesRouter);
 router.use(historyRouter);
+router.use(openaiRouter);
 
 export default router;

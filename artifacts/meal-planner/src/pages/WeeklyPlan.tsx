@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AiChatPanel } from "@/components/AiChatPanel";
 import {
   useGetWeeklyPlan,
   getGetWeeklyPlanQueryKey,
@@ -594,6 +595,9 @@ export function WeeklyPlan() {
           ))}
         </div>
       )}
+
+      {/* AI Chat Panel */}
+      <AiChatPanel />
 
       {/* Meal detail dialog */}
       <Dialog open={!!selectedMeal} onOpenChange={(open) => { if (!open) { setSelectedMeal(null); setShowInstructions(false); } }}>
