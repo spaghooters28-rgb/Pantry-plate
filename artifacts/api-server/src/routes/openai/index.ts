@@ -9,7 +9,15 @@ import {
 
 const router: IRouter = Router();
 
-const SYSTEM_PROMPT = `You are a helpful meal planning assistant for the Pantry & Plate app.
+function getSystemPrompt(): string {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString("en-US", {
+    weekday: "long", year: "numeric", month: "long", day: "numeric",
+  });
+  const timeStr = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  return `Today is ${dateStr} at ${timeStr}.
+
+You are a helpful meal planning assistant for the Pantry & Plate app.
 You help users with:
 - Suggesting meals and recipes based on their preferences, dietary restrictions, or what's in their pantry
 - Creating and adjusting weekly meal plans (assigning meals to specific days)
@@ -30,7 +38,7 @@ When the user asks you to add a meal to their favorites, include:
 
 Available days: sunday, monday, tuesday, wednesday, thursday, friday, saturday
 Use lowercase day names only. Use the exact meal name as you referred to it in the conversation. Include ACTION blocks at the very end of your response, after your normal text. Only emit ACTION blocks when the user explicitly requests an assignment or favorite action.`;
-
+}
 
 router.get("/openai/conversations", async (req, res): Promise<void> => {
   const rows = await db
@@ -141,7 +149,7 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
   });
 
   const chatMessages: { role: "system" | "user" | "assistant"; content: string }[] = [
-    { role: "system", content: SYSTEM_PROMPT },
+    { role: "system", content: getSystemPrompt() },
     ...history.map((m) => ({
       role: m.role as "user" | "assistant",
       content: m.content,

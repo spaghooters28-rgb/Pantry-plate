@@ -28,6 +28,8 @@ import { useToast } from "@/hooks/use-toast";
 
 const ALL_DAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
+const TODAY_DAY = new Date().toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
+
 const DAY_SHORT: Record<string, string> = {
   monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu",
   friday: "Fri", saturday: "Sat", sunday: "Sun",
@@ -598,14 +600,17 @@ export function WeeklyPlan() {
         </div>
       ) : (
         <div className="space-y-3">
-          {plan?.days.map((day) => (
-            <Card key={day.day} className="overflow-hidden">
+          {plan?.days.map((day) => {
+            const isToday = day.day === TODAY_DAY;
+            return (
+            <Card key={day.day} className={`overflow-hidden transition-colors ${isToday ? "border-primary ring-1 ring-primary/30" : ""}`}>
               <CardContent className="p-0">
                 <div className="flex items-center min-w-0">
                   {/* Day label */}
-                  <div className="w-20 shrink-0 p-4 border-r bg-muted/40 flex flex-col items-center">
+                  <div className={`w-20 shrink-0 p-4 border-r flex flex-col items-center ${isToday ? "bg-primary/10" : "bg-muted/40"}`}>
                     <span className="text-lg">{DAY_EMOJIS[day.day] ?? "📅"}</span>
-                    <span className="text-sm font-semibold text-muted-foreground">{DAY_SHORT[day.day] ?? day.day}</span>
+                    <span className={`text-sm font-semibold ${isToday ? "text-primary" : "text-muted-foreground"}`}>{DAY_SHORT[day.day] ?? day.day}</span>
+                    {isToday && <span className="text-[9px] font-bold uppercase tracking-wide text-primary mt-0.5">Today</span>}
                   </div>
 
                   {/* Meal info */}
@@ -663,7 +668,8 @@ export function WeeklyPlan() {
                 </div>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
 
