@@ -4623,5 +4623,81 @@ const meals: MealData[] = [
   },
   {
     name: "Lamb Gyros",
-    description: "Seasoned ground lamb meat cooked on a vertical spit, sliced thin, and served in pita.",
-    cuisine: "Greek", protein: "Lamb
+    description: "Seasoned ground lamb meat cooked on a vertical spit, sliced thin, and served in warm pita with tzatziki and fresh vegetables.",
+    cuisine: "Greek", protein: "Lamb", isGlutenFree: false, cookTimeMinutes: 40, servings: 4, calories: 520,
+    tags: ["greek", "street-food", "sandwich"],
+    instructions: "1. Mix ground lamb with garlic, onion, oregano, cumin, rosemary, salt, and pepper.\n2. Form into a compact loaf and bake at 350°F for 30 minutes.\n3. Make tzatziki: mix Greek yogurt, grated cucumber, garlic, dill, and lemon juice.\n4. Slice lamb thinly and warm pita bread on a dry skillet.\n5. Assemble with lamb, tzatziki, sliced tomato, onion, and fresh parsley.",
+    ingredients: [
+      { name: "Ground Lamb", quantity: "1.5", unit: "lbs", category: "Meat & Seafood", isCommonPantryItem: false },
+      { name: "Pita Bread", quantity: "4", unit: "whole", category: "Bakery", isCommonPantryItem: false },
+      { name: "Greek Yogurt", quantity: "1", unit: "cup", category: "Dairy & Eggs", isCommonPantryItem: false },
+      { name: "Cucumber", quantity: "1", unit: "whole", category: "Produce", isCommonPantryItem: false },
+      { name: "Garlic", quantity: "4", unit: "cloves", category: "Produce", isCommonPantryItem: true },
+      { name: "Dried Oregano", quantity: "2", unit: "tsp", category: "Pantry", isCommonPantryItem: true },
+      { name: "Tomato", quantity: "2", unit: "whole", category: "Produce", isCommonPantryItem: false },
+    ],
+    sides: [
+      { name: "Greek Fries", description: "Crispy fries topped with feta and oregano" },
+      { name: "Extra Tzatziki", description: "Cool yogurt dip with fresh dill" },
+    ],
+  },
+];
+
+async function main() {
+  console.log("Seeding meals database…");
+
+  const existing = await db.select({ name: mealsTable.name }).from(mealsTable);
+  const existingNames = new Set(existing.map((m) => m.name));
+
+  let added = 0;
+  let skipped = 0;
+
+  for (const meal of meals) {
+    if (existingNames.has(meal.name)) {
+      skipped++;
+      continue;
+    }
+
+    const { ingredients, sides, ...mealData } = meal;
+
+    const [inserted] = await db
+      .insert(mealsTable)
+      .values({ ...mealData, imageUrl: null })
+      .returning();
+
+    if (!inserted) continue;
+
+    if (ingredients.length > 0) {
+      await db.insert(ingredientsTable).values(
+        ingredients.map((ing) => ({
+          mealId: inserted.id,
+          name: ing.name,
+          quantity: ing.quantity,
+          unit: ing.unit,
+          category: ing.category,
+          isCommonPantryItem: ing.isCommonPantryItem,
+        }))
+      );
+    }
+
+    if (sides.length > 0) {
+      await db.insert(sidesTable).values(
+        sides.map((side) => ({
+          mealId: inserted.id,
+          name: side.name,
+          description: side.description,
+        }))
+      );
+    }
+
+    added++;
+  }
+
+  console.log(`Done! Added ${added} meals, skipped ${skipped} duplicates.`);
+  process.exit(0);
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
