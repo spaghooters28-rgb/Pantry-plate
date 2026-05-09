@@ -193,13 +193,19 @@ export function HistoryPage() {
   const pinned = allEntries.filter((e) => pinnedIds.has(e.id));
   const unpinned = allEntries.filter((e) => !pinnedIds.has(e.id));
 
+  const mealMap = new Map<number, FavMeal>(
+    ((allMeals ?? []) as FavMeal[]).map((m) => [m.id, m])
+  );
+
   const RecipeCard = ({
     entry,
     isPinned = false,
   }: {
     entry: HistoryEntry;
     isPinned?: boolean;
-  }) => (
+  }) => {
+    const meal = entry.mealId != null ? mealMap.get(entry.mealId) : undefined;
+    return (
     <Card
       className={`cursor-pointer transition-colors ${
         isPinned
@@ -234,6 +240,23 @@ export function HistoryPage() {
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <span className="text-xs text-muted-foreground whitespace-nowrap">{timeAgo(entry.addedAt)}</span>
+            {meal && (
+              <button
+                className={`p-1.5 transition-colors rounded ${
+                  meal.isFavorited
+                    ? "text-amber-400 hover:text-amber-500"
+                    : "text-muted-foreground hover:text-amber-400"
+                }`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleFavorite(meal);
+                }}
+                disabled={toggleFavMutation.isPending}
+                title={meal.isFavorited ? "Remove from favorites" : "Add to favorites"}
+              >
+                <Star className={`w-3.5 h-3.5 ${meal.isFavorited ? "fill-amber-400" : ""}`} />
+              </button>
+            )}
             {isPinned ? (
               <button
                 className="p-1.5 text-amber-500 hover:text-amber-600 transition-colors rounded"
@@ -272,7 +295,8 @@ export function HistoryPage() {
         </div>
       </CardContent>
     </Card>
-  );
+    );
+  };
 
   return (
     <div className="space-y-5">
