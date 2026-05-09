@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { 
-  Home, 
-  Calendar, 
-  ShoppingCart, 
-  PackageSearch, 
-  Clock, 
+import {
+  Home,
+  Calendar,
+  ShoppingCart,
+  PackageSearch,
+  Clock,
   History,
   Star,
-  Menu
+  Menu,
+  Settings,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -23,15 +24,20 @@ const routes = [
   { name: "Saved", path: "/history", icon: History },
 ];
 
+const bottomRoutes = [
+  ...routes.slice(0, 4),
+  { name: "Settings", path: "/settings", icon: Settings },
+];
+
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [open, setOpen] = useState(false);
 
   const NavItems = () => (
     <>
-      <div className="px-4 py-6">
+      <div className="px-4 py-6 flex flex-col h-full">
         <h2 className="text-2xl font-serif font-bold text-primary mb-6">Pantry & Plate</h2>
-        <nav className="space-y-2">
+        <nav className="space-y-2 flex-1">
           {routes.map((route) => {
             const Icon = route.icon;
             const isActive = location === route.path;
@@ -39,8 +45,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <Link key={route.path} href={route.path} onClick={() => setOpen(false)}>
                 <div
                   className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors cursor-pointer ${
-                    isActive 
-                      ? "bg-primary text-primary-foreground" 
+                    isActive
+                      ? "bg-primary text-primary-foreground"
                       : "hover:bg-muted text-muted-foreground hover:text-foreground"
                   }`}
                 >
@@ -51,6 +57,22 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
+
+        {/* Settings at the bottom of the sidebar */}
+        <div className="mt-4 pt-4 border-t">
+          <Link href="/settings" onClick={() => setOpen(false)}>
+            <div
+              className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors cursor-pointer ${
+                location === "/settings"
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Settings className="w-5 h-5" />
+              <span className="font-medium">Settings</span>
+            </div>
+          </Link>
+        </div>
       </div>
     </>
   );
@@ -73,7 +95,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </header>
 
       {/* Desktop Sidebar */}
-      <aside className="hidden md:block w-64 border-r bg-card min-h-screen sticky top-0 shrink-0">
+      <aside className="hidden md:flex flex-col w-64 border-r bg-card min-h-screen sticky top-0 shrink-0">
         <NavItems />
       </aside>
 
@@ -84,7 +106,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Mobile Bottom Nav */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t bg-card flex justify-around p-2 pb-safe z-50">
-        {routes.slice(0, 4).map((route) => {
+        {bottomRoutes.map((route) => {
           const Icon = route.icon;
           const isActive = location === route.path;
           return (

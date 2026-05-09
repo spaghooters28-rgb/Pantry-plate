@@ -179,6 +179,11 @@ router.post("/pantry/items/:id/to-grocery", async (req, res): Promise<void> => {
   res.json({ success: true });
 });
 
+router.delete("/pantry/all", async (_req, res): Promise<void> => {
+  const deleted = await db.delete(pantryItemsTable).returning();
+  res.json({ deleted: deleted.length });
+});
+
 router.get("/pantry/available-recipes", async (_req, res): Promise<void> => {
   // Fetch all in-stock pantry items
   const pantryItems = await db

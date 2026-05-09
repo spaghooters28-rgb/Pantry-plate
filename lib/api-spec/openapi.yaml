@@ -451,6 +451,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/AddMealResult"
 
+  /grocery-list/all:
+    delete:
+      operationId: clearAllGroceryItems
+      tags: [grocery]
+      summary: Delete every item from the grocery list
+      responses:
+        "200":
+          description: Cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+                required: [deleted]
+
   /grocery-list/clear:
     post:
       operationId: clearGroceryList
@@ -478,6 +495,23 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/GrocerySuggestion"
+
+  /pantry/all:
+    delete:
+      operationId: clearAllPantryItems
+      tags: [pantry]
+      summary: Delete every item from the pantry
+      responses:
+        "200":
+          description: Cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+                required: [deleted]
 
   # ── PANTRY ─────────────────────────────────────────────────────────────────
 

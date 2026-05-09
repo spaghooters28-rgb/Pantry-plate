@@ -308,6 +308,11 @@ router.post("/grocery-list/from-meal/:mealId", async (req, res): Promise<void> =
   });
 });
 
+router.delete("/grocery-list/all", async (_req, res): Promise<void> => {
+  const deleted = await db.delete(groceryItemsTable).returning();
+  res.json({ deleted: deleted.length });
+});
+
 router.post("/grocery-list/clear", async (_req, res): Promise<void> => {
   await db.delete(groceryItemsTable).where(eq(groceryItemsTable.isChecked, true));
   res.json(await buildGroceryListResponse());

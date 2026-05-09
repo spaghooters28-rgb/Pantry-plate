@@ -252,7 +252,7 @@ export function Pantry() {
           <h1 className="text-3xl font-serif font-bold text-primary mb-1">Pantry</h1>
           <p className="text-muted-foreground">Track what you have at home.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={handleGenerateRecipes}>
             <Sparkles className="w-4 h-4 mr-2" />
             Find Available Recipes

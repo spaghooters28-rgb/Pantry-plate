@@ -655,6 +655,13 @@ export const AddMealToGroceryListResponse = zod.object({
 });
 
 /**
+ * @summary Delete every item from the grocery list
+ */
+export const ClearAllGroceryItemsResponse = zod.object({
+  deleted: zod.number(),
+});
+
+/**
  * @summary Clear all checked-off items from the list
  */
 export const ClearGroceryListResponse = zod.object({
@@ -698,6 +705,13 @@ export const GetGroceryListSuggestionsResponseItem = zod.object({
 export const GetGroceryListSuggestionsResponse = zod.array(
   GetGroceryListSuggestionsResponseItem,
 );
+
+/**
+ * @summary Delete every item from the pantry
+ */
+export const ClearAllPantryItemsResponse = zod.object({
+  deleted: zod.number(),
+});
 
 /**
  * @summary Get all pantry items

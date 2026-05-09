@@ -25,6 +25,8 @@ import type {
   AnalyzeRecipeResult,
   AvailableRecipe,
   CheckPantryBody,
+  ClearAllGroceryItems200,
+  ClearAllPantryItems200,
   CreateScheduledItemBody,
   GenerateAiMealsBody,
   GenerateWeeklyPlanBody,
@@ -1930,6 +1932,87 @@ export const useAddMealToGroceryList = <
 };
 
 /**
+ * @summary Delete every item from the grocery list
+ */
+export const getClearAllGroceryItemsUrl = () => {
+  return `/api/grocery-list/all`;
+};
+
+export const clearAllGroceryItems = async (
+  options?: RequestInit,
+): Promise<ClearAllGroceryItems200> => {
+  return customFetch<ClearAllGroceryItems200>(getClearAllGroceryItemsUrl(), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getClearAllGroceryItemsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearAllGroceryItems>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof clearAllGroceryItems>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["clearAllGroceryItems"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof clearAllGroceryItems>>,
+    void
+  > = () => {
+    return clearAllGroceryItems(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClearAllGroceryItemsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearAllGroceryItems>>
+>;
+
+export type ClearAllGroceryItemsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete every item from the grocery list
+ */
+export const useClearAllGroceryItems = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearAllGroceryItems>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof clearAllGroceryItems>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getClearAllGroceryItemsMutationOptions(options));
+};
+
+/**
  * @summary Clear all checked-off items from the list
  */
 export const getClearGroceryListUrl = () => {
@@ -2085,6 +2168,87 @@ export function useGetGroceryListSuggestions<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Delete every item from the pantry
+ */
+export const getClearAllPantryItemsUrl = () => {
+  return `/api/pantry/all`;
+};
+
+export const clearAllPantryItems = async (
+  options?: RequestInit,
+): Promise<ClearAllPantryItems200> => {
+  return customFetch<ClearAllPantryItems200>(getClearAllPantryItemsUrl(), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getClearAllPantryItemsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearAllPantryItems>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof clearAllPantryItems>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["clearAllPantryItems"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof clearAllPantryItems>>,
+    void
+  > = () => {
+    return clearAllPantryItems(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClearAllPantryItemsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearAllPantryItems>>
+>;
+
+export type ClearAllPantryItemsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete every item from the pantry
+ */
+export const useClearAllPantryItems = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearAllPantryItems>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof clearAllPantryItems>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getClearAllPantryItemsMutationOptions(options));
+};
 
 /**
  * @summary Get all pantry items

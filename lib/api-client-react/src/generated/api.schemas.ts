@@ -327,6 +327,14 @@ export type AddWeekToGroceryList200 = {
   mealsProcessed: number;
 };
 
+export type ClearAllGroceryItems200 = {
+  deleted: number;
+};
+
+export type ClearAllPantryItems200 = {
+  deleted: number;
+};
+
 export type MovePantryItemToGrocery200 = {
   success: boolean;
 };
