@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useCreateOpenaiConversation } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Bot, Send, Loader2, RotateCcw, ChevronDown, ChevronUp } from "lucide-react";
+import { Bot, Send, Loader2, RotateCcw, X, Sparkles } from "lucide-react";
 import { useAiChat } from "@/contexts/AiChatContext";
 
 export type ChatAction = {
@@ -52,8 +53,21 @@ export function AiChatPanel({ onAction }: { onAction?: (actions: ChatAction[]) =
   }, []);
 
   useEffect(() => {
-    if (isOpen) scrollToBottom();
+    if (isOpen) {
+      scrollToBottom();
+      setTimeout(() => textareaRef.current?.focus(), 100);
+    }
   }, [messages, isOpen, scrollToBottom]);
+
+  // Close on Escape
+  useEffect(() => {
+    if (!isOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setIsOpen(false);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isOpen, setIsOpen]);
 
   async function ensureConversation(): Promise<number> {
     if (conversationId) return conversationId;
@@ -173,10 +187,11 @@ export function AiChatPanel({ onAction }: { onAction?: (actions: ChatAction[]) =
   const userMsgCount = messages.filter((m) => m.role === "user").length;
 
   return (
-    <div className="border border-border rounded-2xl overflow-hidden bg-card shadow-sm">
+    <>
+      {/* Collapsed trigger bar */}
       <button
-        className="w-full flex items-center justify-between px-5 py-4 hover:bg-muted/50 transition-colors"
-        onClick={() => setIsOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-5 py-4 rounded-2xl border border-border bg-card hover:bg-muted/50 transition-colors shadow-sm"
+        onClick={() => setIsOpen(true)}
       >
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
@@ -191,25 +206,58 @@ export function AiChatPanel({ onAction }: { onAction?: (actions: ChatAction[]) =
             </p>
           </div>
         </div>
-        {isOpen ? (
-          <ChevronUp className="w-4 h-4 text-muted-foreground" />
-        ) : (
-          <ChevronDown className="w-4 h-4 text-muted-foreground" />
-        )}
+        <Sparkles className="w-4 h-4 text-primary/60" />
       </button>
 
-      {isOpen && (
-        <div className="border-t border-border">
-          <div className="h-80 overflow-y-auto px-4 py-3 space-y-3 flex flex-col">
+      {/* Full-screen overlay rendered via portal */}
+      {isOpen && createPortal(
+        <div className="fixed inset-0 z-50 flex flex-col bg-background">
+          {/* Header */}
+          <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-card shrink-0">
+            <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
+              <Bot className="w-5 h-5 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-base">AI Meal Assistant</p>
+              <p className="text-xs text-muted-foreground">
+                Ask for ideas, assign meals to days, or manage favorites
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {messages.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 text-muted-foreground hover:text-foreground"
+                  onClick={handleReset}
+                  title="Start new conversation"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 text-muted-foreground hover:text-foreground"
+                onClick={() => setIsOpen(false)}
+                title="Close"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
             {messages.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center gap-4 py-6">
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Bot className="w-6 h-6 text-primary" />
+              <div className="flex flex-col items-center justify-center h-full text-center gap-5 pb-8">
+                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Bot className="w-8 h-8 text-primary" />
                 </div>
                 <div>
-                  <p className="font-medium text-sm mb-1">Your Meal Planning Assistant</p>
-                  <p className="text-xs text-muted-foreground max-w-64">
-                    Ask for meal ideas, add favorites, or assign meals to days of your week.
+                  <p className="font-semibold text-lg mb-1">Your Meal Planning Assistant</p>
+                  <p className="text-sm text-muted-foreground max-w-xs">
+                    Ask for meal ideas, add favorites, or assign meals to specific days of your week.
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 w-full max-w-sm">
@@ -217,7 +265,7 @@ export function AiChatPanel({ onAction }: { onAction?: (actions: ChatAction[]) =
                     <button
                       key={prompt}
                       onClick={() => sendMessage(prompt)}
-                      className="text-left text-xs px-3 py-2 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-colors text-muted-foreground hover:text-foreground"
+                      className="text-left text-sm px-4 py-3 rounded-xl border border-border hover:border-primary hover:bg-primary/5 transition-colors text-muted-foreground hover:text-foreground"
                     >
                       {prompt}
                     </button>
@@ -231,12 +279,12 @@ export function AiChatPanel({ onAction }: { onAction?: (actions: ChatAction[]) =
                   className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                 >
                   {msg.role === "assistant" && (
-                    <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5 mr-2">
-                      <Bot className="w-3.5 h-3.5 text-primary" />
+                    <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-1 mr-2">
+                      <Bot className="w-4 h-4 text-primary" />
                     </div>
                   )}
                   <div
-                    className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
+                    className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
                       msg.role === "user"
                         ? "bg-primary text-primary-foreground rounded-tr-sm"
                         : "bg-muted text-foreground rounded-tl-sm"
@@ -253,31 +301,21 @@ export function AiChatPanel({ onAction }: { onAction?: (actions: ChatAction[]) =
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="border-t border-border px-4 py-3 flex gap-2 items-end bg-background/50">
-            {messages.length > 0 && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="shrink-0 h-9 w-9 text-muted-foreground hover:text-foreground"
-                onClick={handleReset}
-                title="Start new conversation"
-              >
-                <RotateCcw className="w-4 h-4" />
-              </Button>
-            )}
+          {/* Input */}
+          <div className="border-t border-border px-4 py-3 flex gap-2 items-end bg-card shrink-0">
             <Textarea
               ref={textareaRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Ask about meals, or say 'Add pasta to Tuesday'…"
-              className="resize-none min-h-9 max-h-32 text-sm py-2 flex-1"
+              className="resize-none min-h-10 max-h-40 text-sm py-2.5 flex-1"
               rows={1}
               disabled={isStreaming}
             />
             <Button
               size="icon"
-              className="shrink-0 h-9 w-9"
+              className="shrink-0 h-10 w-10"
               onClick={() => sendMessage(input)}
               disabled={!input.trim() || isStreaming}
             >
@@ -288,8 +326,9 @@ export function AiChatPanel({ onAction }: { onAction?: (actions: ChatAction[]) =
               )}
             </Button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   );
 }

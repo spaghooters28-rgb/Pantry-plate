@@ -495,7 +495,7 @@ export function Discover() {
                       </Badge>
                       <div className="flex items-center gap-1">
                         {m.isGlutenFree && (
-                          <Badge variant="outline" className="text-xs border-green-600 text-green-600">GF</Badge>
+                          <Badge variant="outline" className="text-xs border-green-600 text-green-600">Gluten Free</Badge>
                         )}
                         <button
                           onClick={(e) => handleToggleFavorite(e, m)}

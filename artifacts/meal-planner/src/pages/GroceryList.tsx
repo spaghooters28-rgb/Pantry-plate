@@ -290,6 +290,7 @@ type GroceryItemType = {
 export function GroceryList() {
   const [addOpen, setAddOpen] = useState(false);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [addedSuggestionNames, setAddedSuggestionNames] = useState<Set<string>>(new Set());
   const [movingToPantry, setMovingToPantry] = useState(false);
   const [newItem, setNewItem] = useState({ name: "", quantity: "1", unit: "", category: "Other", scheduleType: "none", scheduleDaysInterval: 7 });
   const [categoryAutoDetected, setCategoryAutoDetected] = useState(false);
@@ -448,6 +449,7 @@ export function GroceryList() {
   function handleAddSuggestion(suggestion: { name: string; category: string }) {
     const existing = findExistingItem(suggestion.name);
     if (existing) {
+      setAddedSuggestionNames((prev) => new Set([...prev, suggestion.name]));
       toast({ title: `${suggestion.name} is already in your list!` });
       return;
     }
@@ -456,6 +458,7 @@ export function GroceryList() {
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: qKey });
+          setAddedSuggestionNames((prev) => new Set([...prev, suggestion.name]));
           toast({ title: `${suggestion.name} added!` });
         },
       }
@@ -754,7 +757,7 @@ export function GroceryList() {
       </Dialog>
 
       {/* Suggestions Dialog */}
-      <Dialog open={suggestionsOpen} onOpenChange={setSuggestionsOpen}>
+      <Dialog open={suggestionsOpen} onOpenChange={(open) => { setSuggestionsOpen(open); if (!open) setAddedSuggestionNames(new Set()); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="font-serif flex items-center gap-2">
@@ -764,22 +767,28 @@ export function GroceryList() {
           </DialogHeader>
           <p className="text-sm text-muted-foreground">Based on your pantry and common staples:</p>
           <div className="space-y-2">
-            {suggestions?.map((s) => (
-              <div key={s.name} className="flex items-center justify-between p-3 rounded-lg border border-border">
-                <div>
-                  <p className="font-medium text-sm">{s.name}</p>
-                  <p className="text-xs text-muted-foreground">{s.reason}</p>
+            {suggestions
+              ?.filter((s) => !addedSuggestionNames.has(s.name))
+              .map((s) => (
+                <div key={s.name} className="flex items-center justify-between p-3 rounded-lg border border-border">
+                  <div>
+                    <p className="font-medium text-sm">{s.name}</p>
+                    <p className="text-xs text-muted-foreground">{s.reason}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="text-xs">{s.category}</Badge>
+                    <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => handleAddSuggestion(s)}>
+                      <Plus className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-xs">{s.category}</Badge>
-                  <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => handleAddSuggestion(s)}>
-                    <Plus className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-            {suggestions?.length === 0 && (
-              <p className="text-center text-muted-foreground py-4 text-sm">No suggestions right now. Your pantry looks well-stocked!</p>
+              ))}
+            {(suggestions?.filter((s) => !addedSuggestionNames.has(s.name)).length ?? 0) === 0 && (
+              <p className="text-center text-muted-foreground py-4 text-sm">
+                {addedSuggestionNames.size > 0
+                  ? "All suggestions added! Close and reopen to refresh."
+                  : "No suggestions right now. Your pantry looks well-stocked!"}
+              </p>
             )}
           </div>
         </DialogContent>

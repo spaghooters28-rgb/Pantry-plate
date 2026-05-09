@@ -632,7 +632,7 @@ export function WeeklyPlan() {
                               <span className="flex items-center gap-0.5"><Clock className="w-3 h-3" />{day.meal.cookTimeMinutes}m</span>
                               <span className="flex items-center gap-0.5"><Flame className="w-3 h-3" />{day.meal.calories} kcal</span>
                               <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{day.meal.cuisine}</Badge>
-                              {day.meal.isGlutenFree && <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-green-500 text-green-600">GF</Badge>}
+                              {day.meal.isGlutenFree && <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-green-500 text-green-600">GF (Gluten Free)</Badge>}
                             </div>
                           </button>
                         </div>
@@ -681,7 +681,7 @@ export function WeeklyPlan() {
               <DialogHeader>
                 <div className="flex flex-wrap gap-1.5 mb-1">
                   <Badge variant="secondary">{selectedMeal.cuisine}</Badge>
-                  {selectedMeal.isGlutenFree && <Badge variant="outline" className="border-green-500 text-green-600">GF</Badge>}
+                  {selectedMeal.isGlutenFree && <Badge variant="outline" className="border-green-500 text-green-600">Gluten Free</Badge>}
                   <Badge variant="outline">{selectedMeal.protein}</Badge>
                 </div>
                 <DialogTitle className="font-serif text-xl leading-tight">{selectedMeal.name}</DialogTitle>
@@ -1040,7 +1040,7 @@ export function WeeklyPlan() {
                       <p className="font-medium leading-snug">{m.name}</p>
                       <div className="flex items-center flex-wrap gap-1.5 mt-1">
                         <Badge variant="secondary" className="text-xs">{m.cuisine}</Badge>
-                        {m.isGlutenFree && <Badge variant="outline" className="text-xs border-green-500 text-green-600">GF</Badge>}
+                        {m.isGlutenFree && <Badge variant="outline" className="text-xs border-green-500 text-green-600">Gluten Free</Badge>}
                         <span className="text-xs text-muted-foreground">{m.cookTimeMinutes}m · {m.calories} kcal · {m.protein}</span>
                       </div>
                     </button>
@@ -1064,7 +1064,7 @@ export function WeeklyPlan() {
                       <p className="font-medium leading-snug">{e.name}</p>
                       <div className="flex items-center flex-wrap gap-1.5 mt-1">
                         <Badge variant="secondary" className="text-xs">{e.cuisine}</Badge>
-                        {e.isGlutenFree && <Badge variant="outline" className="text-xs border-green-500 text-green-600">GF</Badge>}
+                        {e.isGlutenFree && <Badge variant="outline" className="text-xs border-green-500 text-green-600">Gluten Free</Badge>}
                         <span className="text-xs text-muted-foreground">{e.cookTimeMinutes}m · {e.calories} kcal · {e.protein}</span>
                       </div>
                     </button>
@@ -1099,7 +1099,7 @@ export function WeeklyPlan() {
                       <p className="font-medium leading-snug">{m.name}</p>
                       <div className="flex items-center flex-wrap gap-1.5 mt-1">
                         <Badge variant="secondary" className="text-xs">{m.cuisine}</Badge>
-                        {m.isGlutenFree && <Badge variant="outline" className="text-xs border-green-500 text-green-600">GF</Badge>}
+                        {m.isGlutenFree && <Badge variant="outline" className="text-xs border-green-500 text-green-600">Gluten Free</Badge>}
                         <span className="text-xs text-muted-foreground">{m.cookTimeMinutes}m · {m.calories} kcal · {m.protein}</span>
                       </div>
                     </button>

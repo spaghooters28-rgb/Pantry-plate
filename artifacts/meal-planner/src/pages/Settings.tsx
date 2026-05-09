@@ -66,8 +66,14 @@ export function Settings() {
       toast({ title: "Permission required", description: "Allow notifications first.", variant: "destructive" });
       return;
     }
-    await sendTestNotification();
-    toast({ title: "Test notification sent!" });
+    const result = await sendTestNotification();
+    if (result === "sent") {
+      toast({ title: "Test notification sent!", description: "Check your notifications — if you don't see it, open the app in a real browser tab." });
+    } else if (result === "not-supported") {
+      toast({ title: "Not supported", description: "Your browser doesn't support notifications.", variant: "destructive" });
+    } else {
+      toast({ title: "Could not send notification", description: "Try opening the app in a standalone browser tab.", variant: "destructive" });
+    }
   }
 
   async function handleClearGrocery() {

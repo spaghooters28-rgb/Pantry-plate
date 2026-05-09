@@ -23,7 +23,7 @@ export function saveReminderSettings(s: ReminderSettings) {
 }
 
 function getTomorrowDayName(): string {
-  const todayIndex = new Date().getDay(); // 0 = sunday
+  const todayIndex = new Date().getDay();
   return ALL_DAYS[(todayIndex + 1) % 7];
 }
 
@@ -44,21 +44,71 @@ async function fetchTomorrowProtein(): Promise<{ protein: string; mealName: stri
   }
 }
 
-export async function sendTestNotification(): Promise<boolean> {
-  if (Notification.permission !== "granted") return false;
-  new Notification("🍽️ Pantry & Plate Reminder", {
-    body: "Remember to set out your protein for tomorrow's meal!",
-    icon: "/favicon.ico",
-    tag: "protein-reminder-test",
-  });
-  return true;
+export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
+  if (!("serviceWorker" in navigator)) return null;
+  try {
+    const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+    return reg;
+  } catch {
+    return null;
+  }
+}
+
+function showNotification(title: string, body: string, tag: string) {
+  if (!("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
+
+  // Prefer service worker notification (works on mobile / when app is backgrounded)
+  if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.ready.then((reg) => {
+      reg.showNotification(title, {
+        body,
+        icon: "/favicon.svg",
+        badge: "/favicon.svg",
+        tag,
+      }).catch(() => {
+        new Notification(title, { body, icon: "/favicon.svg", tag });
+      });
+    }).catch(() => {
+      new Notification(title, { body, icon: "/favicon.svg", tag });
+    });
+  } else {
+    try {
+      new Notification(title, { body, icon: "/favicon.svg", tag });
+    } catch { /* some browsers block new Notification in certain contexts */ }
+  }
+}
+
+export async function sendTestNotification(): Promise<string> {
+  if (!("Notification" in window)) {
+    return "not-supported";
+  }
+  if (Notification.permission !== "granted") {
+    return "permission-denied";
+  }
+  try {
+    showNotification(
+      "🍽️ Pantry & Plate Reminder",
+      "This is a test — your protein reminders are working!",
+      "protein-reminder-test"
+    );
+    return "sent";
+  } catch {
+    return "error";
+  }
 }
 
 export function useProteinReminder() {
+  // Register the service worker on mount
+  useEffect(() => {
+    registerServiceWorker();
+  }, []);
+
   useEffect(() => {
     async function check() {
       const settings = loadReminderSettings();
       if (!settings.enabled) return;
+      if (!("Notification" in window)) return;
       if (Notification.permission !== "granted") return;
 
       const now = new Date();
@@ -66,10 +116,8 @@ export function useProteinReminder() {
       const nowMinutes = now.getHours() * 60 + now.getMinutes();
       const targetMinutes = hh * 60 + mm;
 
-      // Fire only during the target minute
       if (nowMinutes !== targetMinutes) return;
 
-      // Avoid duplicate sends on the same day
       const todayStr = now.toISOString().split("T")[0];
       const sentKey = `${LS_SENT_PREFIX}${todayStr}`;
       if (localStorage.getItem(sentKey)) return;
@@ -77,11 +125,11 @@ export function useProteinReminder() {
       const data = await fetchTomorrowProtein();
       if (!data) return;
 
-      new Notification("🍽️ Pantry & Plate — Protein Reminder", {
-        body: `Set out ${data.protein} tonight — "${data.mealName}" is on tomorrow's menu!`,
-        icon: "/favicon.ico",
-        tag: "protein-reminder",
-      });
+      showNotification(
+        "🍽️ Pantry & Plate — Protein Reminder",
+        `Set out ${data.protein} tonight — "${data.mealName}" is on tomorrow's menu!`,
+        "protein-reminder"
+      );
 
       localStorage.setItem(sentKey, "1");
     }

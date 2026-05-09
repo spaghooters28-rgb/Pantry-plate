@@ -224,7 +224,7 @@ export function HistoryPage() {
             <div className="flex flex-wrap items-center gap-1.5 mt-1">
               <Badge variant="secondary" className="text-xs">{entry.cuisine}</Badge>
               {entry.isGlutenFree && (
-                <Badge variant="outline" className="text-xs border-green-500 text-green-600">GF</Badge>
+                <Badge variant="outline" className="text-xs border-green-500 text-green-600">Gluten Free</Badge>
               )}
               {entry.cookTimeMinutes > 0 && (
                 <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
@@ -408,7 +408,7 @@ export function HistoryPage() {
                       <div className="flex flex-wrap items-center gap-1.5 mt-1">
                         <Badge variant="secondary" className="text-xs">{meal.cuisine}</Badge>
                         {meal.isGlutenFree && (
-                          <Badge variant="outline" className="text-xs border-green-500 text-green-600">GF</Badge>
+                          <Badge variant="outline" className="text-xs border-green-500 text-green-600">Gluten Free</Badge>
                         )}
                         {meal.cookTimeMinutes > 0 && (
                           <span className="flex items-center gap-0.5 text-xs text-muted-foreground">

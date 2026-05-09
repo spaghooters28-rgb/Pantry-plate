@@ -119,7 +119,7 @@ export function Favorites() {
                   </Badge>
                   <div className="flex items-center gap-1">
                     {meal.isGlutenFree && (
-                      <Badge variant="outline" className="text-xs border-green-600 text-green-600">GF</Badge>
+                      <Badge variant="outline" className="text-xs border-green-600 text-green-600">Gluten Free</Badge>
                     )}
                     <button
                       onClick={(e) => { e.stopPropagation(); handleUnfavorite(meal); }}
@@ -172,7 +172,7 @@ export function Favorites() {
               <DialogHeader>
                 <div className="flex flex-wrap gap-1.5 mb-1">
                   <Badge variant="secondary">{selectedMeal.cuisine}</Badge>
-                  {selectedMeal.isGlutenFree && <Badge variant="outline" className="border-green-500 text-green-600">GF</Badge>}
+                  {selectedMeal.isGlutenFree && <Badge variant="outline" className="border-green-500 text-green-600">Gluten Free</Badge>}
                   <Badge variant="outline">{selectedMeal.protein}</Badge>
                 </div>
                 <DialogTitle className="font-serif text-xl leading-tight">{selectedMeal.name}</DialogTitle>
