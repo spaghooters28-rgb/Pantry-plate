@@ -284,6 +284,31 @@ export const SaveAnalyzedRecipeBody = zod.object({
 });
 
 /**
+ * @summary Create a custom recipe scoped to the authenticated user
+ */
+export const CreateCustomMealBody = zod.object({
+  name: zod.string(),
+  description: zod.string().optional(),
+  cuisine: zod.string().optional(),
+  protein: zod.string().optional(),
+  isGlutenFree: zod.boolean().optional(),
+  cookTimeMinutes: zod.number().optional(),
+  servings: zod.number().optional(),
+  calories: zod.number().optional(),
+  instructions: zod.string().nullish(),
+  ingredients: zod
+    .array(
+      zod.object({
+        name: zod.string(),
+        quantity: zod.string().optional(),
+        unit: zod.string().optional(),
+        category: zod.string().optional(),
+      }),
+    )
+    .optional(),
+});
+
+/**
  * @summary List all recipes that have been added to the grocery list
  */
 export const ListRecipeHistoryResponseItem = zod.object({

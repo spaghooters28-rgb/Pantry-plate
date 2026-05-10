@@ -7,6 +7,27 @@ import {
   ToggleMealFavoriteParams,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middleware/requireAuth";
+import { z } from "zod";
+
+const CustomIngredientSchema = z.object({
+  name: z.string().min(1),
+  quantity: z.string().default(""),
+  unit: z.string().default(""),
+  category: z.string().default("Other"),
+});
+
+const CreateCustomMealSchema = z.object({
+  name: z.string().min(1, "name is required"),
+  description: z.string().optional().default(""),
+  cuisine: z.string().optional().default("Other"),
+  protein: z.string().optional().default("Other"),
+  isGlutenFree: z.boolean().optional().default(false),
+  cookTimeMinutes: z.number().int().min(0).optional().default(30),
+  servings: z.number().int().min(1).optional().default(2),
+  calories: z.number().int().min(0).optional().default(0),
+  instructions: z.string().nullable().optional(),
+  ingredients: z.array(CustomIngredientSchema).optional().default([]),
+});
 
 const router: IRouter = Router();
 
@@ -229,26 +250,32 @@ router.post("/meals/:id/toggle-favorite", requireAuth, async (req, res): Promise
 
 router.post("/meals/custom", requireAuth, async (req, res): Promise<void> => {
   const userId = req.session.userId as number;
-  const body = req.body as { name?: unknown };
-  const name = typeof body.name === "string" ? body.name.trim() : "";
-  if (!name) {
-    res.status(400).json({ error: "name is required" });
+  const parsed = CreateCustomMealSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const { ingredients, instructions, ...mealFields } = parsed.data;
   const [meal] = await db
     .insert(mealsTable)
     .values({
-      name,
-      description: "",
-      cuisine: "Other",
-      protein: "Other",
-      isGlutenFree: false,
-      cookTimeMinutes: 30,
-      calories: 0,
-      servings: 2,
+      ...mealFields,
+      instructions: instructions ?? null,
       createdByUserId: userId,
     })
     .returning();
+  if (ingredients.length > 0) {
+    await db.insert(ingredientsTable).values(
+      ingredients.map((ing) => ({
+        mealId: meal.id,
+        name: ing.name,
+        quantity: ing.quantity,
+        unit: ing.unit,
+        category: ing.category,
+        isCommonPantryItem: false,
+      }))
+    );
+  }
   res.status(201).json(await buildMealResponse(meal, new Set()));
 });
 

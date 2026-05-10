@@ -28,6 +28,7 @@ import type {
   CheckPantryBody,
   ClearAllGroceryItems200,
   ClearAllPantryItems200,
+  CreateCustomMealBody,
   CreateOpenaiConversationBody,
   CreateScheduledItemBody,
   GenerateAiMealsBody,
@@ -805,6 +806,92 @@ export const useSaveAnalyzedRecipe = <
   TContext
 > => {
   return useMutation(getSaveAnalyzedRecipeMutationOptions(options));
+};
+
+/**
+ * @summary Create a custom recipe scoped to the authenticated user
+ */
+export const getCreateCustomMealUrl = () => {
+  return `/api/meals/custom`;
+};
+
+export const createCustomMeal = async (
+  createCustomMealBody: CreateCustomMealBody,
+  options?: RequestInit,
+): Promise<Meal> => {
+  return customFetch<Meal>(getCreateCustomMealUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createCustomMealBody),
+  });
+};
+
+export const getCreateCustomMealMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCustomMeal>>,
+    TError,
+    { data: BodyType<CreateCustomMealBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createCustomMeal>>,
+  TError,
+  { data: BodyType<CreateCustomMealBody> },
+  TContext
+> => {
+  const mutationKey = ["createCustomMeal"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createCustomMeal>>,
+    { data: BodyType<CreateCustomMealBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createCustomMeal(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateCustomMealMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createCustomMeal>>
+>;
+export type CreateCustomMealMutationBody = BodyType<CreateCustomMealBody>;
+export type CreateCustomMealMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a custom recipe scoped to the authenticated user
+ */
+export const useCreateCustomMeal = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCustomMeal>>,
+    TError,
+    { data: BodyType<CreateCustomMealBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createCustomMeal>>,
+  TError,
+  { data: BodyType<CreateCustomMealBody> },
+  TContext
+> => {
+  return useMutation(getCreateCustomMealMutationOptions(options));
 };
 
 /**

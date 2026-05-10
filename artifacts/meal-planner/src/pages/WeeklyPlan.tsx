@@ -21,6 +21,7 @@ import {
   getGetPinsQueryKey,
   useAddPin,
   useRemovePin,
+  useCreateCustomMeal,
 } from "@workspace/api-client-react";
 import { usePinsMigration } from "@/hooks/usePinsMigration";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
@@ -29,7 +30,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Clock, Flame, Shuffle, ShoppingCart, Calendar, Settings2, ChevronDown, ChevronUp, BookOpen, Star, History, Link, Loader2, Search, CheckCircle2, Trash2, Plus, Pin } from "lucide-react";
+import { Clock, Flame, Shuffle, ShoppingCart, Calendar, Settings2, ChevronDown, ChevronUp, BookOpen, Star, History, Link, Loader2, Search, CheckCircle2, Trash2, Plus, Pin, PencilLine, X } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 
@@ -50,6 +51,39 @@ const DAY_EMOJIS: Record<string, string> = {
 function capitalizeDay(day: string) {
   return day.charAt(0).toUpperCase() + day.slice(1);
 }
+
+type CustomIngredientRow = {
+  name: string;
+  quantity: string;
+  unit: string;
+  category: string;
+};
+
+type NewRecipeForm = {
+  name: string;
+  description: string;
+  cuisine: string;
+  protein: string;
+  isGlutenFree: boolean;
+  cookTimeMinutes: number;
+  servings: number;
+  calories: number;
+  instructions: string;
+  ingredients: CustomIngredientRow[];
+};
+
+const BLANK_RECIPE: NewRecipeForm = {
+  name: "",
+  description: "",
+  cuisine: "Other",
+  protein: "Other",
+  isGlutenFree: false,
+  cookTimeMinutes: 30,
+  servings: 2,
+  calories: 0,
+  instructions: "",
+  ingredients: [],
+};
 
 type PlanMeal = {
   id: number;
@@ -106,6 +140,8 @@ export function WeeklyPlan() {
   const [recipeSaved, setRecipeSaved] = useState(false);
   const [replacingMealName, setReplacingMealName] = useState<string | null>(null);
   const [addingCustomMeal, setAddingCustomMeal] = useState(false);
+  const [recipeBuilderOpen, setRecipeBuilderOpen] = useState(false);
+  const [newRecipe, setNewRecipe] = useState<NewRecipeForm>(BLANK_RECIPE);
   const [localPrefs, setLocalPrefs] = useState<{
     cuisine: string;
     proteins: string[];
@@ -175,6 +211,7 @@ export function WeeklyPlan() {
   const saveRecipeMutation = useSaveAnalyzedRecipe();
   const toggleFavoriteMutation = useToggleMealFavorite();
   const addMealToGroceryMutation = useAddMealToGroceryList();
+  const createCustomMealMutation = useCreateCustomMeal();
 
   const pinsQueryKey = getGetPinsQueryKey();
   const { data: pinsData } = useGetPins({ query: { queryKey: pinsQueryKey } });
@@ -325,6 +362,73 @@ export function WeeklyPlan() {
     } finally {
       setAddingCustomMeal(false);
     }
+  }
+
+  function openRecipeBuilder() {
+    setNewRecipe(BLANK_RECIPE);
+    setRecipeBuilderOpen(true);
+  }
+
+  function addIngredientRow() {
+    setNewRecipe((r) => ({
+      ...r,
+      ingredients: [...r.ingredients, { name: "", quantity: "", unit: "", category: "Produce" }],
+    }));
+  }
+
+  function updateIngredientRow(idx: number, field: keyof CustomIngredientRow, value: string) {
+    setNewRecipe((r) => {
+      const next = [...r.ingredients];
+      next[idx] = { ...next[idx], [field]: value };
+      return { ...r, ingredients: next };
+    });
+  }
+
+  function removeIngredientRow(idx: number) {
+    setNewRecipe((r) => ({
+      ...r,
+      ingredients: r.ingredients.filter((_, i) => i !== idx),
+    }));
+  }
+
+  function handleSaveCustomRecipe() {
+    if (!newRecipe.name.trim()) {
+      toast({ title: "Name required", description: "Please enter a recipe name.", variant: "destructive" });
+      return;
+    }
+    createCustomMealMutation.mutate(
+      {
+        data: {
+          name: newRecipe.name.trim(),
+          description: newRecipe.description.trim() || undefined,
+          cuisine: newRecipe.cuisine || "Other",
+          protein: newRecipe.protein || "Other",
+          isGlutenFree: newRecipe.isGlutenFree,
+          cookTimeMinutes: newRecipe.cookTimeMinutes,
+          servings: newRecipe.servings,
+          calories: newRecipe.calories,
+          instructions: newRecipe.instructions.trim() || null,
+          ingredients: newRecipe.ingredients
+            .filter((ing) => ing.name.trim())
+            .map((ing) => ({
+              name: ing.name.trim(),
+              quantity: ing.quantity.trim(),
+              unit: ing.unit.trim(),
+              category: ing.category || "Other",
+            })),
+        },
+      },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListMealsQueryKey({}) });
+          setRecipeBuilderOpen(false);
+          toast({ title: "Recipe created!", description: `"${newRecipe.name.trim()}" is now in your meal library.` });
+        },
+        onError: () => {
+          toast({ title: "Error", description: "Could not save recipe.", variant: "destructive" });
+        },
+      }
+    );
   }
 
   function handleSetLeftover() {
@@ -636,6 +740,10 @@ export function WeeklyPlan() {
           >
             <Link className="w-4 h-4 mr-2" />
             Recipe Analyzer
+          </Button>
+          <Button variant="outline" onClick={openRecipeBuilder}>
+            <PencilLine className="w-4 h-4 mr-2" />
+            Create Recipe
           </Button>
           <Button onClick={handleGenerate} disabled={generateMutation.isPending}>
             <Shuffle className="w-4 h-4 mr-2" />
@@ -1300,6 +1408,194 @@ export function WeeklyPlan() {
                 )
               )}
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Recipe Builder Dialog ─────────────────────────────────────── */}
+      <Dialog open={recipeBuilderOpen} onOpenChange={setRecipeBuilderOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b">
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <PencilLine className="w-5 h-5" />
+              Create a Recipe
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="overflow-y-auto flex-1 px-6 py-4 space-y-5">
+            {/* Name */}
+            <div>
+              <label className="text-sm font-medium block mb-1">
+                Recipe Name <span className="text-destructive">*</span>
+              </label>
+              <input
+                className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder="e.g. Lemon Herb Chicken"
+                value={newRecipe.name}
+                onChange={(e) => setNewRecipe((r) => ({ ...r, name: e.target.value }))}
+              />
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="text-sm font-medium block mb-1">Description</label>
+              <textarea
+                className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                placeholder="A short description of the dish…"
+                rows={2}
+                value={newRecipe.description}
+                onChange={(e) => setNewRecipe((r) => ({ ...r, description: e.target.value }))}
+              />
+            </div>
+
+            {/* Details row */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium block mb-1">Cuisine</label>
+                <select
+                  className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                  value={newRecipe.cuisine}
+                  onChange={(e) => setNewRecipe((r) => ({ ...r, cuisine: e.target.value }))}
+                >
+                  {(cuisines ?? ["Other"]).map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium block mb-1">Protein</label>
+                <select
+                  className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                  value={newRecipe.protein}
+                  onChange={(e) => setNewRecipe((r) => ({ ...r, protein: e.target.value }))}
+                >
+                  {(proteins ?? ["Other"]).map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium block mb-1">Cook Time (min)</label>
+                <input
+                  type="number"
+                  min={0}
+                  className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                  value={newRecipe.cookTimeMinutes}
+                  onChange={(e) => setNewRecipe((r) => ({ ...r, cookTimeMinutes: Math.max(0, parseInt(e.target.value) || 0) }))}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium block mb-1">Servings</label>
+                <input
+                  type="number"
+                  min={1}
+                  className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                  value={newRecipe.servings}
+                  onChange={(e) => setNewRecipe((r) => ({ ...r, servings: Math.max(1, parseInt(e.target.value) || 1) }))}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium block mb-1">Calories (kcal)</label>
+                <input
+                  type="number"
+                  min={0}
+                  className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                  value={newRecipe.calories}
+                  onChange={(e) => setNewRecipe((r) => ({ ...r, calories: Math.max(0, parseInt(e.target.value) || 0) }))}
+                />
+              </div>
+              <div className="flex items-center gap-3 pt-5">
+                <Checkbox
+                  id="rb-gf"
+                  checked={newRecipe.isGlutenFree}
+                  onCheckedChange={(v) => setNewRecipe((r) => ({ ...r, isGlutenFree: !!v }))}
+                />
+                <label htmlFor="rb-gf" className="text-sm font-medium cursor-pointer">Gluten-free</label>
+              </div>
+            </div>
+
+            {/* Ingredients */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium">Ingredients</label>
+                <Button variant="ghost" size="sm" onClick={addIngredientRow} className="h-7 text-xs gap-1">
+                  <Plus className="w-3.5 h-3.5" /> Add Row
+                </Button>
+              </div>
+              {newRecipe.ingredients.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">No ingredients yet — click "Add Row" to start.</p>
+              ) : (
+                <div className="space-y-2">
+                  {newRecipe.ingredients.map((ing, idx) => (
+                    <div key={idx} className="grid grid-cols-[1fr_80px_80px_120px_auto] gap-2 items-center">
+                      <input
+                        className="border border-border rounded-md px-2 py-1.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                        placeholder="Ingredient name"
+                        value={ing.name}
+                        onChange={(e) => updateIngredientRow(idx, "name", e.target.value)}
+                      />
+                      <input
+                        className="border border-border rounded-md px-2 py-1.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                        placeholder="Qty"
+                        value={ing.quantity}
+                        onChange={(e) => updateIngredientRow(idx, "quantity", e.target.value)}
+                      />
+                      <input
+                        className="border border-border rounded-md px-2 py-1.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                        placeholder="Unit"
+                        value={ing.unit}
+                        onChange={(e) => updateIngredientRow(idx, "unit", e.target.value)}
+                      />
+                      <select
+                        className="border border-border rounded-md px-2 py-1.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                        value={ing.category}
+                        onChange={(e) => updateIngredientRow(idx, "category", e.target.value)}
+                      >
+                        {["Produce", "Dairy", "Meat", "Seafood", "Bakery", "Frozen", "Pantry", "Spices", "Beverages", "Other"].map((cat) => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                      <button
+                        className="text-muted-foreground hover:text-destructive transition-colors"
+                        onClick={() => removeIngredientRow(idx)}
+                        aria-label="Remove ingredient"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Instructions */}
+            <div>
+              <label className="text-sm font-medium block mb-1">Instructions</label>
+              <textarea
+                className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                placeholder="Step-by-step cooking instructions…"
+                rows={4}
+                value={newRecipe.instructions}
+                onChange={(e) => setNewRecipe((r) => ({ ...r, instructions: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="px-6 py-4 border-t flex items-center justify-end gap-3">
+            <Button variant="outline" onClick={() => setRecipeBuilderOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveCustomRecipe}
+              disabled={createCustomMealMutation.isPending || !newRecipe.name.trim()}
+            >
+              {createCustomMealMutation.isPending ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving…</>
+              ) : (
+                <><PencilLine className="w-4 h-4 mr-2" /> Save Recipe</>
+              )}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

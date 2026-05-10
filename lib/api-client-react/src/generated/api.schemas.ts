@@ -316,6 +316,26 @@ export interface SaveRecipeBody {
   ingredients: RecipeIngredient[];
 }
 
+export interface CustomIngredientInput {
+  name: string;
+  quantity?: string;
+  unit?: string;
+  category?: string;
+}
+
+export interface CreateCustomMealBody {
+  name: string;
+  description?: string;
+  cuisine?: string;
+  protein?: string;
+  isGlutenFree?: boolean;
+  cookTimeMinutes?: number;
+  servings?: number;
+  calories?: number;
+  instructions?: string | null;
+  ingredients?: CustomIngredientInput[];
+}
+
 export interface PinnedItems {
   /** History entry IDs pinned to the Cooking Board */
   recipeIds: number[];
