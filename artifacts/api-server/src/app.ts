@@ -11,6 +11,11 @@ const PgSession = connectPgSimple(session);
 
 const app: Express = express();
 
+// Trust Replit's reverse proxy so req.secure is true in production
+// (without this, express-session won't send Secure cookies because the
+// internal connection is HTTP even though the external one is HTTPS)
+app.set("trust proxy", 1);
+
 app.use(
   pinoHttp({
     logger,
