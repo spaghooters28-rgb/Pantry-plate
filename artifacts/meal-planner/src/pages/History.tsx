@@ -307,9 +307,6 @@ export function HistoryPage() {
                   </span>
                 )}
               </div>
-              {isPinned && ingredients.length > 0 && (
-                <IngredientsList ingredients={ingredients} />
-              )}
             </div>
             <div className="flex items-center gap-1 shrink-0">
               <span className="text-xs text-muted-foreground whitespace-nowrap">{timeAgo(entry.addedAt)}</span>

@@ -24,7 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Clock, Flame, Shuffle, ShoppingCart, Calendar, Settings2, ChevronDown, ChevronUp, BookOpen, Star, History, Link, Loader2, Search, CheckCircle2, Trash2, Plus } from "lucide-react";
+import { Clock, Flame, Shuffle, ShoppingCart, Calendar, Settings2, ChevronDown, ChevronUp, BookOpen, Star, History, Link, Loader2, Search, CheckCircle2, Trash2, Plus, Pin } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 
@@ -82,7 +82,23 @@ type AnalyzeResult = {
   servings: number | null;
 };
 
+const LS_KEY_MEALS = "pp-pinned-fav-meals";
+
+function loadPinnedMealIds(): Set<number> {
+  try {
+    const raw = localStorage.getItem(LS_KEY_MEALS);
+    return raw ? new Set(JSON.parse(raw) as number[]) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function savePinnedMealIds(ids: Set<number>) {
+  localStorage.setItem(LS_KEY_MEALS, JSON.stringify([...ids]));
+}
+
 export function WeeklyPlan() {
+  const [pinnedMealIds, setPinnedMealIds] = useState<Set<number>>(() => loadPinnedMealIds());
   const [selectedDays, setSelectedDays] = useState<Set<string>>(new Set());
   const [swapDay, setSwapDay] = useState<string | null>(null);
   const [swapSearch, setSwapSearch] = useState("");
@@ -206,6 +222,21 @@ export function WeeklyPlan() {
       if (!prev) return prev;
       const has = prev.proteins.includes(p);
       return { ...prev, proteins: has ? prev.proteins.filter((x) => x !== p) : [...prev.proteins, p] };
+    });
+  }
+
+  function toggleCookingBoard(mealId: number, mealName: string) {
+    setPinnedMealIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(mealId)) {
+        next.delete(mealId);
+        toast({ title: "Removed from Cooking Board", description: `${mealName} was unpinned.` });
+      } else {
+        next.add(mealId);
+        toast({ title: "Added to Cooking Board", description: `${mealName} is now pinned.` });
+      }
+      savePinnedMealIds(next);
+      return next;
     });
   }
 
@@ -713,17 +744,29 @@ export function WeeklyPlan() {
                             </div>
                           </button>
                         </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            className={`p-1.5 rounded transition-colors ${mealFavoriteMap.get(day.meal.id) ? "text-amber-400 hover:text-amber-500" : "text-muted-foreground hover:text-amber-400"}`}
-                            title={mealFavoriteMap.get(day.meal.id) ? "Remove from favorites" : "Add to favorites"}
-                            onClick={() => toggleFavoriteMutation.mutate({ id: day.meal!.id }, { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListMealsQueryKey({}) }) })}
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <div className="flex items-center gap-1">
+                            <button
+                              className={`p-1.5 rounded transition-colors ${mealFavoriteMap.get(day.meal.id) ? "text-amber-400 hover:text-amber-500" : "text-muted-foreground hover:text-amber-400"}`}
+                              title={mealFavoriteMap.get(day.meal.id) ? "Remove from favorites" : "Add to favorites"}
+                              onClick={() => toggleFavoriteMutation.mutate({ id: day.meal!.id }, { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListMealsQueryKey({}) }) })}
+                            >
+                              <Star className={`w-3.5 h-3.5 ${mealFavoriteMap.get(day.meal.id) ? "fill-amber-400" : ""}`} />
+                            </button>
+                            <Button variant="ghost" size="sm" className="shrink-0" onClick={() => setSwapDay(day.day)}>
+                              <Shuffle className="w-3.5 h-3.5 mr-1" />
+                              Swap
+                            </Button>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={`shrink-0 text-xs h-7 px-2 ${pinnedMealIds.has(day.meal.id) ? "text-amber-500 hover:text-amber-600" : "text-muted-foreground hover:text-amber-500"}`}
+                            onClick={() => toggleCookingBoard(day.meal!.id, day.meal!.name)}
+                            title={pinnedMealIds.has(day.meal.id) ? "Remove from Cooking Board" : "Add to Cooking Board"}
                           >
-                            <Star className={`w-3.5 h-3.5 ${mealFavoriteMap.get(day.meal.id) ? "fill-amber-400" : ""}`} />
-                          </button>
-                          <Button variant="ghost" size="sm" className="shrink-0" onClick={() => setSwapDay(day.day)}>
-                            <Shuffle className="w-3.5 h-3.5 mr-1" />
-                            Swap
+                            <Pin className={`w-3 h-3 mr-1 ${pinnedMealIds.has(day.meal.id) ? "fill-amber-400" : ""}`} />
+                            {pinnedMealIds.has(day.meal.id) ? "On Board" : "Pin"}
                           </Button>
                         </div>
                       </div>
