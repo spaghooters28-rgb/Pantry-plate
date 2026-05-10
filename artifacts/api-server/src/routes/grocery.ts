@@ -186,6 +186,7 @@ router.post("/grocery-list/items", requireAuth, async (req, res): Promise<void> 
 });
 
 router.patch("/grocery-list/items/:id", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = UpdateGroceryItemParams.safeParse({ id: raw });
   if (!params.success) {
@@ -207,7 +208,7 @@ router.patch("/grocery-list/items/:id", requireAuth, async (req, res): Promise<v
   const [item] = await db
     .update(groceryItemsTable)
     .set(updateData)
-    .where(eq(groceryItemsTable.id, params.data.id))
+    .where(and(eq(groceryItemsTable.id, params.data.id), eq(groceryItemsTable.userId, userId)))
     .returning();
 
   if (!item) {
@@ -224,6 +225,7 @@ router.patch("/grocery-list/items/:id", requireAuth, async (req, res): Promise<v
 });
 
 router.delete("/grocery-list/items/:id", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = DeleteGroceryItemParams.safeParse({ id: raw });
   if (!params.success) {
@@ -233,7 +235,7 @@ router.delete("/grocery-list/items/:id", requireAuth, async (req, res): Promise<
 
   const [deleted] = await db
     .delete(groceryItemsTable)
-    .where(eq(groceryItemsTable.id, params.data.id))
+    .where(and(eq(groceryItemsTable.id, params.data.id), eq(groceryItemsTable.userId, userId)))
     .returning();
 
   if (!deleted) {

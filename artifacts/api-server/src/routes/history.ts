@@ -94,6 +94,7 @@ router.get("/history", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.delete("/history/:id", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   if (isNaN(id) || id <= 0) {
@@ -103,7 +104,7 @@ router.delete("/history/:id", requireAuth, async (req, res): Promise<void> => {
 
   const [deleted] = await db
     .delete(recipeHistoryTable)
-    .where(eq(recipeHistoryTable.id, id))
+    .where(and(eq(recipeHistoryTable.id, id), eq(recipeHistoryTable.userId, userId)))
     .returning();
 
   if (!deleted) {

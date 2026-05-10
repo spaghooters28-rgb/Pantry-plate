@@ -86,6 +86,7 @@ router.post("/pantry/items", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.patch("/pantry/items/:id", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = UpdatePantryItemParams.safeParse({ id: raw });
   if (!params.success) {
@@ -108,7 +109,7 @@ router.patch("/pantry/items/:id", requireAuth, async (req, res): Promise<void> =
   const [item] = await db
     .update(pantryItemsTable)
     .set(updateData)
-    .where(eq(pantryItemsTable.id, params.data.id))
+    .where(and(eq(pantryItemsTable.id, params.data.id), eq(pantryItemsTable.userId, userId)))
     .returning();
 
   if (!item) {
@@ -120,6 +121,7 @@ router.patch("/pantry/items/:id", requireAuth, async (req, res): Promise<void> =
 });
 
 router.delete("/pantry/items/:id", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = DeletePantryItemParams.safeParse({ id: raw });
   if (!params.success) {
@@ -129,7 +131,7 @@ router.delete("/pantry/items/:id", requireAuth, async (req, res): Promise<void> 
 
   const [deleted] = await db
     .delete(pantryItemsTable)
-    .where(eq(pantryItemsTable.id, params.data.id))
+    .where(and(eq(pantryItemsTable.id, params.data.id), eq(pantryItemsTable.userId, userId)))
     .returning();
 
   if (!deleted) {
@@ -155,7 +157,8 @@ router.post("/pantry/items/:id/to-grocery", requireAuth, async (req, res): Promi
     return;
   }
 
-  const [item] = await db.select().from(pantryItemsTable).where(eq(pantryItemsTable.id, params.data.id));
+  const [item] = await db.select().from(pantryItemsTable)
+    .where(and(eq(pantryItemsTable.id, params.data.id), eq(pantryItemsTable.userId, userId)));
   if (!item) {
     res.status(404).json({ error: "Pantry item not found" });
     return;
@@ -181,7 +184,8 @@ router.post("/pantry/items/:id/to-grocery", requireAuth, async (req, res): Promi
   }
 
   if (parsed.data.removeFromPantry) {
-    await db.delete(pantryItemsTable).where(eq(pantryItemsTable.id, params.data.id));
+    await db.delete(pantryItemsTable)
+      .where(and(eq(pantryItemsTable.id, params.data.id), eq(pantryItemsTable.userId, userId)));
   }
 
   res.json({ success: true });

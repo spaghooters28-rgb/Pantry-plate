@@ -78,6 +78,7 @@ router.post("/scheduled-items", requireAuth, async (req, res): Promise<void> => 
 });
 
 router.patch("/scheduled-items/:id", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = UpdateScheduledItemParams.safeParse({ id: raw });
   if (!params.success) {
@@ -102,7 +103,7 @@ router.patch("/scheduled-items/:id", requireAuth, async (req, res): Promise<void
   const [item] = await db
     .update(scheduledItemsTable)
     .set(updateData)
-    .where(eq(scheduledItemsTable.id, params.data.id))
+    .where(and(eq(scheduledItemsTable.id, params.data.id), eq(scheduledItemsTable.userId, userId)))
     .returning();
 
   if (!item) {
@@ -119,6 +120,7 @@ router.patch("/scheduled-items/:id", requireAuth, async (req, res): Promise<void
 });
 
 router.delete("/scheduled-items/:id", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = DeleteScheduledItemParams.safeParse({ id: raw });
   if (!params.success) {
@@ -128,7 +130,7 @@ router.delete("/scheduled-items/:id", requireAuth, async (req, res): Promise<voi
 
   const [deleted] = await db
     .delete(scheduledItemsTable)
-    .where(eq(scheduledItemsTable.id, params.data.id))
+    .where(and(eq(scheduledItemsTable.id, params.data.id), eq(scheduledItemsTable.userId, userId)))
     .returning();
 
   if (!deleted) {
