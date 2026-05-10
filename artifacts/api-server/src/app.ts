@@ -6,6 +6,7 @@ import connectPgSimple from "connect-pg-simple";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { pool } from "@workspace/db";
+import { allowedOrigins } from "./middleware/originCheck";
 
 const PgSession = connectPgSimple(session);
 
@@ -35,7 +36,28 @@ app.use(
     },
   }),
 );
-app.use(cors({ origin: true, credentials: true }));
+const isProduction = process.env.NODE_ENV === "production";
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      if (allowedOrigins.length === 0) {
+        callback(null, !isProduction);
+        return;
+      }
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  }),
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

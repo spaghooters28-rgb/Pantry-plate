@@ -3,12 +3,14 @@ import bcrypt from "bcryptjs";
 import { ilike } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { createIpRateLimit } from "../middleware/rateLimit";
+import { requireSameOrigin } from "../middleware/originCheck";
 
 const router: IRouter = Router();
 
 const registerIpRateLimit = createIpRateLimit(5, 60 * 60 * 1000);
+const loginIpRateLimit = createIpRateLimit(10, 15 * 60 * 1000);
 
-router.post("/auth/register", registerIpRateLimit, async (req, res): Promise<void> => {
+router.post("/auth/register", requireSameOrigin, registerIpRateLimit, async (req, res): Promise<void> => {
   const { username, password } = req.body as { username?: string; password?: string };
 
   if (!username || typeof username !== "string" || username.trim().length < 3) {
@@ -45,7 +47,7 @@ router.post("/auth/register", registerIpRateLimit, async (req, res): Promise<voi
   res.status(201).json({ id: user.id, username: user.username });
 });
 
-router.post("/auth/login", async (req, res): Promise<void> => {
+router.post("/auth/login", requireSameOrigin, loginIpRateLimit, async (req, res): Promise<void> => {
   const { username, password } = req.body as { username?: string; password?: string };
 
   if (!username || !password) {
