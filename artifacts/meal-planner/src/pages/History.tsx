@@ -31,8 +31,17 @@ import {
   Star,
   Pin,
   PinOff,
+  ShoppingBasket,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+type Ingredient = {
+  id: number;
+  name: string;
+  quantity: string;
+  unit: string;
+  category: string;
+};
 
 type HistoryEntry = {
   id: number;
@@ -58,6 +67,8 @@ type FavMeal = {
   cookTimeMinutes: number;
   calories: number;
   isFavorited: boolean;
+  instructions?: string | null;
+  ingredients?: Ingredient[];
 };
 
 function formatDate(iso: string) {
@@ -77,6 +88,7 @@ function timeAgo(iso: string) {
 type Tab = "saved" | "favorites";
 
 const LS_KEY = "pp-pinned-recipes";
+const LS_KEY_MEALS = "pp-pinned-fav-meals";
 
 function loadPinned(): Set<number> {
   try {
@@ -91,13 +103,28 @@ function savePinned(ids: Set<number>) {
   localStorage.setItem(LS_KEY, JSON.stringify([...ids]));
 }
 
+function loadPinnedMeals(): Set<number> {
+  try {
+    const raw = localStorage.getItem(LS_KEY_MEALS);
+    return raw ? new Set(JSON.parse(raw) as number[]) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function savePinnedMeals(ids: Set<number>) {
+  localStorage.setItem(LS_KEY_MEALS, JSON.stringify([...ids]));
+}
+
 export function HistoryPage() {
   const [tab, setTab] = useState<Tab>("saved");
   const [selected, setSelected] = useState<HistoryEntry | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [selectedFavMeal, setSelectedFavMeal] = useState<FavMeal | null>(null);
+  const [showFavInstructions, setShowFavInstructions] = useState(false);
 
-  // Cooking board state
   const [pinnedIds, setPinnedIds] = useState<Set<number>>(new Set());
+  const [pinnedMealIds, setPinnedMealIds] = useState<Set<number>>(new Set());
   const [pinTarget, setPinTarget] = useState<HistoryEntry | null>(null);
   const [unpinTarget, setUnpinTarget] = useState<HistoryEntry | null>(null);
 
@@ -119,6 +146,7 @@ export function HistoryPage() {
 
   useEffect(() => {
     setPinnedIds(loadPinned());
+    setPinnedMealIds(loadPinnedMeals());
   }, []);
 
   function handlePin(entry: HistoryEntry) {
@@ -153,8 +181,23 @@ export function HistoryPage() {
     }
   }
 
+  function handlePinMeal(meal: FavMeal) {
+    const next = new Set(pinnedMealIds);
+    next.add(meal.id);
+    setPinnedMealIds(next);
+    savePinnedMeals(next);
+    toast({ title: `"${meal.name}" added to Cooking Board!` });
+  }
+
+  function handleUnpinMeal(mealId: number, mealName: string) {
+    const next = new Set(pinnedMealIds);
+    next.delete(mealId);
+    setPinnedMealIds(next);
+    savePinnedMeals(next);
+    toast({ title: `"${mealName}" removed from Cooking Board.` });
+  }
+
   function handleDelete(entry: HistoryEntry) {
-    // also clear pin if present
     if (pinnedIds.has(entry.id)) {
       const next = new Set(pinnedIds);
       next.delete(entry.id);
@@ -197,6 +240,31 @@ export function HistoryPage() {
     ((allMeals ?? []) as FavMeal[]).map((m) => [m.id, m])
   );
 
+  const pinnedMeals = [...pinnedMealIds]
+    .map((id) => mealMap.get(id))
+    .filter((m): m is FavMeal => m != null);
+
+  const hasCookingBoard = pinned.length > 0 || pinnedMeals.length > 0;
+
+  const IngredientsList = ({ ingredients }: { ingredients: Ingredient[] }) => (
+    <div className="mt-2.5 pt-2.5 border-t border-border/60">
+      <p className="text-xs font-semibold text-foreground mb-1.5 flex items-center gap-1.5">
+        <ShoppingBasket className="w-3 h-3 text-primary" />
+        Ingredients
+      </p>
+      <ul className="grid grid-cols-1 gap-0.5">
+        {ingredients.map((ing) => (
+          <li key={ing.id} className="text-xs text-muted-foreground flex gap-1">
+            <span className="font-medium text-foreground whitespace-nowrap">
+              {ing.quantity}{ing.unit ? ` ${ing.unit}` : ""}
+            </span>
+            <span>{ing.name}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+
   const RecipeCard = ({
     entry,
     isPinned = false,
@@ -205,98 +273,152 @@ export function HistoryPage() {
     isPinned?: boolean;
   }) => {
     const meal = entry.mealId != null ? mealMap.get(entry.mealId) : undefined;
+    const ingredients = meal?.ingredients ?? [];
+
     return (
+      <Card
+        className={`cursor-pointer transition-colors ${
+          isPinned
+            ? "border-amber-300/60 bg-amber-50/50 hover:border-amber-400/80 dark:bg-amber-950/20"
+            : "hover:border-primary/40"
+        }`}
+        onClick={() => {
+          setSelected(entry);
+          setShowInstructions(false);
+        }}
+      >
+        <CardContent className="p-3.5">
+          <div className="flex items-start gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm leading-tight">{entry.name}</p>
+              <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                <Badge variant="secondary" className="text-xs">{entry.cuisine}</Badge>
+                {entry.isGlutenFree && (
+                  <Badge variant="outline" className="text-xs border-green-500 text-green-600">Gluten Free</Badge>
+                )}
+                {entry.cookTimeMinutes > 0 && (
+                  <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
+                    <Clock className="w-3 h-3" />{entry.cookTimeMinutes}m
+                  </span>
+                )}
+                {entry.calories > 0 && (
+                  <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
+                    <Flame className="w-3 h-3" />{entry.calories}kcal
+                  </span>
+                )}
+              </div>
+              {isPinned && ingredients.length > 0 && (
+                <IngredientsList ingredients={ingredients} />
+              )}
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <span className="text-xs text-muted-foreground whitespace-nowrap">{timeAgo(entry.addedAt)}</span>
+              {meal && (
+                <button
+                  className={`p-1.5 transition-colors rounded ${
+                    meal.isFavorited
+                      ? "text-amber-400 hover:text-amber-500"
+                      : "text-muted-foreground hover:text-amber-400"
+                  }`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleFavorite(meal);
+                  }}
+                  disabled={toggleFavMutation.isPending}
+                  title={meal.isFavorited ? "Remove from favorites" : "Add to favorites"}
+                >
+                  <Star className={`w-3.5 h-3.5 ${meal.isFavorited ? "fill-amber-400" : ""}`} />
+                </button>
+              )}
+              {isPinned ? (
+                <button
+                  className="p-1.5 text-amber-500 hover:text-amber-600 transition-colors rounded"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setUnpinTarget(entry);
+                  }}
+                  title="Remove from Cooking Board"
+                >
+                  <PinOff className="w-3.5 h-3.5" />
+                </button>
+              ) : (
+                <button
+                  className="p-1.5 text-muted-foreground hover:text-primary transition-colors rounded"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPinTarget(entry);
+                  }}
+                  title="Add to Cooking Board"
+                >
+                  <Pin className="w-3.5 h-3.5" />
+                </button>
+              )}
+              <button
+                className="p-1.5 text-muted-foreground hover:text-destructive transition-colors rounded"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete(entry);
+                }}
+                title="Remove from saved"
+                disabled={deleteMutation.isPending}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const PinnedMealCard = ({ meal }: { meal: FavMeal }) => (
     <Card
-      className={`cursor-pointer transition-colors ${
-        isPinned
-          ? "border-amber-300/60 bg-amber-50/50 hover:border-amber-400/80 dark:bg-amber-950/20"
-          : "hover:border-primary/40"
-      }`}
+      className="cursor-pointer border-amber-300/60 bg-amber-50/50 hover:border-amber-400/80 dark:bg-amber-950/20 transition-colors"
       onClick={() => {
-        setSelected(entry);
-        setShowInstructions(false);
+        setSelectedFavMeal(meal);
+        setShowFavInstructions(false);
       }}
     >
       <CardContent className="p-3.5">
         <div className="flex items-start gap-3">
           <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm leading-tight">{entry.name}</p>
+            <p className="font-semibold text-sm leading-tight">{meal.name}</p>
             <div className="flex flex-wrap items-center gap-1.5 mt-1">
-              <Badge variant="secondary" className="text-xs">{entry.cuisine}</Badge>
-              {entry.isGlutenFree && (
+              <Badge variant="secondary" className="text-xs">{meal.cuisine}</Badge>
+              {meal.isGlutenFree && (
                 <Badge variant="outline" className="text-xs border-green-500 text-green-600">Gluten Free</Badge>
               )}
-              {entry.cookTimeMinutes > 0 && (
+              {meal.cookTimeMinutes > 0 && (
                 <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
-                  <Clock className="w-3 h-3" />{entry.cookTimeMinutes}m
+                  <Clock className="w-3 h-3" />{meal.cookTimeMinutes}m
                 </span>
               )}
-              {entry.calories > 0 && (
+              {meal.calories > 0 && (
                 <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
-                  <Flame className="w-3 h-3" />{entry.calories}kcal
+                  <Flame className="w-3 h-3" />{meal.calories}kcal
                 </span>
               )}
             </div>
+            {meal.ingredients && meal.ingredients.length > 0 && (
+              <IngredientsList ingredients={meal.ingredients} />
+            )}
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            <span className="text-xs text-muted-foreground whitespace-nowrap">{timeAgo(entry.addedAt)}</span>
-            {meal && (
-              <button
-                className={`p-1.5 transition-colors rounded ${
-                  meal.isFavorited
-                    ? "text-amber-400 hover:text-amber-500"
-                    : "text-muted-foreground hover:text-amber-400"
-                }`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleToggleFavorite(meal);
-                }}
-                disabled={toggleFavMutation.isPending}
-                title={meal.isFavorited ? "Remove from favorites" : "Add to favorites"}
-              >
-                <Star className={`w-3.5 h-3.5 ${meal.isFavorited ? "fill-amber-400" : ""}`} />
-              </button>
-            )}
-            {isPinned ? (
-              <button
-                className="p-1.5 text-amber-500 hover:text-amber-600 transition-colors rounded"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setUnpinTarget(entry);
-                }}
-                title="Remove from Cooking Board"
-              >
-                <PinOff className="w-3.5 h-3.5" />
-              </button>
-            ) : (
-              <button
-                className="p-1.5 text-muted-foreground hover:text-primary transition-colors rounded"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setPinTarget(entry);
-                }}
-                title="Add to Cooking Board"
-              >
-                <Pin className="w-3.5 h-3.5" />
-              </button>
-            )}
             <button
-              className="p-1.5 text-muted-foreground hover:text-destructive transition-colors rounded"
+              className="p-1.5 text-amber-500 hover:text-amber-600 transition-colors rounded"
               onClick={(e) => {
                 e.stopPropagation();
-                handleDelete(entry);
+                handleUnpinMeal(meal.id, meal.name);
               }}
-              title="Remove from saved"
-              disabled={deleteMutation.isPending}
+              title="Remove from Cooking Board"
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <PinOff className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
       </CardContent>
     </Card>
-    );
-  };
+  );
 
   return (
     <div className="space-y-5">
@@ -348,16 +470,21 @@ export function HistoryPage() {
       ) : tab === "saved" ? (
         <div className="space-y-5">
           {/* ── Cooking Board ── */}
-          {pinned.length > 0 && (
+          {hasCookingBoard && (
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <Pin className="w-4 h-4 text-amber-500 fill-amber-500" />
                 <h2 className="font-semibold text-sm text-amber-700 dark:text-amber-400">Cooking Board</h2>
-                <span className="ml-auto text-xs text-muted-foreground">{pinned.length} pinned</span>
+                <span className="ml-auto text-xs text-muted-foreground">
+                  {pinned.length + pinnedMeals.length} pinned
+                </span>
               </div>
               <div className="space-y-2">
                 {pinned.map((entry) => (
-                  <RecipeCard key={entry.id} entry={entry} isPinned />
+                  <RecipeCard key={`h-${entry.id}`} entry={entry} isPinned />
+                ))}
+                {pinnedMeals.map((meal) => (
+                  <PinnedMealCard key={`m-${meal.id}`} meal={meal} />
                 ))}
               </div>
             </div>
@@ -372,7 +499,7 @@ export function HistoryPage() {
             </div>
           ) : unpinned.length > 0 ? (
             <div>
-              {pinned.length > 0 && (
+              {hasCookingBoard && (
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-3">
                   All Saved
                 </p>
@@ -383,7 +510,7 @@ export function HistoryPage() {
                 ))}
               </div>
             </div>
-          ) : pinned.length > 0 ? (
+          ) : hasCookingBoard ? (
             <p className="text-sm text-muted-foreground text-center py-4">
               All your saved recipes are on the Cooking Board.
             </p>
@@ -422,14 +549,34 @@ export function HistoryPage() {
                         )}
                       </div>
                     </div>
-                    <button
-                      className="p-1 text-amber-400 hover:text-muted-foreground transition-colors shrink-0 mt-0.5"
-                      onClick={() => handleToggleFavorite(meal)}
-                      disabled={toggleFavMutation.isPending}
-                      title="Remove from favorites"
-                    >
-                      <Star className="w-4 h-4 fill-amber-400" />
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        className={`p-1.5 transition-colors rounded ${
+                          pinnedMealIds.has(meal.id)
+                            ? "text-amber-500 hover:text-amber-600"
+                            : "text-muted-foreground hover:text-primary"
+                        }`}
+                        onClick={() =>
+                          pinnedMealIds.has(meal.id)
+                            ? handleUnpinMeal(meal.id, meal.name)
+                            : handlePinMeal(meal)
+                        }
+                        title={pinnedMealIds.has(meal.id) ? "Remove from Cooking Board" : "Add to Cooking Board"}
+                      >
+                        {pinnedMealIds.has(meal.id)
+                          ? <PinOff className="w-3.5 h-3.5" />
+                          : <Pin className="w-3.5 h-3.5" />
+                        }
+                      </button>
+                      <button
+                        className="p-1 text-amber-400 hover:text-muted-foreground transition-colors shrink-0 mt-0.5"
+                        onClick={() => handleToggleFavorite(meal)}
+                        disabled={toggleFavMutation.isPending}
+                        title="Remove from favorites"
+                      >
+                        <Star className="w-4 h-4 fill-amber-400" />
+                      </button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -512,12 +659,10 @@ export function HistoryPage() {
         )}
       </Dialog>
 
-      {/* ── Recipe Detail Dialog ── */}
+      {/* ── Recipe Detail Dialog (history entry) ── */}
       <Dialog
         open={!!selected}
-        onOpenChange={(open) => {
-          if (!open) setSelected(null);
-        }}
+        onOpenChange={(open) => { if (!open) setSelected(null); }}
       >
         {selected && (
           <DialogContent className="max-w-lg max-h-[80vh] flex flex-col gap-4">
@@ -559,27 +704,52 @@ export function HistoryPage() {
               </a>
             )}
 
-            {selected.instructions ? (
-              <div className="border rounded-lg overflow-hidden">
-                <button
-                  className="w-full flex items-center justify-between px-4 py-3 bg-muted/50 hover:bg-muted transition-colors text-sm font-medium"
-                  onClick={() => setShowInstructions((v) => !v)}
-                >
-                  <span className="flex items-center gap-2">
-                    <ChefHat className="w-4 h-4 text-primary" />
-                    Recipe Instructions
-                  </span>
-                  {showInstructions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                </button>
-                {showInstructions && (
-                  <div className="px-4 py-3 text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed overflow-y-auto max-h-60">
-                    {selected.instructions}
+            <div className="overflow-y-auto flex-1 space-y-3 min-h-0">
+              {(() => {
+                const meal = selected.mealId != null ? mealMap.get(selected.mealId) : undefined;
+                const ingredients = meal?.ingredients ?? [];
+                return ingredients.length > 0 ? (
+                  <div className="border rounded-lg p-4">
+                    <p className="text-sm font-semibold mb-2 flex items-center gap-1.5">
+                      <ShoppingBasket className="w-4 h-4 text-primary" />
+                      Ingredients
+                    </p>
+                    <ul className="space-y-1">
+                      {ingredients.map((ing) => (
+                        <li key={ing.id} className="text-sm flex gap-2">
+                          <span className="font-medium whitespace-nowrap">
+                            {ing.quantity}{ing.unit ? ` ${ing.unit}` : ""}
+                          </span>
+                          <span className="text-muted-foreground">{ing.name}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground italic">No instructions available for this recipe.</p>
-            )}
+                ) : null;
+              })()}
+
+              {selected.instructions ? (
+                <div className="border rounded-lg overflow-hidden">
+                  <button
+                    className="w-full flex items-center justify-between px-4 py-3 bg-muted/50 hover:bg-muted transition-colors text-sm font-medium"
+                    onClick={() => setShowInstructions((v) => !v)}
+                  >
+                    <span className="flex items-center gap-2">
+                      <ChefHat className="w-4 h-4 text-primary" />
+                      Recipe Instructions
+                    </span>
+                    {showInstructions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </button>
+                  {showInstructions && (
+                    <div className="px-4 py-3 text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                      {selected.instructions}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">No instructions available for this recipe.</p>
+              )}
+            </div>
 
             <div className="flex justify-between pt-1 border-t">
               <Button
@@ -593,6 +763,88 @@ export function HistoryPage() {
                 Remove from saved
               </Button>
               <Button variant="outline" size="sm" onClick={() => setSelected(null)}>Close</Button>
+            </div>
+          </DialogContent>
+        )}
+      </Dialog>
+
+      {/* ── Pinned Fav Meal Detail Dialog ── */}
+      <Dialog
+        open={!!selectedFavMeal}
+        onOpenChange={(open) => { if (!open) setSelectedFavMeal(null); }}
+      >
+        {selectedFavMeal && (
+          <DialogContent className="max-w-lg max-h-[80vh] flex flex-col gap-4">
+            <DialogHeader>
+              <DialogTitle className="font-serif text-xl leading-tight">{selectedFavMeal.name}</DialogTitle>
+            </DialogHeader>
+
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="secondary">{selectedFavMeal.cuisine}</Badge>
+              {selectedFavMeal.isGlutenFree && (
+                <Badge variant="outline" className="border-green-500 text-green-600">Gluten-Free</Badge>
+              )}
+              {selectedFavMeal.protein && <Badge variant="outline">{selectedFavMeal.protein}</Badge>}
+            </div>
+
+            <div className="flex gap-4 text-sm text-muted-foreground">
+              {selectedFavMeal.cookTimeMinutes > 0 && (
+                <span className="flex items-center gap-1">
+                  <Clock className="w-4 h-4" />{selectedFavMeal.cookTimeMinutes} min
+                </span>
+              )}
+              {selectedFavMeal.calories > 0 && (
+                <span className="flex items-center gap-1">
+                  <Flame className="w-4 h-4" />{selectedFavMeal.calories} kcal
+                </span>
+              )}
+            </div>
+
+            <div className="overflow-y-auto flex-1 space-y-3 min-h-0">
+              {selectedFavMeal.ingredients && selectedFavMeal.ingredients.length > 0 && (
+                <div className="border rounded-lg p-4">
+                  <p className="text-sm font-semibold mb-2 flex items-center gap-1.5">
+                    <ShoppingBasket className="w-4 h-4 text-primary" />
+                    Ingredients
+                  </p>
+                  <ul className="space-y-1">
+                    {selectedFavMeal.ingredients.map((ing) => (
+                      <li key={ing.id} className="text-sm flex gap-2">
+                        <span className="font-medium whitespace-nowrap">
+                          {ing.quantity}{ing.unit ? ` ${ing.unit}` : ""}
+                        </span>
+                        <span className="text-muted-foreground">{ing.name}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {selectedFavMeal.instructions ? (
+                <div className="border rounded-lg overflow-hidden">
+                  <button
+                    className="w-full flex items-center justify-between px-4 py-3 bg-muted/50 hover:bg-muted transition-colors text-sm font-medium"
+                    onClick={() => setShowFavInstructions((v) => !v)}
+                  >
+                    <span className="flex items-center gap-2">
+                      <ChefHat className="w-4 h-4 text-primary" />
+                      Recipe Instructions
+                    </span>
+                    {showFavInstructions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </button>
+                  {showFavInstructions && (
+                    <div className="px-4 py-3 text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                      {selectedFavMeal.instructions}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">No instructions available.</p>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-1 border-t">
+              <Button variant="outline" size="sm" onClick={() => setSelectedFavMeal(null)}>Close</Button>
             </div>
           </DialogContent>
         )}

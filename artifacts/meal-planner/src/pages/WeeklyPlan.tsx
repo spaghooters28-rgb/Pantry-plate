@@ -24,7 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Clock, Flame, Shuffle, ShoppingCart, Calendar, Settings2, ChevronDown, ChevronUp, BookOpen, Star, History, Link, Loader2, Search, CheckCircle2, Trash2 } from "lucide-react";
+import { Clock, Flame, Shuffle, ShoppingCart, Calendar, Settings2, ChevronDown, ChevronUp, BookOpen, Star, History, Link, Loader2, Search, CheckCircle2, Trash2, Plus } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 
@@ -754,8 +754,8 @@ export function WeeklyPlan() {
                       <div className="flex items-center justify-between">
                         <span className="text-muted-foreground text-sm italic">No meal planned</span>
                         <Button variant="ghost" size="sm" className="shrink-0" onClick={() => setSwapDay(day.day)}>
-                          <Shuffle className="w-3.5 h-3.5 mr-1" />
-                          Swap
+                          <Plus className="w-3.5 h-3.5 mr-1" />
+                          Add
                         </Button>
                       </div>
                     )}

@@ -1,15 +1,19 @@
 import { Router, type IRouter } from "express";
-import { eq, and } from "drizzle-orm";
-import { db, mealsTable, ingredientsTable, sidesTable } from "@workspace/db";
+import { eq, and, inArray } from "drizzle-orm";
+import { db, mealsTable, ingredientsTable, sidesTable, userFavoritesTable } from "@workspace/db";
 import {
   ListMealsQueryParams,
   GetMealParams,
   ToggleMealFavoriteParams,
 } from "@workspace/api-zod";
+import { requireAuth } from "../middleware/requireAuth";
 
 const router: IRouter = Router();
 
-async function buildMealResponse(meal: typeof mealsTable.$inferSelect) {
+async function buildMealResponse(
+  meal: typeof mealsTable.$inferSelect,
+  favoritedMealIds?: Set<number>,
+) {
   const ingredients = await db
     .select()
     .from(ingredientsTable)
@@ -20,8 +24,13 @@ async function buildMealResponse(meal: typeof mealsTable.$inferSelect) {
     .from(sidesTable)
     .where(eq(sidesTable.mealId, meal.id));
 
+  const isFavorited = favoritedMealIds != null
+    ? favoritedMealIds.has(meal.id)
+    : false;
+
   return {
     ...meal,
+    isFavorited,
     imageUrl: meal.imageUrl ?? null,
     instructions: meal.instructions ?? null,
     ingredients,
@@ -47,7 +56,17 @@ router.get("/meals", async (req, res): Promise<void> => {
     ? await db.select().from(mealsTable).where(and(...conditions))
     : await db.select().from(mealsTable);
 
-  const mealsWithDetails = await Promise.all(meals.map(buildMealResponse));
+  const userId = req.session?.userId as number | undefined;
+  let favoritedIds: Set<number> = new Set();
+  if (userId) {
+    const favRows = await db
+      .select({ mealId: userFavoritesTable.mealId })
+      .from(userFavoritesTable)
+      .where(eq(userFavoritesTable.userId, userId));
+    favoritedIds = new Set(favRows.map((r) => r.mealId));
+  }
+
+  const mealsWithDetails = await Promise.all(meals.map((m) => buildMealResponse(m, favoritedIds)));
   res.json(mealsWithDetails);
 });
 
@@ -92,14 +111,12 @@ const PROTEINS = [
 ];
 
 router.get("/meals/cuisines", async (_req, res): Promise<void> => {
-  // Return static curated list; merge any DB values not in the list
   const dbRows = await db.selectDistinct({ cuisine: mealsTable.cuisine }).from(mealsTable);
   const dbValues = dbRows.map((m) => m.cuisine).filter((c) => !CUISINES.includes(c));
   res.json([...CUISINES, ...dbValues]);
 });
 
 router.get("/meals/proteins", async (_req, res): Promise<void> => {
-  // Return static curated list; merge any DB values not in the list
   const dbRows = await db.selectDistinct({ protein: mealsTable.protein }).from(mealsTable);
   const dbValues = dbRows.map((m) => m.protein).filter((p) => !PROTEINS.includes(p));
   res.json([...PROTEINS, ...dbValues]);
@@ -110,7 +127,7 @@ router.get("/meals/sides", async (_req, res): Promise<void> => {
   res.json(allSides.map((s) => s.name));
 });
 
-router.post("/meals/:id/toggle-favorite", async (req, res): Promise<void> => {
+router.post("/meals/:id/toggle-favorite", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = ToggleMealFavoriteParams.safeParse({ id: raw });
   if (!params.success) {
@@ -118,19 +135,30 @@ router.post("/meals/:id/toggle-favorite", async (req, res): Promise<void> => {
     return;
   }
 
-  const [meal] = await db.select().from(mealsTable).where(eq(mealsTable.id, params.data.id));
+  const userId = req.session.userId as number;
+  const mealId = params.data.id;
+
+  const [meal] = await db.select().from(mealsTable).where(eq(mealsTable.id, mealId));
   if (!meal) {
     res.status(404).json({ error: "Meal not found" });
     return;
   }
 
-  const [updated] = await db
-    .update(mealsTable)
-    .set({ isFavorited: !meal.isFavorited })
-    .where(eq(mealsTable.id, params.data.id))
-    .returning();
+  const [existing] = await db
+    .select()
+    .from(userFavoritesTable)
+    .where(and(eq(userFavoritesTable.userId, userId), eq(userFavoritesTable.mealId, mealId)));
 
-  res.json(await buildMealResponse(updated));
+  if (existing) {
+    await db
+      .delete(userFavoritesTable)
+      .where(and(eq(userFavoritesTable.userId, userId), eq(userFavoritesTable.mealId, mealId)));
+  } else {
+    await db.insert(userFavoritesTable).values({ userId, mealId });
+  }
+
+  const favoritedIds = new Set(existing ? [] : [mealId]);
+  res.json(await buildMealResponse(meal, favoritedIds));
 });
 
 router.get("/meals/:id", async (req, res): Promise<void> => {
@@ -147,7 +175,17 @@ router.get("/meals/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  res.json(await buildMealResponse(meal));
+  const userId = req.session?.userId as number | undefined;
+  let favoritedIds: Set<number> = new Set();
+  if (userId) {
+    const favRows = await db
+      .select({ mealId: userFavoritesTable.mealId })
+      .from(userFavoritesTable)
+      .where(and(eq(userFavoritesTable.userId, userId), eq(userFavoritesTable.mealId, params.data.id)));
+    favoritedIds = new Set(favRows.map((r) => r.mealId));
+  }
+
+  res.json(await buildMealResponse(meal, favoritedIds));
 });
 
 export default router;
