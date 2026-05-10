@@ -32,7 +32,7 @@ function todayStr(): string {
   return new Date().toISOString().split("T")[0];
 }
 
-router.get("/scheduled-items", requireAuth, async (req, res): Promise<void> => {
+router.get("/scheduled-items", requireAuth, requireTier("pro"), async (req, res): Promise<void> => {
   const userId = req.session.userId!;
   const items = await db.select().from(scheduledItemsTable)
     .where(eq(scheduledItemsTable.userId, userId));
@@ -142,7 +142,7 @@ router.delete("/scheduled-items/:id", requireAuth, requireTier("pro"), async (re
   res.sendStatus(204);
 });
 
-router.get("/scheduled-items/due-today", requireAuth, async (req, res): Promise<void> => {
+router.get("/scheduled-items/due-today", requireAuth, requireTier("pro"), async (req, res): Promise<void> => {
   const userId = req.session.userId!;
   const today = todayStr();
   const dueItems = await db
