@@ -5,6 +5,44 @@
  * Meal Planner API
  * OpenAPI spec version: 0.1.0
  */
+export interface AuthUser {
+  id: number;
+  email: string;
+  displayName: string;
+}
+
+export interface OkResponse {
+  ok: boolean;
+}
+
+export interface RegisterBody {
+  email: string;
+  displayName: string;
+  /** @minLength 6 */
+  password: string;
+}
+
+export interface LoginBody {
+  email: string;
+  password: string;
+}
+
+export interface ForgotPasswordBody {
+  email: string;
+}
+
+export interface ResetPasswordBody {
+  token: string;
+  /** @minLength 6 */
+  password: string;
+}
+
+export interface ChangePasswordBody {
+  currentPassword: string;
+  /** @minLength 6 */
+  newPassword: string;
+}
+
 export interface OpenaiConversation {
   id: number;
   title: string;

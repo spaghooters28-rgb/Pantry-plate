@@ -15,6 +15,86 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
+ * @summary Create a new account with email, display name, and password
+ */
+export const registerBodyPasswordMin = 6;
+
+export const RegisterBody = zod.object({
+  email: zod.string().email(),
+  displayName: zod.string(),
+  password: zod.string().min(registerBodyPasswordMin),
+});
+
+/**
+ * @summary Sign in with email and password
+ */
+export const LoginBody = zod.object({
+  email: zod.string().email(),
+  password: zod.string(),
+});
+
+export const LoginResponse = zod.object({
+  id: zod.number(),
+  email: zod.string().email(),
+  displayName: zod.string(),
+});
+
+/**
+ * @summary Destroy the current session
+ */
+export const LogoutResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary Get the currently authenticated user
+ */
+export const GetMeResponse = zod.object({
+  id: zod.number(),
+  email: zod.string().email(),
+  displayName: zod.string(),
+});
+
+/**
+ * @summary Request a password reset email (always returns success to avoid enumeration)
+ */
+export const ForgotPasswordBody = zod.object({
+  email: zod.string().email(),
+});
+
+export const ForgotPasswordResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary Set a new password using a reset token from email
+ */
+export const resetPasswordBodyPasswordMin = 6;
+
+export const ResetPasswordBody = zod.object({
+  token: zod.string(),
+  password: zod.string().min(resetPasswordBodyPasswordMin),
+});
+
+export const ResetPasswordResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary Change password for the authenticated user
+ */
+export const changePasswordBodyNewPasswordMin = 6;
+
+export const ChangePasswordBody = zod.object({
+  currentPassword: zod.string(),
+  newPassword: zod.string().min(changePasswordBodyNewPasswordMin),
+});
+
+export const ChangePasswordResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
  * @summary List meal suggestions with optional filters
  */
 export const ListMealsQueryParams = zod.object({
