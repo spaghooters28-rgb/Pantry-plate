@@ -615,7 +615,7 @@ export function Discover() {
                 className="shrink-0"
                 onClick={() => { setUpgradeModalTier("pro"); setUpgradeModalOpen(true); }}
               >
-                Unlock all recipes
+                Upgrade to Pro
               </Button>
             </div>
           )}

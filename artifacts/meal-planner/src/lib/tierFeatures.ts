@@ -40,8 +40,8 @@ export const LANDING_FREE_FEATURES: string[] = [
 ];
 
 export const LANDING_PRO_FEATURES: string[] = [
-  "Everything in Free",
   "Full access to all 726+ recipes",
+  "Everything in Free",
   "Custom recipe creation",
   "Grocery scheduling & reminders",
   "Recurring auto-add groceries",
