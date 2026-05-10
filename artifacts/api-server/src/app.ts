@@ -34,12 +34,26 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Create session table explicitly — connect-pg-simple's built-in
+// createTableIfMissing reads a .sql file that breaks when bundled with esbuild
+pool.query(`
+  CREATE TABLE IF NOT EXISTS "user_sessions" (
+    "sid" varchar NOT NULL,
+    "sess" json NOT NULL,
+    "expire" timestamp(6) NOT NULL,
+    CONSTRAINT "user_sessions_pkey" PRIMARY KEY ("sid")
+  );
+  CREATE INDEX IF NOT EXISTS "IDX_user_sessions_expire" ON "user_sessions" ("expire");
+`).catch((err: unknown) => {
+  logger.error({ err }, "Failed to create user_sessions table");
+});
+
 app.use(
   session({
     store: new PgSession({
       pool,
       tableName: "user_sessions",
-      createTableIfMissing: true,
+      createTableIfMissing: false,
     }),
     name: "pp_session",
     secret: process.env.SESSION_SECRET ?? "fallback-dev-secret-change-me",
