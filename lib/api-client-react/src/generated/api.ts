@@ -20,6 +20,7 @@ import type {
   AddGroceryItemBody,
   AddMealResult,
   AddPantryItemBody,
+  AddPinBody,
   AddWeekToGroceryList200,
   AnalyzeRecipeBody,
   AnalyzeRecipeResult,
@@ -45,6 +46,7 @@ import type {
   OpenaiMessage,
   PantryCheckResult,
   PantryItem,
+  PinnedItems,
   RecipeHistoryEntry,
   SaveRecipeBody,
   ScheduledItem,
@@ -3246,6 +3248,328 @@ export function useGetDueScheduledItems<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Get all pinned items for the current user
+ */
+export const getGetPinsUrl = () => {
+  return `/api/pins`;
+};
+
+export const getPins = async (options?: RequestInit): Promise<PinnedItems> => {
+  return customFetch<PinnedItems>(getGetPinsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPinsQueryKey = () => {
+  return [`/api/pins`] as const;
+};
+
+export const getGetPinsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPins>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof getPins>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetPinsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPins>>> = ({
+    signal,
+  }) => getPins({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPins>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPinsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPins>>
+>;
+export type GetPinsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get all pinned items for the current user
+ */
+
+export function useGetPins<
+  TData = Awaited<ReturnType<typeof getPins>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof getPins>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPinsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Pin an item to the Cooking Board
+ */
+export const getAddPinUrl = () => {
+  return `/api/pins`;
+};
+
+export const addPin = async (
+  addPinBody: AddPinBody,
+  options?: RequestInit,
+): Promise<PinnedItems> => {
+  return customFetch<PinnedItems>(getAddPinUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(addPinBody),
+  });
+};
+
+export const getAddPinMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addPin>>,
+    TError,
+    { data: BodyType<AddPinBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addPin>>,
+  TError,
+  { data: BodyType<AddPinBody> },
+  TContext
+> => {
+  const mutationKey = ["addPin"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addPin>>,
+    { data: BodyType<AddPinBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return addPin(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddPinMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addPin>>
+>;
+export type AddPinMutationBody = BodyType<AddPinBody>;
+export type AddPinMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Pin an item to the Cooking Board
+ */
+export const useAddPin = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addPin>>,
+    TError,
+    { data: BodyType<AddPinBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addPin>>,
+  TError,
+  { data: BodyType<AddPinBody> },
+  TContext
+> => {
+  return useMutation(getAddPinMutationOptions(options));
+};
+
+/**
+ * @summary Bulk-sync pinned items (used for one-time localStorage migration)
+ */
+export const getSyncPinsUrl = () => {
+  return `/api/pins/sync`;
+};
+
+export const syncPins = async (
+  pinnedItems: PinnedItems,
+  options?: RequestInit,
+): Promise<PinnedItems> => {
+  return customFetch<PinnedItems>(getSyncPinsUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(pinnedItems),
+  });
+};
+
+export const getSyncPinsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof syncPins>>,
+    TError,
+    { data: BodyType<PinnedItems> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof syncPins>>,
+  TError,
+  { data: BodyType<PinnedItems> },
+  TContext
+> => {
+  const mutationKey = ["syncPins"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof syncPins>>,
+    { data: BodyType<PinnedItems> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return syncPins(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SyncPinsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof syncPins>>
+>;
+export type SyncPinsMutationBody = BodyType<PinnedItems>;
+export type SyncPinsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Bulk-sync pinned items (used for one-time localStorage migration)
+ */
+export const useSyncPins = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof syncPins>>,
+    TError,
+    { data: BodyType<PinnedItems> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof syncPins>>,
+  TError,
+  { data: BodyType<PinnedItems> },
+  TContext
+> => {
+  return useMutation(getSyncPinsMutationOptions(options));
+};
+
+/**
+ * @summary Remove a pin from the Cooking Board
+ */
+export const getRemovePinUrl = (itemType: string, itemId: number) => {
+  return `/api/pins/${itemType}/${itemId}`;
+};
+
+export const removePin = async (
+  itemType: string,
+  itemId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getRemovePinUrl(itemType, itemId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getRemovePinMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removePin>>,
+    TError,
+    { itemType: string; itemId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removePin>>,
+  TError,
+  { itemType: string; itemId: number },
+  TContext
+> => {
+  const mutationKey = ["removePin"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removePin>>,
+    { itemType: string; itemId: number }
+  > = (props) => {
+    const { itemType, itemId } = props ?? {};
+
+    return removePin(itemType, itemId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemovePinMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removePin>>
+>;
+
+export type RemovePinMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove a pin from the Cooking Board
+ */
+export const useRemovePin = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removePin>>,
+    TError,
+    { itemType: string; itemId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof removePin>>,
+  TError,
+  { itemType: string; itemId: number },
+  TContext
+> => {
+  return useMutation(getRemovePinMutationOptions(options));
+};
 
 /**
  * @summary List all conversations

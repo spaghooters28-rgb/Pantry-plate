@@ -9,3 +9,4 @@ export * from "./preferences";
 export * from "./history";
 export * from "./conversations";
 export * from "./messages";
+export * from "./pins";

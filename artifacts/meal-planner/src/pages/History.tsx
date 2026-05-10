@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   useListRecipeHistory,
   useDeleteRecipeHistory,
@@ -6,7 +6,12 @@ import {
   useListMeals,
   getListMealsQueryKey,
   useToggleMealFavorite,
+  useGetPins,
+  getGetPinsQueryKey,
+  useAddPin,
+  useRemovePin,
 } from "@workspace/api-client-react";
+import { usePinsMigration } from "@/hooks/usePinsMigration";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -87,34 +92,6 @@ function timeAgo(iso: string) {
 
 type Tab = "saved" | "favorites";
 
-const LS_KEY = "pp-pinned-recipes";
-const LS_KEY_MEALS = "pp-pinned-fav-meals";
-
-function loadPinned(): Set<number> {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    return raw ? new Set(JSON.parse(raw) as number[]) : new Set();
-  } catch {
-    return new Set();
-  }
-}
-
-function savePinned(ids: Set<number>) {
-  localStorage.setItem(LS_KEY, JSON.stringify([...ids]));
-}
-
-function loadPinnedMeals(): Set<number> {
-  try {
-    const raw = localStorage.getItem(LS_KEY_MEALS);
-    return raw ? new Set(JSON.parse(raw) as number[]) : new Set();
-  } catch {
-    return new Set();
-  }
-}
-
-function savePinnedMeals(ids: Set<number>) {
-  localStorage.setItem(LS_KEY_MEALS, JSON.stringify([...ids]));
-}
 
 export function HistoryPage() {
   const [tab, setTab] = useState<Tab>("saved");
@@ -123,8 +100,6 @@ export function HistoryPage() {
   const [selectedFavMeal, setSelectedFavMeal] = useState<FavMeal | null>(null);
   const [showFavInstructions, setShowFavInstructions] = useState(false);
 
-  const [pinnedIds, setPinnedIds] = useState<Set<number>>(new Set());
-  const [pinnedMealIds, setPinnedMealIds] = useState<Set<number>>(new Set());
   const [pinTarget, setPinTarget] = useState<HistoryEntry | null>(null);
   const [unpinTarget, setUnpinTarget] = useState<HistoryEntry | null>(null);
 
@@ -132,6 +107,7 @@ export function HistoryPage() {
   const queryClient = useQueryClient();
   const qKey = getListRecipeHistoryQueryKey();
   const allMealsKey = getListMealsQueryKey({});
+  const pinsQueryKey = getGetPinsQueryKey();
 
   const { data: entries, isLoading: historyLoading } = useListRecipeHistory({ query: { queryKey: qKey } });
   const deleteMutation = useDeleteRecipeHistory();
@@ -142,67 +118,104 @@ export function HistoryPage() {
   );
   const toggleFavMutation = useToggleMealFavorite();
 
+  const { data: pinsData, isLoading: pinsLoading } = useGetPins({
+    query: { queryKey: pinsQueryKey },
+  });
+
+  const addPinMutation = useAddPin();
+  const removePinMutation = useRemovePin();
+
+  usePinsMigration();
+
   const favorites = ((allMeals ?? []) as FavMeal[]).filter((m) => m.isFavorited);
 
-  useEffect(() => {
-    setPinnedIds(loadPinned());
-    setPinnedMealIds(loadPinnedMeals());
-  }, []);
+  const pinnedIds = new Set<number>(pinsData?.recipeIds ?? []);
+  const pinnedMealIds = new Set<number>(pinsData?.mealIds ?? []);
 
   function handlePin(entry: HistoryEntry) {
-    const next = new Set(pinnedIds);
-    next.add(entry.id);
-    setPinnedIds(next);
-    savePinned(next);
-    setPinTarget(null);
-    toast({ title: `"${entry.name}" added to Cooking Board!` });
+    addPinMutation.mutate(
+      { data: { itemType: "recipe", itemId: entry.id } },
+      {
+        onSuccess: (result) => {
+          queryClient.setQueryData(pinsQueryKey, result);
+          setPinTarget(null);
+          toast({ title: `"${entry.name}" added to Cooking Board!` });
+        },
+        onError: () => toast({ title: "Error", description: "Could not pin item.", variant: "destructive" }),
+      }
+    );
   }
 
   function handleUnpin(entry: HistoryEntry, action: "back" | "saved" | "delete") {
-    const next = new Set(pinnedIds);
-    next.delete(entry.id);
-    setPinnedIds(next);
-    savePinned(next);
-    setUnpinTarget(null);
+    removePinMutation.mutate(
+      { itemType: "recipe", itemId: entry.id },
+      {
+        onSuccess: () => {
+          queryClient.setQueryData(pinsQueryKey, (old: typeof pinsData) =>
+            old ? { ...old, recipeIds: old.recipeIds.filter((id) => id !== entry.id) } : old
+          );
+          setUnpinTarget(null);
 
-    if (action === "delete") {
-      deleteMutation.mutate(
-        { id: entry.id },
-        {
-          onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: qKey });
-            toast({ title: `"${entry.name}" removed from Saved.` });
-          },
-          onError: () => toast({ title: "Error", description: "Could not remove.", variant: "destructive" }),
-        }
-      );
-    } else {
-      toast({ title: `"${entry.name}" moved back to Saved.` });
-    }
+          if (action === "delete") {
+            deleteMutation.mutate(
+              { id: entry.id },
+              {
+                onSuccess: () => {
+                  queryClient.invalidateQueries({ queryKey: qKey });
+                  toast({ title: `"${entry.name}" removed from Saved.` });
+                },
+                onError: () => toast({ title: "Error", description: "Could not remove.", variant: "destructive" }),
+              }
+            );
+          } else {
+            toast({ title: `"${entry.name}" moved back to Saved.` });
+          }
+        },
+        onError: () => toast({ title: "Error", description: "Could not unpin item.", variant: "destructive" }),
+      }
+    );
   }
 
   function handlePinMeal(meal: FavMeal) {
-    const next = new Set(pinnedMealIds);
-    next.add(meal.id);
-    setPinnedMealIds(next);
-    savePinnedMeals(next);
-    toast({ title: `"${meal.name}" added to Cooking Board!` });
+    addPinMutation.mutate(
+      { data: { itemType: "meal", itemId: meal.id } },
+      {
+        onSuccess: (result) => {
+          queryClient.setQueryData(pinsQueryKey, result);
+          toast({ title: `"${meal.name}" added to Cooking Board!` });
+        },
+        onError: () => toast({ title: "Error", description: "Could not pin meal.", variant: "destructive" }),
+      }
+    );
   }
 
   function handleUnpinMeal(mealId: number, mealName: string) {
-    const next = new Set(pinnedMealIds);
-    next.delete(mealId);
-    setPinnedMealIds(next);
-    savePinnedMeals(next);
-    toast({ title: `"${mealName}" removed from Cooking Board.` });
+    removePinMutation.mutate(
+      { itemType: "meal", itemId: mealId },
+      {
+        onSuccess: () => {
+          queryClient.setQueryData(pinsQueryKey, (old: typeof pinsData) =>
+            old ? { ...old, mealIds: old.mealIds.filter((id) => id !== mealId) } : old
+          );
+          toast({ title: `"${mealName}" removed from Cooking Board.` });
+        },
+        onError: () => toast({ title: "Error", description: "Could not unpin meal.", variant: "destructive" }),
+      }
+    );
   }
 
   function handleDelete(entry: HistoryEntry) {
     if (pinnedIds.has(entry.id)) {
-      const next = new Set(pinnedIds);
-      next.delete(entry.id);
-      setPinnedIds(next);
-      savePinned(next);
+      removePinMutation.mutate(
+        { itemType: "recipe", itemId: entry.id },
+        {
+          onSuccess: () => {
+            queryClient.setQueryData(pinsQueryKey, (old: typeof pinsData) =>
+              old ? { ...old, recipeIds: old.recipeIds.filter((id) => id !== entry.id) } : old
+            );
+          },
+        }
+      );
     }
     deleteMutation.mutate(
       { id: entry.id },
@@ -231,7 +244,7 @@ export function HistoryPage() {
     );
   }
 
-  const isLoading = historyLoading || favLoading;
+  const isLoading = historyLoading || favLoading || pinsLoading;
   const allEntries = (entries ?? []) as HistoryEntry[];
   const pinned = allEntries.filter((e) => pinnedIds.has(e.id));
   const unpinned = allEntries.filter((e) => !pinnedIds.has(e.id));
@@ -601,6 +614,7 @@ export function HistoryPage() {
                 size="sm"
                 className="gap-1.5 bg-amber-500 hover:bg-amber-600 text-white"
                 onClick={() => handlePin(pinTarget)}
+                disabled={addPinMutation.isPending}
               >
                 <Pin className="w-3.5 h-3.5" />
                 Add to Cooking Board
@@ -629,6 +643,7 @@ export function HistoryPage() {
                 variant="outline"
                 className="justify-start gap-2 h-auto py-3 px-4"
                 onClick={() => handleUnpin(unpinTarget, "saved")}
+                disabled={removePinMutation.isPending}
               >
                 <Pin className="w-4 h-4 text-muted-foreground shrink-0" />
                 <div className="text-left">
@@ -640,7 +655,7 @@ export function HistoryPage() {
                 variant="outline"
                 className="justify-start gap-2 h-auto py-3 px-4 border-destructive/30 hover:border-destructive/60 hover:bg-destructive/5"
                 onClick={() => handleUnpin(unpinTarget, "delete")}
-                disabled={deleteMutation.isPending}
+                disabled={deleteMutation.isPending || removePinMutation.isPending}
               >
                 <Trash2 className="w-4 h-4 text-destructive shrink-0" />
                 <div className="text-left">
@@ -713,8 +728,8 @@ export function HistoryPage() {
                     </p>
                     <ul className="space-y-1">
                       {ingredients.map((ing) => (
-                        <li key={ing.id} className="text-sm flex gap-2">
-                          <span className="font-medium whitespace-nowrap">
+                        <li key={ing.id} className="flex items-baseline gap-2 text-sm px-2.5 py-1 rounded-md bg-muted/40 border border-border">
+                          <span className="font-medium tabular-nums shrink-0">
                             {ing.quantity}{ing.unit ? ` ${ing.unit}` : ""}
                           </span>
                           <span className="text-muted-foreground">{ing.name}</span>
@@ -725,47 +740,31 @@ export function HistoryPage() {
                 ) : null;
               })()}
 
-              {selected.instructions ? (
+              {selected.instructions && (
                 <div className="border rounded-lg overflow-hidden">
                   <button
-                    className="w-full flex items-center justify-between px-4 py-3 bg-muted/50 hover:bg-muted transition-colors text-sm font-medium"
+                    className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold hover:bg-muted/40 transition-colors"
                     onClick={() => setShowInstructions((v) => !v)}
                   >
                     <span className="flex items-center gap-2">
                       <ChefHat className="w-4 h-4 text-primary" />
-                      Recipe Instructions
+                      Instructions
                     </span>
-                    {showInstructions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    {showInstructions ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
                   </button>
                   {showInstructions && (
-                    <div className="px-4 py-3 text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
-                      {selected.instructions}
+                    <div className="px-4 pb-4 border-t">
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed mt-3">{selected.instructions}</p>
                     </div>
                   )}
                 </div>
-              ) : (
-                <p className="text-sm text-muted-foreground italic">No instructions available for this recipe.</p>
               )}
-            </div>
-
-            <div className="flex justify-between pt-1 border-t">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-destructive hover:text-destructive gap-1.5"
-                onClick={() => handleDelete(selected)}
-                disabled={deleteMutation.isPending}
-              >
-                <Trash2 className="w-4 h-4" />
-                Remove from saved
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setSelected(null)}>Close</Button>
             </div>
           </DialogContent>
         )}
       </Dialog>
 
-      {/* ── Pinned Fav Meal Detail Dialog ── */}
+      {/* ── Favorite Meal Detail Dialog ── */}
       <Dialog
         open={!!selectedFavMeal}
         onOpenChange={(open) => { if (!open) setSelectedFavMeal(null); }}
@@ -797,6 +796,10 @@ export function HistoryPage() {
               )}
             </div>
 
+            {selectedFavMeal.description && (
+              <p className="text-sm text-muted-foreground">{selectedFavMeal.description}</p>
+            )}
+
             <div className="overflow-y-auto flex-1 space-y-3 min-h-0">
               {selectedFavMeal.ingredients && selectedFavMeal.ingredients.length > 0 && (
                 <div className="border rounded-lg p-4">
@@ -806,8 +809,8 @@ export function HistoryPage() {
                   </p>
                   <ul className="space-y-1">
                     {selectedFavMeal.ingredients.map((ing) => (
-                      <li key={ing.id} className="text-sm flex gap-2">
-                        <span className="font-medium whitespace-nowrap">
+                      <li key={ing.id} className="flex items-baseline gap-2 text-sm px-2.5 py-1 rounded-md bg-muted/40 border border-border">
+                        <span className="font-medium tabular-nums shrink-0">
                           {ing.quantity}{ing.unit ? ` ${ing.unit}` : ""}
                         </span>
                         <span className="text-muted-foreground">{ing.name}</span>
@@ -817,31 +820,25 @@ export function HistoryPage() {
                 </div>
               )}
 
-              {selectedFavMeal.instructions ? (
+              {selectedFavMeal.instructions && (
                 <div className="border rounded-lg overflow-hidden">
                   <button
-                    className="w-full flex items-center justify-between px-4 py-3 bg-muted/50 hover:bg-muted transition-colors text-sm font-medium"
+                    className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold hover:bg-muted/40 transition-colors"
                     onClick={() => setShowFavInstructions((v) => !v)}
                   >
                     <span className="flex items-center gap-2">
                       <ChefHat className="w-4 h-4 text-primary" />
-                      Recipe Instructions
+                      Instructions
                     </span>
-                    {showFavInstructions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    {showFavInstructions ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
                   </button>
                   {showFavInstructions && (
-                    <div className="px-4 py-3 text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
-                      {selectedFavMeal.instructions}
+                    <div className="px-4 pb-4 border-t">
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed mt-3">{selectedFavMeal.instructions}</p>
                     </div>
                   )}
                 </div>
-              ) : (
-                <p className="text-sm text-muted-foreground italic">No instructions available.</p>
               )}
-            </div>
-
-            <div className="flex justify-end pt-1 border-t">
-              <Button variant="outline" size="sm" onClick={() => setSelectedFavMeal(null)}>Close</Button>
             </div>
           </DialogContent>
         )}

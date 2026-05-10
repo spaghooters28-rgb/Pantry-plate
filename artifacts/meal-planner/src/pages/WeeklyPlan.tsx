@@ -17,7 +17,12 @@ import {
   getGetWeeklyPlanPreferencesQueryKey,
   useAnalyzeRecipeUrl,
   useSaveAnalyzedRecipe,
+  useGetPins,
+  getGetPinsQueryKey,
+  useAddPin,
+  useRemovePin,
 } from "@workspace/api-client-react";
+import { usePinsMigration } from "@/hooks/usePinsMigration";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -82,23 +87,8 @@ type AnalyzeResult = {
   servings: number | null;
 };
 
-const LS_KEY_MEALS = "pp-pinned-fav-meals";
-
-function loadPinnedMealIds(): Set<number> {
-  try {
-    const raw = localStorage.getItem(LS_KEY_MEALS);
-    return raw ? new Set(JSON.parse(raw) as number[]) : new Set();
-  } catch {
-    return new Set();
-  }
-}
-
-function savePinnedMealIds(ids: Set<number>) {
-  localStorage.setItem(LS_KEY_MEALS, JSON.stringify([...ids]));
-}
 
 export function WeeklyPlan() {
-  const [pinnedMealIds, setPinnedMealIds] = useState<Set<number>>(() => loadPinnedMealIds());
   const [selectedDays, setSelectedDays] = useState<Set<string>>(new Set());
   const [swapDay, setSwapDay] = useState<string | null>(null);
   const [swapSearch, setSwapSearch] = useState("");
@@ -185,6 +175,15 @@ export function WeeklyPlan() {
   const toggleFavoriteMutation = useToggleMealFavorite();
   const addMealToGroceryMutation = useAddMealToGroceryList();
 
+  const pinsQueryKey = getGetPinsQueryKey();
+  const { data: pinsData } = useGetPins({ query: { queryKey: pinsQueryKey } });
+  const addPinMutation = useAddPin();
+  const removePinMutation = useRemovePin();
+
+  usePinsMigration();
+
+  const pinnedMealIds = new Set<number>(pinsData?.mealIds ?? []);
+
   const mealFavoriteMap = new Map<number, boolean>(
     ((allMeals ?? []) as Array<{ id: number; isFavorited: boolean }>).map((m) => [m.id, m.isFavorited])
   );
@@ -226,18 +225,31 @@ export function WeeklyPlan() {
   }
 
   function toggleCookingBoard(mealId: number, mealName: string) {
-    setPinnedMealIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(mealId)) {
-        next.delete(mealId);
-        toast({ title: "Removed from Cooking Board", description: `${mealName} was unpinned.` });
-      } else {
-        next.add(mealId);
-        toast({ title: "Added to Cooking Board", description: `${mealName} is now pinned.` });
-      }
-      savePinnedMealIds(next);
-      return next;
-    });
+    if (pinnedMealIds.has(mealId)) {
+      removePinMutation.mutate(
+        { itemType: "meal", itemId: mealId },
+        {
+          onSuccess: () => {
+            queryClient.setQueryData(pinsQueryKey, (old: typeof pinsData) =>
+              old ? { ...old, mealIds: old.mealIds.filter((id) => id !== mealId) } : old
+            );
+            toast({ title: "Removed from Cooking Board", description: `${mealName} was unpinned.` });
+          },
+          onError: () => toast({ title: "Error", description: "Could not unpin meal.", variant: "destructive" }),
+        }
+      );
+    } else {
+      addPinMutation.mutate(
+        { data: { itemType: "meal", itemId: mealId } },
+        {
+          onSuccess: (result) => {
+            queryClient.setQueryData(pinsQueryKey, result);
+            toast({ title: "Added to Cooking Board", description: `${mealName} is now pinned.` });
+          },
+          onError: () => toast({ title: "Error", description: "Could not pin meal.", variant: "destructive" }),
+        }
+      );
+    }
   }
 
   function toggleActiveDay(day: string) {

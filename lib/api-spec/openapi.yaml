@@ -24,6 +24,8 @@ tags:
     description: User preferences
   - name: history
     description: Recipe history tracking
+  - name: pins
+    description: Cooking Board pinned items
   - name: openai
     description: OpenAI AI chat operations
 
@@ -741,6 +743,79 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/ScheduledItem"
+
+  # ── COOKING BOARD PINS ─────────────────────────────────────────────────────
+
+  /pins:
+    get:
+      operationId: getPins
+      tags: [pins]
+      summary: Get all pinned items for the current user
+      responses:
+        "200":
+          description: Pinned recipe and meal IDs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PinnedItems"
+
+    post:
+      operationId: addPin
+      tags: [pins]
+      summary: Pin an item to the Cooking Board
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddPinBody"
+      responses:
+        "201":
+          description: Updated pinned items
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PinnedItems"
+
+  /pins/sync:
+    post:
+      operationId: syncPins
+      tags: [pins]
+      summary: Bulk-sync pinned items (used for one-time localStorage migration)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PinnedItems"
+      responses:
+        "200":
+          description: Current pinned items after sync
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PinnedItems"
+
+  /pins/{itemType}/{itemId}:
+    delete:
+      operationId: removePin
+      tags: [pins]
+      summary: Remove a pin from the Cooking Board
+      parameters:
+        - name: itemType
+          in: path
+          required: true
+          schema:
+            type: string
+          description: "recipe or meal"
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
 
   # ── OPENAI CHAT ────────────────────────────────────────────────────────────
 
@@ -1583,6 +1658,33 @@ components:
           items:
             $ref: "#/components/schemas/RecipeIngredient"
       required: [recipeName, ingredients]
+
+    # ── PINS ────────────────────────────────────────────────────────────────
+
+    PinnedItems:
+      type: object
+      properties:
+        recipeIds:
+          type: array
+          items:
+            type: integer
+          description: History entry IDs pinned to the Cooking Board
+        mealIds:
+          type: array
+          items:
+            type: integer
+          description: Meal IDs pinned to the Cooking Board
+      required: [recipeIds, mealIds]
+
+    AddPinBody:
+      type: object
+      properties:
+        itemType:
+          type: string
+          description: "recipe or meal"
+        itemId:
+          type: integer
+      required: [itemType, itemId]
 
     RecipeHistoryEntry:
       type: object

@@ -316,6 +316,19 @@ export interface SaveRecipeBody {
   ingredients: RecipeIngredient[];
 }
 
+export interface PinnedItems {
+  /** History entry IDs pinned to the Cooking Board */
+  recipeIds: number[];
+  /** Meal IDs pinned to the Cooking Board */
+  mealIds: number[];
+}
+
+export interface AddPinBody {
+  /** recipe or meal */
+  itemType: string;
+  itemId: number;
+}
+
 export interface RecipeHistoryEntry {
   id: number;
   name: string;

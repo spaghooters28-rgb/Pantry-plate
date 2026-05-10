@@ -972,6 +972,55 @@ export const GetDueScheduledItemsResponse = zod.array(
 );
 
 /**
+ * @summary Get all pinned items for the current user
+ */
+export const GetPinsResponse = zod.object({
+  recipeIds: zod
+    .array(zod.number())
+    .describe("History entry IDs pinned to the Cooking Board"),
+  mealIds: zod
+    .array(zod.number())
+    .describe("Meal IDs pinned to the Cooking Board"),
+});
+
+/**
+ * @summary Pin an item to the Cooking Board
+ */
+export const AddPinBody = zod.object({
+  itemType: zod.string().describe("recipe or meal"),
+  itemId: zod.number(),
+});
+
+/**
+ * @summary Bulk-sync pinned items (used for one-time localStorage migration)
+ */
+export const SyncPinsBody = zod.object({
+  recipeIds: zod
+    .array(zod.number())
+    .describe("History entry IDs pinned to the Cooking Board"),
+  mealIds: zod
+    .array(zod.number())
+    .describe("Meal IDs pinned to the Cooking Board"),
+});
+
+export const SyncPinsResponse = zod.object({
+  recipeIds: zod
+    .array(zod.number())
+    .describe("History entry IDs pinned to the Cooking Board"),
+  mealIds: zod
+    .array(zod.number())
+    .describe("Meal IDs pinned to the Cooking Board"),
+});
+
+/**
+ * @summary Remove a pin from the Cooking Board
+ */
+export const RemovePinParams = zod.object({
+  itemType: zod.coerce.string().describe("recipe or meal"),
+  itemId: zod.coerce.number(),
+});
+
+/**
  * @summary List all conversations
  */
 export const ListOpenaiConversationsResponseItem = zod.object({
