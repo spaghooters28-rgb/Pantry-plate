@@ -318,7 +318,7 @@ export function WeeklyPlan() {
       });
       if (!res.ok) throw new Error("Failed to create custom meal");
       const meal = await res.json() as { id: number };
-      queryClient.invalidateQueries({ queryKey: ["/api/meals"] });
+      queryClient.invalidateQueries({ queryKey: getListMealsQueryKey({}) });
       handleSwapMeal(meal.id);
     } catch {
       toast({ title: "Error", description: "Could not create custom meal.", variant: "destructive" });
