@@ -30,9 +30,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Clock, Flame, Shuffle, ShoppingCart, Calendar, Settings2, ChevronDown, ChevronUp, BookOpen, Star, History, Link, Loader2, Search, CheckCircle2, Trash2, Plus, Pin, PencilLine, X } from "lucide-react";
+import { Clock, Flame, Shuffle, ShoppingCart, Calendar, Settings2, ChevronDown, ChevronUp, BookOpen, Star, History, Link, Loader2, Search, CheckCircle2, Trash2, Plus, Pin, PencilLine, X, Lock } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
+import { useTier } from "@/contexts/AuthContext";
+import { UpgradeModal } from "@/components/UpgradeModal";
 
 const ALL_DAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
@@ -132,6 +134,10 @@ export function WeeklyPlan() {
   const [showPrefs, setShowPrefs] = useState(false);
   const [selectedMeal, setSelectedMeal] = useState<PlanMeal | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
+  const { isPro, isProAi } = useTier();
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [upgradeRequiredTier, setUpgradeRequiredTier] = useState<"pro" | "pro_ai">("pro");
+
   const [analyzerOpen, setAnalyzerOpen] = useState(false);
   const [recipeUrl, setRecipeUrl] = useState("");
   const [analyzeResult, setAnalyzeResult] = useState<AnalyzeResult | null>(null);
@@ -736,13 +742,19 @@ export function WeeklyPlan() {
           </Button>
           <Button
             variant="outline"
-            onClick={() => { setAnalyzerOpen(true); setAnalyzeResult(null); setRecipeUrl(""); setAnalyzerDay(""); setRecipeSaved(false); }}
+            onClick={() => {
+              if (!isProAi) { setUpgradeRequiredTier("pro_ai"); setUpgradeModalOpen(true); return; }
+              setAnalyzerOpen(true); setAnalyzeResult(null); setRecipeUrl(""); setAnalyzerDay(""); setRecipeSaved(false);
+            }}
           >
-            <Link className="w-4 h-4 mr-2" />
+            {isProAi ? <Link className="w-4 h-4 mr-2" /> : <Lock className="w-4 h-4 mr-2 opacity-60" />}
             Recipe Analyzer
           </Button>
-          <Button variant="outline" onClick={openRecipeBuilder}>
-            <PencilLine className="w-4 h-4 mr-2" />
+          <Button variant="outline" onClick={() => {
+            if (!isPro) { setUpgradeRequiredTier("pro"); setUpgradeModalOpen(true); return; }
+            openRecipeBuilder();
+          }}>
+            {isPro ? <PencilLine className="w-4 h-4 mr-2" /> : <Lock className="w-4 h-4 mr-2 opacity-60" />}
             Create Recipe
           </Button>
           <Button onClick={handleGenerate} disabled={generateMutation.isPending}>
@@ -1599,6 +1611,12 @@ export function WeeklyPlan() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <UpgradeModal
+        open={upgradeModalOpen}
+        onClose={() => setUpgradeModalOpen(false)}
+        requiredTier={upgradeRequiredTier}
+      />
     </div>
   );
 }
