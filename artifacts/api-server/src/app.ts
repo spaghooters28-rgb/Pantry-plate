@@ -39,8 +39,8 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Create session table explicitly — connect-pg-simple's built-in
-// createTableIfMissing reads a .sql file that breaks when bundled with esbuild
+// Run startup migrations — drizzle-kit push requires an interactive TTY so we
+// apply schema changes that can't be done interactively here instead.
 pool.query(`
   CREATE TABLE IF NOT EXISTS "user_sessions" (
     "sid" varchar NOT NULL,
@@ -49,8 +49,20 @@ pool.query(`
     CONSTRAINT "user_sessions_pkey" PRIMARY KEY ("sid")
   );
   CREATE INDEX IF NOT EXISTS "IDX_user_sessions_expire" ON "user_sessions" ("expire");
+
+  CREATE TABLE IF NOT EXISTS "pinned_items" (
+    "id" serial PRIMARY KEY,
+    "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    "item_type" text NOT NULL,
+    "item_id" integer NOT NULL,
+    "pinned_at" timestamp DEFAULT now() NOT NULL,
+    UNIQUE("user_id", "item_type", "item_id")
+  );
+
+  ALTER TABLE "conversations"
+    ADD COLUMN IF NOT EXISTS "user_id" integer REFERENCES "users"("id") ON DELETE CASCADE;
 `).catch((err: unknown) => {
-  logger.error({ err }, "Failed to create user_sessions table");
+  logger.error({ err }, "Failed to run startup migrations");
 });
 
 app.use(
