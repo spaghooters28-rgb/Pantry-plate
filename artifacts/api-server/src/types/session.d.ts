@@ -4,5 +4,7 @@ declare module "express-session" {
   interface SessionData {
     userId?: number;
     username?: string;
+    email?: string;
+    displayName?: string;
   }
 }

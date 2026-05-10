@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetGroceryListQueryKey, getListPantryItemsQueryKey } from "@workspace/api-client-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
   AlertDialog,
@@ -14,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Trash2, Settings as SettingsIcon, Bell, BellOff, FlaskConical, LogOut } from "lucide-react";
+import { Trash2, Settings as SettingsIcon, Bell, BellOff, FlaskConical, LogOut, Eye, EyeOff, KeyRound } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   loadReminderSettings,
@@ -27,7 +29,7 @@ import { useAuth } from "@/contexts/AuthContext";
 export function Settings() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { user, logout } = useAuth();
+  const { user, logout, changePassword } = useAuth();
 
   const [confirmGrocery, setConfirmGrocery] = useState(false);
   const [confirmPantry, setConfirmPantry] = useState(false);
@@ -38,6 +40,14 @@ export function Settings() {
   const [reminder, setReminder] = useState<ReminderSettings>({ enabled: false, time: "18:00" });
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>("default");
 
+  // Change password
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+
   useEffect(() => {
     setReminder(loadReminderSettings());
     if ("Notification" in window) setNotifPermission(Notification.permission);
@@ -46,8 +56,6 @@ export function Settings() {
   const VALID_TIME_RE = /^\d{2}:\d{2}$/;
 
   function updateReminder(patch: Partial<ReminderSettings>) {
-    // Don't update state or persist mid-edit empty strings the browser emits
-    // while the user is still typing in the time input.
     if ("time" in patch && !VALID_TIME_RE.test(patch.time ?? "")) {
       return;
     }
@@ -117,8 +125,30 @@ export function Settings() {
     }
   }
 
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (newPassword.length < 6) {
+      toast({ title: "Password too short", description: "New password must be at least 6 characters.", variant: "destructive" });
+      return;
+    }
+    setChangingPassword(true);
+    try {
+      await changePassword(currentPassword, newPassword);
+      toast({ title: "Password updated", description: "Your password has been changed successfully." });
+      setCurrentPassword("");
+      setNewPassword("");
+      setShowChangePassword(false);
+    } catch (err) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Could not update password.", variant: "destructive" });
+    } finally {
+      setChangingPassword(false);
+    }
+  }
+
   const permissionDenied = notifPermission === "denied";
   const permissionGranted = notifPermission === "granted";
+
+  const isPlaceholderEmail = user?.email?.endsWith("@placeholder.pantryplate.local");
 
   return (
     <div className="space-y-8 max-w-xl">
@@ -128,6 +158,131 @@ export function Settings() {
           Settings
         </h1>
         <p className="text-muted-foreground">Manage your app data and preferences.</p>
+      </div>
+
+      {/* ── Account ── */}
+      <div className="space-y-4">
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Account</h2>
+
+        {/* Profile info */}
+        <Card>
+          <CardContent className="p-5 space-y-3">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="font-semibold text-base">{user?.displayName}</p>
+                <p className="text-sm text-muted-foreground truncate">
+                  {isPlaceholderEmail ? "No email set" : user?.email}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  All your household's grocery list, pantry, and meal plans are tied to this account.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
+                onClick={() => logout()}
+              >
+                <LogOut className="w-4 h-4" />
+                Sign Out
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Change Password */}
+        <Card>
+          <CardHeader className="pb-3 pt-5 px-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-muted-foreground" />
+                <CardTitle className="text-base">Change Password</CardTitle>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowChangePassword((v) => !v);
+                  setCurrentPassword("");
+                  setNewPassword("");
+                }}
+              >
+                {showChangePassword ? "Cancel" : "Change"}
+              </Button>
+            </div>
+          </CardHeader>
+          {showChangePassword && (
+            <CardContent className="px-5 pb-5">
+              <form onSubmit={handleChangePassword} className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="currentPw">Current Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="currentPw"
+                      type={showCurrent ? "text" : "password"}
+                      autoComplete="current-password"
+                      placeholder="Your current password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      required
+                      disabled={changingPassword}
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrent((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      tabIndex={-1}
+                    >
+                      {showCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="newPw">New Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="newPw"
+                      type={showNew ? "text" : "password"}
+                      autoComplete="new-password"
+                      placeholder="At least 6 characters"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      required
+                      disabled={changingPassword}
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNew((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      tabIndex={-1}
+                    >
+                      {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="w-full"
+                  disabled={changingPassword || !currentPassword || !newPassword}
+                >
+                  {changingPassword ? (
+                    <span className="flex items-center gap-2">
+                      <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      Updating…
+                    </span>
+                  ) : (
+                    "Update Password"
+                  )}
+                </Button>
+              </form>
+            </CardContent>
+          )}
+        </Card>
       </div>
 
       {/* ── Protein Reminders ── */}
@@ -208,30 +363,6 @@ export function Settings() {
                 You'll receive a reminder at <strong>{formatTime(reminder.time)}</strong> on days when tomorrow's meal has a protein that needs thawing.
               </p>
             )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ── Account ── */}
-      <div className="space-y-4">
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Account</h2>
-        <Card>
-          <CardContent className="p-5 flex items-start justify-between gap-4">
-            <div>
-              <p className="font-semibold mb-0.5">Signed in as <span className="text-primary">@{user?.username}</span></p>
-              <p className="text-sm text-muted-foreground">
-                All your household's grocery list, pantry, and meal plans are tied to this account. Anyone with these credentials can sign in from any device.
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="shrink-0 gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
-              onClick={() => logout()}
-            >
-              <LogOut className="w-4 h-4" />
-              Sign Out
-            </Button>
           </CardContent>
         </Card>
       </div>

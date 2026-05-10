@@ -1,4 +1,5 @@
 export * from "./users";
+export * from "./passwordResetTokens";
 export * from "./meals";
 export * from "./favorites";
 export * from "./grocery";

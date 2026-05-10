@@ -90,6 +90,34 @@ pool.query(`
   logger.error({ err }, "Failed to run startup migrations");
 });
 
+// Email auth migration — adds email/displayName to users, creates reset token table
+pool.query(`
+  ALTER TABLE "users"
+    ADD COLUMN IF NOT EXISTS "email" text;
+  ALTER TABLE "users"
+    ADD COLUMN IF NOT EXISTS "display_name" text;
+
+  CREATE UNIQUE INDEX IF NOT EXISTS "users_email_unique"
+    ON "users" ("email")
+    WHERE "email" IS NOT NULL;
+
+  UPDATE "users"
+    SET "email" = "username" || '@placeholder.pantryplate.local',
+        "display_name" = "username"
+    WHERE "email" IS NULL;
+
+  CREATE TABLE IF NOT EXISTS "password_reset_tokens" (
+    "id" serial PRIMARY KEY,
+    "token" text NOT NULL UNIQUE,
+    "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    "expires_at" timestamptz NOT NULL,
+    "used_at" timestamptz,
+    "created_at" timestamptz NOT NULL DEFAULT now()
+  );
+`).catch((err: unknown) => {
+  logger.error({ err }, "Failed to run email auth migrations");
+});
+
 app.use(
   session({
     store: new PgSession({

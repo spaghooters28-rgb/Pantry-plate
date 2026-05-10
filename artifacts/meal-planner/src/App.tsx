@@ -8,6 +8,7 @@ import { AiChatProvider } from "@/contexts/AiChatContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { useProteinReminder } from "@/hooks/useProteinReminder";
 import { LoginPage } from "@/pages/LoginPage";
+import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
 
 import { Discover } from "@/pages/Discover";
 import { WeeklyPlan } from "@/pages/WeeklyPlan";
@@ -50,8 +51,26 @@ function Router() {
   );
 }
 
+function getResetToken(): string | null {
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.search);
+  return params.get("token");
+}
+
+function isResetPasswordPath(): boolean {
+  if (typeof window === "undefined") return false;
+  const path = window.location.pathname;
+  return path === "/reset-password" || path.endsWith("/reset-password");
+}
+
 function AuthenticatedApp() {
   const { user, loading } = useAuth();
+
+  // Allow reset-password page without authentication
+  if (isResetPasswordPath()) {
+    const token = getResetToken() ?? "";
+    return <ResetPasswordPage token={token} />;
+  }
 
   if (loading) {
     return (
