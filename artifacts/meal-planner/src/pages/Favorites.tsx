@@ -44,12 +44,12 @@ export function Favorites() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: allMeals, isLoading } = useListMeals(
+  const { data: listMealsData, isLoading } = useListMeals(
     {},
     { query: { queryKey: getListMealsQueryKey({}) } }
   );
 
-  const favorites = ((allMeals as Meal[] | undefined) ?? []).filter((m) => m.isFavorited);
+  const favorites = (listMealsData?.meals ?? []).filter((m) => m.isFavorited);
 
   const toggleFavoriteMutation = useToggleMealFavorite();
   const addMealMutation = useAddMealToGroceryList();

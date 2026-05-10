@@ -106,6 +106,7 @@ export function Discover() {
   const abortRef = useRef<AbortController | null>(null);
   const { isProAi } = useTier();
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [upgradeModalTier, setUpgradeModalTier] = useState<"pro" | "pro_ai">("pro_ai");
 
   function handleOpenMeal(meal: Meal) {
     setSelectedMeal(meal);
@@ -251,6 +252,7 @@ export function Discover() {
 
   function handleGenerateAiClick() {
     if (!isProAi) {
+      setUpgradeModalTier("pro_ai");
       setUpgradeModalOpen(true);
       return;
     }
@@ -377,7 +379,7 @@ export function Discover() {
         <AiChatPanel onAction={handleAiAction} />
       ) : (
         <button
-          onClick={() => setUpgradeModalOpen(true)}
+          onClick={() => { setUpgradeModalTier("pro_ai"); setUpgradeModalOpen(true); }}
           className="w-full rounded-xl border border-dashed border-border bg-muted/30 hover:bg-muted/60 transition-colors px-5 py-4 flex items-center gap-3 text-sm text-muted-foreground group"
         >
           <Lock className="w-4 h-4 shrink-0 group-hover:text-primary transition-colors" />
@@ -611,7 +613,7 @@ export function Discover() {
               <Button
                 size="sm"
                 className="shrink-0"
-                onClick={() => setUpgradeModalOpen(true)}
+                onClick={() => { setUpgradeModalTier("pro"); setUpgradeModalOpen(true); }}
               >
                 Unlock all recipes
               </Button>
@@ -852,7 +854,7 @@ export function Discover() {
       <UpgradeModal
         open={upgradeModalOpen}
         onClose={() => setUpgradeModalOpen(false)}
-        requiredTier="pro_ai"
+        requiredTier={upgradeModalTier}
       />
     </div>
   );

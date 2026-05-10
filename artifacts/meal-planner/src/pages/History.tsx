@@ -112,10 +112,11 @@ export function HistoryPage() {
   const { data: entries, isLoading: historyLoading } = useListRecipeHistory({ query: { queryKey: qKey } });
   const deleteMutation = useDeleteRecipeHistory();
 
-  const { data: allMeals, isLoading: favLoading } = useListMeals(
+  const { data: listMealsData, isLoading: favLoading } = useListMeals(
     {},
     { query: { queryKey: allMealsKey, staleTime: 5 * 60 * 1000 } }
   );
+  const allMeals = listMealsData?.meals;
   const toggleFavMutation = useToggleMealFavorite();
 
   const { data: pinsData, isLoading: pinsLoading } = useGetPins({
