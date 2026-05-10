@@ -179,7 +179,14 @@ const generateAiIpRateLimit = createIpRateLimit(10, 60 * 60 * 1000);
 router.post("/meals/generate-ai", requireAuth, requireTier("pro_ai"), generateAiIpRateLimit, generateAiRateLimit, async (req, res): Promise<void> => {
   const userId = req.session.userId!;
 
-  // Monthly AI cap check
+  const { cuisine, protein, glutenFree, count = 5 } = req.body ?? {};
+
+  const cuisineFilter = typeof cuisine === "string" && cuisine ? cuisine : null;
+  const proteinFilter = typeof protein === "string" && protein ? protein : null;
+  const glutenFreeFilter = typeof glutenFree === "boolean" ? glutenFree : null;
+  const mealCount = Math.min(Math.max(Number(count) || 5, 1), 8);
+
+  // Monthly AI cap check — after body validation so malformed requests don't consume quota
   const usage = await checkAndIncrementAiUsage(userId);
   if (!usage.allowed) {
     res.status(429).json({
@@ -190,13 +197,6 @@ router.post("/meals/generate-ai", requireAuth, requireTier("pro_ai"), generateAi
     });
     return;
   }
-
-  const { cuisine, protein, glutenFree, count = 5 } = req.body ?? {};
-
-  const cuisineFilter = typeof cuisine === "string" && cuisine ? cuisine : null;
-  const proteinFilter = typeof protein === "string" && protein ? protein : null;
-  const glutenFreeFilter = typeof glutenFree === "boolean" ? glutenFree : null;
-  const mealCount = Math.min(Math.max(Number(count) || 5, 1), 8);
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");

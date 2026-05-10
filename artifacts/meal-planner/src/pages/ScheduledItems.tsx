@@ -61,8 +61,8 @@ export function ScheduledItems() {
   const qKey = getListScheduledItemsQueryKey();
   const dueQKey = getGetDueScheduledItemsQueryKey();
 
-  const { data: items, isLoading } = useListScheduledItems({ query: { queryKey: qKey } });
-  const { data: dueItems } = useGetDueScheduledItems({ query: { queryKey: dueQKey } });
+  const { data: items, isLoading } = useListScheduledItems({ query: { queryKey: qKey, enabled: isPro } });
+  const { data: dueItems } = useGetDueScheduledItems({ query: { queryKey: dueQKey, enabled: isPro } });
 
   const createMutation = useCreateScheduledItem();
   const updateMutation = useUpdateScheduledItem();

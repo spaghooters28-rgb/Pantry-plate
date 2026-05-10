@@ -223,7 +223,17 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
       }
     } else if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
       const sub = event.data.object as Stripe.Subscription;
-      const userId = sub.metadata?.userId ? parseInt(sub.metadata.userId, 10) : null;
+
+      // Resolve userId from metadata, falling back to stripe_customer_id lookup
+      let userId: number | null = sub.metadata?.userId ? parseInt(sub.metadata.userId, 10) : null;
+      if (!userId && sub.customer) {
+        const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
+        const [found] = await db
+          .select({ id: usersTable.id })
+          .from(usersTable)
+          .where(eq(usersTable.stripeCustomerId, customerId));
+        userId = found?.id ?? null;
+      }
 
       if (event.type === "customer.subscription.deleted") {
         if (userId) {

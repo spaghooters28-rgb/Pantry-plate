@@ -157,17 +157,6 @@ function fetchWithPinnedIp(parsed: URL, pinnedIp: string): Promise<{ ok: boolean
 router.post("/meals/analyze-recipe", requireAuth, requireTier("pro_ai"), analyzeIpRateLimit, analyzeRateLimit, async (req, res): Promise<void> => {
   const userId = req.session.userId!;
 
-  const usage = await checkAndIncrementAiUsage(userId);
-  if (!usage.allowed) {
-    res.status(429).json({
-      error: `Monthly AI limit reached (${usage.cap} requests/month). Resets next month.`,
-      used: usage.used,
-      limit: usage.cap,
-      cap: true,
-    });
-    return;
-  }
-
   const { url } = req.body as { url?: string };
 
   if (!url || typeof url !== "string") {
@@ -181,6 +170,18 @@ router.post("/meals/analyze-recipe", requireAuth, requireTier("pro_ai"), analyze
     ({ parsed, pinnedIp } = await resolveAndValidateUrl(url));
   } catch {
     res.status(400).json({ error: "Invalid or disallowed URL" });
+    return;
+  }
+
+  // Monthly AI cap check — after URL validation so invalid requests don't consume quota
+  const usage = await checkAndIncrementAiUsage(userId);
+  if (!usage.allowed) {
+    res.status(429).json({
+      error: `Monthly AI limit reached (${usage.cap} requests/month). Resets next month.`,
+      used: usage.used,
+      limit: usage.cap,
+      cap: true,
+    });
     return;
   }
 

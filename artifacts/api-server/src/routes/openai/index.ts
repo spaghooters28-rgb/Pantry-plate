@@ -142,7 +142,13 @@ router.post("/openai/conversations/:id/messages", requireAuth, requireTier("pro_
     return;
   }
 
-  // Monthly AI usage cap
+  const parsed = SendOpenaiMessageBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid request body" });
+    return;
+  }
+
+  // Monthly AI usage cap — after body validation so malformed requests don't consume quota
   const usage = await checkAndIncrementAiUsage(userId);
   if (!usage.allowed) {
     res.status(429).json({
@@ -151,12 +157,6 @@ router.post("/openai/conversations/:id/messages", requireAuth, requireTier("pro_
       limit: usage.cap,
       cap: true,
     });
-    return;
-  }
-
-  const parsed = SendOpenaiMessageBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Invalid request body" });
     return;
   }
 
