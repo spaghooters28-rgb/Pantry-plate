@@ -1,9 +1,15 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, ilike } from "drizzle-orm";
+import { eq, desc, ilike, and } from "drizzle-orm";
 import { db, pantryItemsTable, mealsTable, ingredientsTable, recipeHistoryTable, weeklyPlansTable, weeklyPlanDaysTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { requireAuth } from "../middleware/requireAuth";
+import { createUserRateLimit } from "../middleware/rateLimit";
+import dns from "dns";
+import net from "net";
 
 const router: IRouter = Router();
+
+const analyzeRateLimit = createUserRateLimit(10, 60 * 60 * 1000);
 
 interface ExtractedIngredient {
   name: string;
@@ -12,7 +18,81 @@ interface ExtractedIngredient {
   category: string;
 }
 
-router.post("/meals/analyze-recipe", async (req, res): Promise<void> => {
+const BLOCKED_HOSTNAME_PATTERNS = [
+  /^localhost$/i,
+  /^metadata\.google\.internal$/i,
+];
+
+function isPrivateIpv4(addr: string): boolean {
+  const parts = addr.split(".").map(Number);
+  if (parts.length !== 4 || parts.some((p) => isNaN(p) || p < 0 || p > 255)) return false;
+  const [a, b] = parts;
+  return (
+    a === 127 ||
+    a === 10 ||
+    a === 0 ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 169 && b === 254) ||
+    (a === 100 && b >= 64 && b <= 127)
+  );
+}
+
+function isPrivateIpv6(addr: string): boolean {
+  const lower = addr.toLowerCase();
+  if (lower === "::1") return true;
+  if (lower.startsWith("fc") || lower.startsWith("fd")) return true;
+  if (lower.startsWith("fe8") || lower.startsWith("fe9") || lower.startsWith("fea") || lower.startsWith("feb")) return true;
+  // IPv4-mapped IPv6 ::ffff:<ipv4>
+  const mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (mapped) return isPrivateIpv4(mapped[1]);
+  return false;
+}
+
+function isPrivateAddress(addr: string): boolean {
+  if (net.isIPv4(addr)) return isPrivateIpv4(addr);
+  if (net.isIPv6(addr)) return isPrivateIpv6(addr);
+  return false;
+}
+
+async function isSafeRecipeUrl(rawUrl: string): Promise<boolean> {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return false;
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return false;
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+
+  for (const pattern of BLOCKED_HOSTNAME_PATTERNS) {
+    if (pattern.test(hostname)) return false;
+  }
+
+  // If the hostname is already an IP, check it directly
+  if (net.isIP(hostname)) {
+    return !isPrivateAddress(hostname);
+  }
+
+  // Resolve all addresses and reject if any resolve to a private range
+  try {
+    const addresses = await dns.promises.lookup(hostname, { all: true });
+    for (const { address } of addresses) {
+      if (isPrivateAddress(address)) return false;
+    }
+  } catch {
+    // DNS resolution failure — treat as unsafe
+    return false;
+  }
+
+  return true;
+}
+
+router.post("/meals/analyze-recipe", requireAuth, analyzeRateLimit, async (req, res): Promise<void> => {
   const { url } = req.body as { url?: string };
 
   if (!url || typeof url !== "string") {
@@ -20,9 +100,15 @@ router.post("/meals/analyze-recipe", async (req, res): Promise<void> => {
     return;
   }
 
+  if (!(await isSafeRecipeUrl(url))) {
+    res.status(400).json({ error: "Invalid or disallowed URL" });
+    return;
+  }
+
   let pageContent = "";
   try {
     const response = await fetch(url, {
+      redirect: "error",
       headers: {
         "User-Agent": "Mozilla/5.0 (compatible; PantryPlateBot/1.0)",
         "Accept": "text/html,application/xhtml+xml",
@@ -161,7 +247,9 @@ function getWeekStart(): string {
   return monday.toISOString().split("T")[0];
 }
 
-router.post("/meals/save-recipe", async (req, res): Promise<void> => {
+router.post("/meals/save-recipe", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
+
   const body = req.body as {
     recipeName?: string;
     cuisine?: string | null;
@@ -224,14 +312,20 @@ router.post("/meals/save-recipe", async (req, res): Promise<void> => {
     );
   }
 
-  // Upsert history — skip if already saved under this name
+  // Upsert history scoped to this user — skip if already saved under this name for this user
   const [existingHistory] = await db
     .select()
     .from(recipeHistoryTable)
-    .where(ilike(recipeHistoryTable.name, body.recipeName))
+    .where(
+      and(
+        ilike(recipeHistoryTable.name, body.recipeName),
+        eq(recipeHistoryTable.userId, userId)
+      )
+    )
     .limit(1);
   if (!existingHistory) {
     await db.insert(recipeHistoryTable).values({
+      userId,
       name: body.recipeName,
       cuisine,
       protein,
@@ -245,11 +339,21 @@ router.post("/meals/save-recipe", async (req, res): Promise<void> => {
   }
 
   if (body.assignToDay && ALL_DAYS.includes(body.assignToDay)) {
-    let plan = (await db.select().from(weeklyPlansTable).orderBy(desc(weeklyPlansTable.id)).limit(1))[0];
+    // Scope the weekly plan lookup to the authenticated user
+    let plan = (
+      await db
+        .select()
+        .from(weeklyPlansTable)
+        .where(eq(weeklyPlansTable.userId, userId))
+        .orderBy(desc(weeklyPlansTable.id))
+        .limit(1)
+    )[0];
 
     if (!plan) {
-      // No plan exists yet — create an empty one so we can assign to the day
-      [plan] = await db.insert(weeklyPlansTable).values({ weekStartDate: getWeekStart() }).returning();
+      [plan] = await db
+        .insert(weeklyPlansTable)
+        .values({ userId, weekStartDate: getWeekStart() })
+        .returning();
       await db.insert(weeklyPlanDaysTable).values(
         ALL_DAYS.map((day) => ({ planId: plan.id, day, mealId: null as number | null, selectedSideId: null as number | null }))
       );
@@ -261,7 +365,6 @@ router.post("/meals/save-recipe", async (req, res): Promise<void> => {
     if (dayRow) {
       await db.update(weeklyPlanDaysTable).set({ mealId: meal.id }).where(eq(weeklyPlanDaysTable.id, dayRow.id));
     } else {
-      // Day row missing from plan — insert it
       await db.insert(weeklyPlanDaysTable).values({ planId: plan.id, day: body.assignToDay!, mealId: meal.id, selectedSideId: null });
     }
   }

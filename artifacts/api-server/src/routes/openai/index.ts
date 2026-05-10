@@ -1,13 +1,17 @@
 import { Router, type IRouter } from "express";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, and } from "drizzle-orm";
 import { db, conversations, messages } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import {
   CreateOpenaiConversationBody,
   SendOpenaiMessageBody,
 } from "@workspace/api-zod";
+import { requireAuth } from "../../middleware/requireAuth";
+import { createUserRateLimit } from "../../middleware/rateLimit";
 
 const router: IRouter = Router();
+
+const messageSendRateLimit = createUserRateLimit(30, 60 * 60 * 1000);
 
 function getSystemPrompt(): string {
   const now = new Date();
@@ -40,15 +44,18 @@ Available days: sunday, monday, tuesday, wednesday, thursday, friday, saturday
 Use lowercase day names only. Use the exact meal name as you referred to it in the conversation. Include ACTION blocks at the very end of your response, after your normal text. Only emit ACTION blocks when the user explicitly requests an assignment or favorite action.`;
 }
 
-router.get("/openai/conversations", async (req, res): Promise<void> => {
+router.get("/openai/conversations", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
   const rows = await db
     .select()
     .from(conversations)
+    .where(eq(conversations.userId, userId))
     .orderBy(asc(conversations.createdAt));
   res.json(rows);
 });
 
-router.post("/openai/conversations", async (req, res): Promise<void> => {
+router.post("/openai/conversations", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
   const parsed = CreateOpenaiConversationBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid request body" });
@@ -56,13 +63,14 @@ router.post("/openai/conversations", async (req, res): Promise<void> => {
   }
   const [conv] = await db
     .insert(conversations)
-    .values({ title: parsed.data.title })
+    .values({ userId, title: parsed.data.title })
     .returning();
   res.status(201).json(conv);
 });
 
-router.get("/openai/conversations/:id", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+router.get("/openai/conversations/:id", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid id" });
     return;
@@ -70,7 +78,7 @@ router.get("/openai/conversations/:id", async (req, res): Promise<void> => {
   const [conv] = await db
     .select()
     .from(conversations)
-    .where(eq(conversations.id, id));
+    .where(and(eq(conversations.id, id), eq(conversations.userId, userId)));
   if (!conv) {
     res.status(404).json({ error: "Conversation not found" });
     return;
@@ -83,15 +91,16 @@ router.get("/openai/conversations/:id", async (req, res): Promise<void> => {
   res.json({ ...conv, messages: msgs });
 });
 
-router.delete("/openai/conversations/:id", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+router.delete("/openai/conversations/:id", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
   const [deleted] = await db
     .delete(conversations)
-    .where(eq(conversations.id, id))
+    .where(and(eq(conversations.id, id), eq(conversations.userId, userId)))
     .returning();
   if (!deleted) {
     res.status(404).json({ error: "Conversation not found" });
@@ -100,10 +109,19 @@ router.delete("/openai/conversations/:id", async (req, res): Promise<void> => {
   res.status(204).end();
 });
 
-router.get("/openai/conversations/:id/messages", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+router.get("/openai/conversations/:id/messages", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [conv] = await db
+    .select()
+    .from(conversations)
+    .where(and(eq(conversations.id, id), eq(conversations.userId, userId)));
+  if (!conv) {
+    res.status(404).json({ error: "Conversation not found" });
     return;
   }
   const msgs = await db
@@ -114,8 +132,9 @@ router.get("/openai/conversations/:id/messages", async (req, res): Promise<void>
   res.json(msgs);
 });
 
-router.post("/openai/conversations/:id/messages", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+router.post("/openai/conversations/:id/messages", requireAuth, messageSendRateLimit, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid id" });
     return;
@@ -130,7 +149,7 @@ router.post("/openai/conversations/:id/messages", async (req, res): Promise<void
   const [conv] = await db
     .select()
     .from(conversations)
-    .where(eq(conversations.id, id));
+    .where(and(eq(conversations.id, id), eq(conversations.userId, userId)));
   if (!conv) {
     res.status(404).json({ error: "Conversation not found" });
     return;

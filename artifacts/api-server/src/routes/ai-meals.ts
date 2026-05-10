@@ -2,6 +2,8 @@ import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, mealsTable, ingredientsTable, sidesTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { requireAuth } from "../middleware/requireAuth";
+import { createUserRateLimit } from "../middleware/rateLimit";
 
 const router: IRouter = Router();
 
@@ -168,8 +170,10 @@ async function generateAndSaveMeal(
   return { ...meal, ingredients, availableSides: sides };
 }
 
+const generateAiRateLimit = createUserRateLimit(5, 60 * 60 * 1000);
+
 // SSE streaming endpoint — generates meals one-by-one and streams each as it's saved
-router.post("/meals/generate-ai", async (req, res): Promise<void> => {
+router.post("/meals/generate-ai", requireAuth, generateAiRateLimit, async (req, res): Promise<void> => {
   const { cuisine, protein, glutenFree, count = 5 } = req.body ?? {};
 
   const cuisineFilter = typeof cuisine === "string" && cuisine ? cuisine : null;

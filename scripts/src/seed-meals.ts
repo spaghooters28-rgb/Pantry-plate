@@ -4149,7 +4149,7 @@ const meals: MealData[] = [
       { name: "Turnips", quantity: "3", unit: "whole", category: "Produce", isCommonPantryItem: false },
       { name: "Carrots", quantity: "3", unit: "whole", category: "Produce", isCommonPantryItem: false },
       { name: "Fresh Peas", quantity: "1", unit: "cup", category: "Produce", isCommonPantryItem: false },
-      { name: "Dry White Wine", quantity: "1/2", unit: "cup", category: "Beverages", isComlucanPantryItem: false },
+      { name: "Dry White Wine", quantity: "1/2", unit: "cup", category: "Beverages", isCommonPantryItem: false },
       { name: "Fresh Thyme", quantity: "3", unit: "sprigs", category: "Produce", isCommonPantryItem: false },
     ],
     sides: [
