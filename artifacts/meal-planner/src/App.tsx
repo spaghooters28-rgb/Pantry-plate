@@ -18,7 +18,14 @@ import { HistoryPage } from "@/pages/History";
 import { Favorites } from "@/pages/Favorites";
 import { Settings } from "@/pages/Settings";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60 * 1000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 function ProteinReminderManager() {
   useProteinReminder();

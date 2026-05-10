@@ -10,32 +10,36 @@ import { requireAuth } from "../middleware/requireAuth";
 
 const router: IRouter = Router();
 
+function buildMealResponseFromMaps(
+  meal: typeof mealsTable.$inferSelect,
+  ingredientMap: Map<number, (typeof ingredientsTable.$inferSelect)[]>,
+  sidesMap: Map<number, (typeof sidesTable.$inferSelect)[]>,
+  favoritedMealIds?: Set<number>,
+) {
+  return {
+    ...meal,
+    isFavorited: favoritedMealIds != null ? favoritedMealIds.has(meal.id) : false,
+    imageUrl: meal.imageUrl ?? null,
+    instructions: meal.instructions ?? null,
+    ingredients: ingredientMap.get(meal.id) ?? [],
+    availableSides: sidesMap.get(meal.id) ?? [],
+  };
+}
+
 async function buildMealResponse(
   meal: typeof mealsTable.$inferSelect,
   favoritedMealIds?: Set<number>,
 ) {
-  const ingredients = await db
-    .select()
-    .from(ingredientsTable)
-    .where(eq(ingredientsTable.mealId, meal.id));
-
-  const sides = await db
-    .select()
-    .from(sidesTable)
-    .where(eq(sidesTable.mealId, meal.id));
-
-  const isFavorited = favoritedMealIds != null
-    ? favoritedMealIds.has(meal.id)
-    : false;
-
-  return {
-    ...meal,
-    isFavorited,
-    imageUrl: meal.imageUrl ?? null,
-    instructions: meal.instructions ?? null,
-    ingredients,
-    availableSides: sides,
-  };
+  const [ingredients, sides] = await Promise.all([
+    db.select().from(ingredientsTable).where(eq(ingredientsTable.mealId, meal.id)),
+    db.select().from(sidesTable).where(eq(sidesTable.mealId, meal.id)),
+  ]);
+  return buildMealResponseFromMaps(
+    meal,
+    new Map([[meal.id, ingredients]]),
+    new Map([[meal.id, sides]]),
+    favoritedMealIds,
+  );
 }
 
 router.get("/meals", async (req, res): Promise<void> => {
@@ -56,7 +60,19 @@ router.get("/meals", async (req, res): Promise<void> => {
     ? await db.select().from(mealsTable).where(and(...conditions))
     : await db.select().from(mealsTable);
 
-  const userId = req.session?.userId as number | undefined;
+  if (meals.length === 0) {
+    res.json([]);
+    return;
+  }
+
+  const mealIds = meals.map((m) => m.id);
+
+  const [userId, allIngredients, allSides] = await Promise.all([
+    Promise.resolve(req.session?.userId as number | undefined),
+    db.select().from(ingredientsTable).where(inArray(ingredientsTable.mealId, mealIds)),
+    db.select().from(sidesTable).where(inArray(sidesTable.mealId, mealIds)),
+  ]);
+
   let favoritedIds: Set<number> = new Set();
   if (userId) {
     const favRows = await db
@@ -66,8 +82,21 @@ router.get("/meals", async (req, res): Promise<void> => {
     favoritedIds = new Set(favRows.map((r) => r.mealId));
   }
 
-  const mealsWithDetails = await Promise.all(meals.map((m) => buildMealResponse(m, favoritedIds)));
-  res.json(mealsWithDetails);
+  const ingredientMap = new Map<number, (typeof ingredientsTable.$inferSelect)[]>();
+  for (const ing of allIngredients) {
+    const list = ingredientMap.get(ing.mealId) ?? [];
+    list.push(ing);
+    ingredientMap.set(ing.mealId, list);
+  }
+
+  const sidesMap = new Map<number, (typeof sidesTable.$inferSelect)[]>();
+  for (const side of allSides) {
+    const list = sidesMap.get(side.mealId) ?? [];
+    list.push(side);
+    sidesMap.set(side.mealId, list);
+  }
+
+  res.json(meals.map((m) => buildMealResponseFromMaps(m, ingredientMap, sidesMap, favoritedIds)));
 });
 
 const CUISINES = [
