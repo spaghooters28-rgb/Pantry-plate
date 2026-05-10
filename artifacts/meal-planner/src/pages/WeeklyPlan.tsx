@@ -105,6 +105,7 @@ export function WeeklyPlan() {
   const [analyzerInstructionsOpen, setAnalyzerInstructionsOpen] = useState(false);
   const [recipeSaved, setRecipeSaved] = useState(false);
   const [replacingMealName, setReplacingMealName] = useState<string | null>(null);
+  const [addingCustomMeal, setAddingCustomMeal] = useState(false);
   const [localPrefs, setLocalPrefs] = useState<{
     cuisine: string;
     proteins: string[];
@@ -303,6 +304,26 @@ export function WeeklyPlan() {
         onError: () => toast({ title: "Error", description: "Could not swap meal.", variant: "destructive" }),
       }
     );
+  }
+
+  async function handleAddCustomMeal() {
+    if (!swapDay || !swapSearch.trim()) return;
+    setAddingCustomMeal(true);
+    try {
+      const res = await fetch("/api/meals/custom", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ name: swapSearch.trim() }),
+      });
+      if (!res.ok) throw new Error("Failed to create custom meal");
+      const meal = await res.json() as { id: number };
+      queryClient.invalidateQueries({ queryKey: ["/api/meals"] });
+      handleSwapMeal(meal.id);
+    } catch {
+      toast({ title: "Error", description: "Could not create custom meal.", variant: "destructive" });
+      setAddingCustomMeal(false);
+    }
   }
 
   function handleSetLeftover() {
@@ -1222,7 +1243,7 @@ export function WeeklyPlan() {
                 )
               ) : (
                 filteredMeals?.length === 0 ? (
-                  <div className="py-10 text-center text-sm text-muted-foreground">
+                  <div className="py-8 text-center text-sm text-muted-foreground space-y-3">
                     <p className="font-medium mb-1">No meals match</p>
                     <p>
                       {swapIgnorePrefs
@@ -1232,10 +1253,31 @@ export function WeeklyPlan() {
                     {!swapIgnorePrefs && (
                       <button
                         onClick={() => setSwapIgnorePrefs(true)}
-                        className="mt-2 text-primary hover:underline"
+                        className="text-primary hover:underline"
                       >
                         Show all meals
                       </button>
+                    )}
+                    {swapSearch.trim() && (
+                      <div className="pt-1">
+                        <button
+                          onClick={handleAddCustomMeal}
+                          disabled={addingCustomMeal || updateDayMealMutation.isPending}
+                          className="w-full text-left px-3 py-2.5 rounded-xl border border-dashed border-primary/40 hover:border-primary hover:bg-primary/5 transition-colors disabled:opacity-50"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-xl">✏️</span>
+                            <div>
+                              <p className="font-medium text-sm text-foreground">
+                                Add &ldquo;{swapSearch.trim()}&rdquo; as a custom meal
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Set this as the meal for {swapDay ? swapDay.charAt(0).toUpperCase() + swapDay.slice(1) : "this day"}
+                              </p>
+                            </div>
+                          </div>
+                        </button>
+                      </div>
                     )}
                   </div>
                 ) : (

@@ -231,7 +231,7 @@ router.put("/weekly-plan/days/:day/meal", requireAuth, async (req, res): Promise
     return;
   }
 
-  const [plan] = await db
+  let [plan] = await db
     .select()
     .from(weeklyPlansTable)
     .where(eq(weeklyPlansTable.userId, userId))
@@ -239,8 +239,14 @@ router.put("/weekly-plan/days/:day/meal", requireAuth, async (req, res): Promise
     .limit(1);
 
   if (!plan) {
-    res.status(404).json({ error: "No weekly plan exists yet" });
-    return;
+    const weekStart = getWeekStart();
+    [plan] = await db
+      .insert(weeklyPlansTable)
+      .values({ userId, weekStartDate: weekStart })
+      .returning();
+    await db.insert(weeklyPlanDaysTable).values(
+      ALL_DAYS.map((d) => ({ planId: plan.id, day: d, mealId: null, selectedSideId: null }))
+    );
   }
 
   const dayRows = await db

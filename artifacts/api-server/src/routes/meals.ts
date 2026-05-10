@@ -227,6 +227,31 @@ router.post("/meals/:id/toggle-favorite", requireAuth, async (req, res): Promise
   res.json(await buildMealResponse(meal, favoritedIds));
 });
 
+router.post("/meals/custom", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.session.userId as number;
+  const body = req.body as { name?: unknown };
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  if (!name) {
+    res.status(400).json({ error: "name is required" });
+    return;
+  }
+  const [meal] = await db
+    .insert(mealsTable)
+    .values({
+      name,
+      description: "",
+      cuisine: "Other",
+      protein: "Other",
+      isGlutenFree: false,
+      cookTimeMinutes: 30,
+      calories: 0,
+      servings: 2,
+      createdByUserId: userId,
+    })
+    .returning();
+  res.status(201).json(await buildMealResponse(meal, new Set()));
+});
+
 router.get("/meals/:id", async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = GetMealParams.safeParse({ id: raw });

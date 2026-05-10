@@ -7,11 +7,10 @@ import {
   getGetGroceryListQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Star, Clock, Flame, Users, BookOpen, ChevronDown, ChevronUp, ShoppingCart } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -40,8 +39,8 @@ const CUISINE_COLORS: Record<string, string> = {
 };
 
 export function Favorites() {
-  const [selectedMeal, setSelectedMeal] = useState<Meal | null>(null);
-  const [showInstructions, setShowInstructions] = useState(false);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [showInstructionsId, setShowInstructionsId] = useState<number | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -55,13 +54,23 @@ export function Favorites() {
   const toggleFavoriteMutation = useToggleMealFavorite();
   const addMealMutation = useAddMealToGroceryList();
 
+  function toggleExpand(meal: Meal) {
+    if (expandedId === meal.id) {
+      setExpandedId(null);
+      setShowInstructionsId(null);
+    } else {
+      setExpandedId(meal.id);
+      setShowInstructionsId(null);
+    }
+  }
+
   function handleUnfavorite(meal: Meal) {
     toggleFavoriteMutation.mutate(
       { id: meal.id },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ["/api/meals"] });
-          if (selectedMeal?.id === meal.id) setSelectedMeal(null);
+          queryClient.invalidateQueries({ queryKey: getListMealsQueryKey({}) });
+          if (expandedId === meal.id) setExpandedId(null);
           toast({ title: `${meal.name} removed from favorites.` });
         },
         onError: () => toast({ title: "Error", description: "Could not update favorite.", variant: "destructive" }),
@@ -75,7 +84,6 @@ export function Favorites() {
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetGroceryListQueryKey() });
-          setSelectedMeal(null);
           toast({ title: "Added to grocery list!", description: `${meal.name} ingredients added.` });
         },
         onError: () => toast({ title: "Error", description: "Could not add to grocery list.", variant: "destructive" }),
@@ -92,7 +100,7 @@ export function Favorites() {
 
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-[280px] rounded-xl" />)}
+          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-[220px] rounded-xl" />)}
         </div>
       ) : favorites.length === 0 ? (
         <div className="py-20 text-center text-muted-foreground">
@@ -102,153 +110,135 @@ export function Favorites() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {favorites.map((meal) => (
-            <Card
-              key={meal.id}
-              className="overflow-hidden flex flex-col hover:shadow-md transition-shadow cursor-pointer group"
-              onClick={() => { setSelectedMeal(meal); setShowInstructions(false); }}
-            >
-              <div className={`h-3 w-full ${CUISINE_COLORS[meal.cuisine]?.split(" ")[0] ?? "bg-primary"}`} />
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-start mb-1">
-                  <Badge
-                    className={`text-xs font-medium ${CUISINE_COLORS[meal.cuisine] ?? "bg-muted text-muted-foreground"}`}
-                    variant="outline"
-                  >
-                    {meal.cuisine}
-                  </Badge>
-                  <div className="flex items-center gap-1">
-                    {meal.isGlutenFree && (
-                      <Badge variant="outline" className="text-xs border-green-600 text-green-600">Gluten Free</Badge>
-                    )}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleUnfavorite(meal); }}
-                      className="p-1 rounded-full text-amber-400 hover:text-amber-500 transition-colors"
-                      title="Remove from favorites"
-                      disabled={toggleFavoriteMutation.isPending}
-                    >
-                      <Star className="w-4 h-4 fill-amber-400" />
-                    </button>
-                  </div>
-                </div>
-                <CardTitle className="text-lg font-serif leading-tight group-hover:text-primary transition-colors">
-                  {meal.name}
-                </CardTitle>
-                <CardDescription className="text-sm line-clamp-2">{meal.description}</CardDescription>
-              </CardHeader>
-              <CardContent className="flex-1 pb-2">
-                <div className="flex gap-3 text-sm text-muted-foreground">
-                  <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{meal.cookTimeMinutes}m</span>
-                  <span className="flex items-center gap-1"><Flame className="w-3.5 h-3.5" />{meal.calories} kcal</span>
-                  <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />Serves {meal.servings}</span>
-                </div>
-                <div className="mt-2">
-                  <Badge variant="secondary" className="text-xs">{meal.protein}</Badge>
-                </div>
-              </CardContent>
-              <CardFooter className="pt-2 pb-4">
-                <Button
-                  className="w-full"
-                  variant="outline"
-                  size="sm"
-                  onClick={(e) => { e.stopPropagation(); setSelectedMeal(meal); setShowInstructions(false); }}
+          {favorites.map((meal) => {
+            const isExpanded = expandedId === meal.id;
+            const showInstructions = showInstructionsId === meal.id;
+            return (
+              <Card key={meal.id} className="overflow-hidden flex flex-col transition-shadow hover:shadow-md">
+                <div className={`h-3 w-full ${CUISINE_COLORS[meal.cuisine]?.split(" ")[0] ?? "bg-primary"}`} />
+
+                {/* Header — click to expand */}
+                <CardHeader
+                  className="pb-2 cursor-pointer select-none"
+                  onClick={() => toggleExpand(meal)}
                 >
-                  View Recipe
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
-      )}
+                  <div className="flex justify-between items-start mb-1">
+                    <Badge
+                      className={`text-xs font-medium ${CUISINE_COLORS[meal.cuisine] ?? "bg-muted text-muted-foreground"}`}
+                      variant="outline"
+                    >
+                      {meal.cuisine}
+                    </Badge>
+                    <div className="flex items-center gap-1">
+                      {meal.isGlutenFree && (
+                        <Badge variant="outline" className="text-xs border-green-600 text-green-600">GF</Badge>
+                      )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleUnfavorite(meal); }}
+                        className="p-1 rounded-full text-amber-400 hover:text-amber-500 transition-colors"
+                        title="Remove from favorites"
+                        disabled={toggleFavoriteMutation.isPending}
+                      >
+                        <Star className="w-4 h-4 fill-amber-400" />
+                      </button>
+                      <span className="p-1 text-muted-foreground">
+                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      </span>
+                    </div>
+                  </div>
+                  <CardTitle className="text-lg font-serif leading-tight">{meal.name}</CardTitle>
+                  {!isExpanded && (
+                    <CardDescription className="text-sm line-clamp-2">{meal.description}</CardDescription>
+                  )}
+                </CardHeader>
 
-      {/* Meal detail dialog */}
-      <Dialog
-        open={!!selectedMeal}
-        onOpenChange={(open) => { if (!open) { setSelectedMeal(null); setShowInstructions(false); } }}
-      >
-        <DialogContent className="max-w-lg max-h-[80vh] flex flex-col gap-4">
-          {selectedMeal && (
-            <>
-              <DialogHeader>
-                <div className="flex flex-wrap gap-1.5 mb-1">
-                  <Badge variant="secondary">{selectedMeal.cuisine}</Badge>
-                  {selectedMeal.isGlutenFree && <Badge variant="outline" className="border-green-500 text-green-600">Gluten Free</Badge>}
-                  <Badge variant="outline">{selectedMeal.protein}</Badge>
-                </div>
-                <DialogTitle className="font-serif text-xl leading-tight">{selectedMeal.name}</DialogTitle>
-              </DialogHeader>
+                {/* Stats — always visible */}
+                <CardContent className="pb-2">
+                  <div className="flex gap-3 text-sm text-muted-foreground flex-wrap">
+                    <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{meal.cookTimeMinutes}m</span>
+                    <span className="flex items-center gap-1"><Flame className="w-3.5 h-3.5" />{meal.calories} kcal</span>
+                    <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />Serves {meal.servings}</span>
+                  </div>
+                  <div className="mt-2">
+                    <Badge variant="secondary" className="text-xs">{meal.protein}</Badge>
+                  </div>
 
-              <div className="flex gap-4 text-sm text-muted-foreground border-y py-2">
-                <span className="flex items-center gap-1"><Clock className="w-4 h-4" />{selectedMeal.cookTimeMinutes} min</span>
-                <span className="flex items-center gap-1"><Flame className="w-4 h-4" />{selectedMeal.calories} kcal</span>
-                <span className="flex items-center gap-1"><Users className="w-4 h-4" />Serves {selectedMeal.servings}</span>
-              </div>
+                  {/* Expanded content */}
+                  {isExpanded && (
+                    <div className="mt-4 space-y-3">
+                      {meal.description && (
+                        <p className="text-sm text-muted-foreground">{meal.description}</p>
+                      )}
 
-              {selectedMeal.description && (
-                <p className="text-sm text-muted-foreground">{selectedMeal.description}</p>
-              )}
+                      {meal.ingredients && meal.ingredients.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Ingredients</p>
+                          <ul className="space-y-1 max-h-40 overflow-y-auto">
+                            {meal.ingredients.map((ing) => (
+                              <li key={ing.id} className="flex items-baseline gap-2 text-sm px-2.5 py-1 rounded-md bg-muted/40 border border-border">
+                                <span className="font-medium tabular-nums shrink-0 text-foreground">
+                                  {ing.quantity}{ing.unit ? ` ${ing.unit}` : ""}
+                                </span>
+                                <span className="text-muted-foreground">{ing.name}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
 
-              {selectedMeal.ingredients && selectedMeal.ingredients.length > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ingredients</p>
-                  <ul className="space-y-1 max-h-48 overflow-y-auto">
-                    {selectedMeal.ingredients.map((ing) => (
-                      <li key={ing.id} className="flex items-baseline gap-2 text-sm px-2.5 py-1 rounded-md bg-muted/40 border border-border">
-                        <span className="font-medium tabular-nums shrink-0 text-foreground">
-                          {ing.quantity}{ing.unit ? ` ${ing.unit}` : ""}
-                        </span>
-                        <span className="text-muted-foreground">{ing.name}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+                      {meal.instructions ? (
+                        <div className="border rounded-lg overflow-hidden">
+                          <button
+                            className="w-full flex items-center justify-between px-4 py-2.5 bg-muted/50 hover:bg-muted transition-colors text-sm font-medium"
+                            onClick={(e) => { e.stopPropagation(); setShowInstructionsId(showInstructions ? null : meal.id); }}
+                          >
+                            <span className="flex items-center gap-2">
+                              <BookOpen className="w-4 h-4 text-primary" />
+                              How to Cook This
+                            </span>
+                            {showInstructions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          </button>
+                          {showInstructions && (
+                            <div className="px-4 py-3 text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
+                              {meal.instructions}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">No cooking instructions available.</p>
+                      )}
 
-              {selectedMeal.instructions ? (
-                <div className="flex-1 overflow-y-auto min-h-0 border rounded-lg overflow-hidden">
-                  <button
-                    className="w-full flex items-center justify-between px-4 py-3 bg-muted/50 hover:bg-muted transition-colors text-sm font-medium"
-                    onClick={() => setShowInstructions((v) => !v)}
-                  >
-                    <span className="flex items-center gap-2">
-                      <BookOpen className="w-4 h-4 text-primary" />
-                      How to Cook This
-                    </span>
-                    {showInstructions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  </button>
-                  {showInstructions && (
-                    <div className="px-4 py-3 text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
-                      {selectedMeal.instructions}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full gap-2 text-destructive border-destructive/30 hover:bg-destructive/10"
+                        onClick={(e) => { e.stopPropagation(); handleUnfavorite(meal); }}
+                        disabled={toggleFavoriteMutation.isPending}
+                      >
+                        <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                        Remove from Favorites
+                      </Button>
                     </div>
                   )}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground italic">No cooking instructions available.</p>
-              )}
+                </CardContent>
 
-              <div className="flex gap-2 mt-auto">
-                <Button
-                  variant="outline"
-                  className="flex-1 gap-2"
-                  onClick={() => handleUnfavorite(selectedMeal)}
-                  disabled={toggleFavoriteMutation.isPending}
-                >
-                  <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-                  Unfavorite
-                </Button>
-                <Button
-                  className="flex-1 gap-2"
-                  onClick={() => handleAddToGrocery(selectedMeal)}
-                  disabled={addMealMutation.isPending}
-                >
-                  <ShoppingCart className="w-4 h-4" />
-                  {addMealMutation.isPending ? "Adding…" : "Add to Grocery"}
-                </Button>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+                {/* Footer — cart button always visible */}
+                <div className="mt-auto px-6 pb-4 pt-1">
+                  <Button
+                    className="w-full gap-2"
+                    size="sm"
+                    onClick={(e) => { e.stopPropagation(); handleAddToGrocery(meal); }}
+                    disabled={addMealMutation.isPending}
+                  >
+                    <ShoppingCart className="w-4 h-4" />
+                    {addMealMutation.isPending ? "Adding…" : "Add to Grocery List"}
+                  </Button>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
