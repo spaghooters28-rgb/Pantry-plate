@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { useProteinReminder } from "@/hooks/useProteinReminder";
 import { LoginPage } from "@/pages/LoginPage";
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
+import { LandingPage } from "@/pages/LandingPage";
 
 import { Discover } from "@/pages/Discover";
 import { WeeklyPlan } from "@/pages/WeeklyPlan";
@@ -84,7 +85,7 @@ function AuthenticatedApp() {
   }
 
   if (!user) {
-    return <LoginPage />;
+    return <LandingPage />;
   }
 
   return (

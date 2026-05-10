@@ -8,9 +8,9 @@ import { ChefHat, LogIn, UserPlus, Eye, EyeOff, Mail, CheckCircle } from "lucide
 
 type Mode = "login" | "register" | "forgot";
 
-export function LoginPage() {
+export function LoginPage({ initialMode = "login" }: { initialMode?: "login" | "register" }) {
   const { login, register, forgotPassword } = useAuth();
-  const [mode, setMode] = useState<Mode>("login");
+  const [mode, setMode] = useState<Mode>(initialMode);
 
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
