@@ -322,6 +322,7 @@ export function WeeklyPlan() {
       handleSwapMeal(meal.id);
     } catch {
       toast({ title: "Error", description: "Could not create custom meal.", variant: "destructive" });
+    } finally {
       setAddingCustomMeal(false);
     }
   }
