@@ -182,18 +182,28 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
     return;
   }
 
-  // Idempotency: skip if we already processed this event
+  // Idempotency: claim the event with onConflictDoNothing().returning()
+  // — if nothing is returned, a unique-constraint conflict means duplicate; any throw is a real DB error.
+  let claimed: { stripeEventId: string }[];
   try {
-    await db.insert(subscriptionEventsTable).values({
-      stripeEventId: event.id,
-      eventType: event.type,
-    });
-  } catch {
-    // Unique constraint violation = already processed
+    claimed = await db
+      .insert(subscriptionEventsTable)
+      .values({ stripeEventId: event.id, eventType: event.type })
+      .onConflictDoNothing()
+      .returning({ stripeEventId: subscriptionEventsTable.stripeEventId });
+  } catch (dbErr) {
+    logger.error({ dbErr, eventId: event.id }, "DB error claiming Stripe event");
+    res.status(500).send("Database error");
+    return;
+  }
+
+  if (claimed.length === 0) {
+    // Genuine duplicate delivery — already processed
     res.json({ received: true, skipped: true });
     return;
   }
 
+  // Process business logic; on failure remove our claim so Stripe can retry
   try {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
@@ -238,6 +248,11 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
     }
   } catch (err) {
     logger.error({ err, eventId: event.id }, "Error processing Stripe webhook event");
+    // Remove our claim so Stripe will retry this event
+    await db
+      .delete(subscriptionEventsTable)
+      .where(eq(subscriptionEventsTable.stripeEventId, event.id))
+      .catch((delErr) => logger.warn({ delErr, eventId: event.id }, "Failed to remove event claim after processing error"));
     res.status(500).send("Webhook processing error");
     return;
   }
