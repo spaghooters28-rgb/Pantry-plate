@@ -148,8 +148,8 @@ router.post("/openai/conversations/:id/messages", requireAuth, requireTier("pro_
     res.status(429).json({
       error: `Monthly AI limit reached (${usage.cap} requests/month). Resets next month.`,
       used: usage.used,
-      cap: usage.cap,
-      limitExceeded: true,
+      limit: usage.cap,
+      cap: true,
     });
     return;
   }

@@ -429,6 +429,8 @@ export interface AiUsageResult {
   cap: number;
   /** YYYY-MM of the current billing period */
   yearMonth: string;
+  /** ISO date (YYYY-MM-DD) of next Stripe billing cycle, or null if no active subscription */
+  nextBillingDate?: string | null;
 }
 
 export type ListMealsParams = {

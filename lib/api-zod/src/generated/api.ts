@@ -1229,4 +1229,10 @@ export const GetAiUsageResponse = zod.object({
   used: zod.number().describe("Number of AI requests used this month"),
   cap: zod.number().describe("Monthly cap for this tier"),
   yearMonth: zod.string().describe("YYYY-MM of the current billing period"),
+  nextBillingDate: zod
+    .string()
+    .nullish()
+    .describe(
+      "ISO date (YYYY-MM-DD) of next Stripe billing cycle, or null if no active subscription",
+    ),
 });

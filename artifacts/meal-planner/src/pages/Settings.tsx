@@ -27,6 +27,7 @@ import {
 } from "@/hooks/useProteinReminder";
 import { useAuth, useTier } from "@/contexts/AuthContext";
 import { UpgradeModal } from "@/components/UpgradeModal";
+import { useGetAiUsage, getGetAiUsageQueryKey } from "@workspace/api-client-react";
 
 const TIER_LABELS: Record<string, string> = {
   free: "Free",
@@ -63,6 +64,8 @@ export function Settings() {
 
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [upgradeTarget, setUpgradeTarget] = useState<"pro" | "pro_ai">("pro");
+
+  const { data: billingUsage } = useGetAiUsage({ query: { enabled: !isFree, queryKey: getGetAiUsageQueryKey() } });
 
   useEffect(() => {
     setReminder(loadReminderSettings());
@@ -377,11 +380,17 @@ export function Settings() {
               <Button
                 size="sm"
                 className="gap-1.5 w-full"
-                onClick={() => startCheckout("pro_ai")}
+                onClick={openPortal}
               >
                 <Zap className="w-3.5 h-3.5" />
                 Upgrade to Pro+AI — $4.99/mo
               </Button>
+            )}
+
+            {!isFree && billingUsage?.nextBillingDate && (
+              <p className="text-xs text-muted-foreground mt-3 text-center">
+                Next billing date: <span className="font-medium">{billingUsage.nextBillingDate}</span>
+              </p>
             )}
           </CardContent>
         </Card>

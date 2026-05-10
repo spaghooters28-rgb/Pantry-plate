@@ -2093,4 +2093,8 @@ components:
         yearMonth:
           type: string
           description: "YYYY-MM of the current billing period"
+        nextBillingDate:
+          type: string
+          nullable: true
+          description: "ISO date (YYYY-MM-DD) of next Stripe billing cycle, or null if no active subscription"
       required: [used, cap, yearMonth]
