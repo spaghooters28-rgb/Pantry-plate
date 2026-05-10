@@ -83,7 +83,7 @@ router.post("/auth/register", requireSameOrigin, registerIpRateLimit, async (req
   req.session.email = resolvedEmail;
   req.session.displayName = resolvedName;
 
-  res.status(201).json({ id: user.id, email: resolvedEmail, displayName: resolvedName });
+  res.status(201).json({ id: user.id, email: resolvedEmail, displayName: resolvedName, tier: user.tier ?? "free" });
 });
 
 // ── Login ─────────────────────────────────────────────────────────────────────
@@ -119,7 +119,7 @@ router.post("/auth/login", requireSameOrigin, loginIpRateLimit, async (req, res)
   req.session.email = resolvedEmail;
   req.session.displayName = resolvedName;
 
-  res.json({ id: user.id, email: resolvedEmail, displayName: resolvedName });
+  res.json({ id: user.id, email: resolvedEmail, displayName: resolvedName, tier: user.tier ?? "free" });
 });
 
 // ── Logout ───────────────────────────────────────────────────────────────────

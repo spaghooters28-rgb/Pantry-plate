@@ -11,6 +11,18 @@ function getYearMonth(): string {
 export async function checkAndIncrementAiUsage(userId: number): Promise<{ allowed: boolean; used: number; cap: number }> {
   const yearMonth = getYearMonth();
 
+  // Pre-check before incrementing to avoid counting over-limit requests
+  const [existing] = await db
+    .select({ count: aiUsageTable.count })
+    .from(aiUsageTable)
+    .where(and(eq(aiUsageTable.userId, userId), eq(aiUsageTable.yearMonth, yearMonth)));
+
+  const currentCount = existing?.count ?? 0;
+  if (currentCount >= AI_MONTHLY_CAP) {
+    return { allowed: false, used: currentCount, cap: AI_MONTHLY_CAP };
+  }
+
+  // Allowed — increment atomically
   await db
     .insert(aiUsageTable)
     .values({ userId, yearMonth, count: 1 })
@@ -25,7 +37,7 @@ export async function checkAndIncrementAiUsage(userId: number): Promise<{ allowe
     .where(and(eq(aiUsageTable.userId, userId), eq(aiUsageTable.yearMonth, yearMonth)));
 
   const used = row?.count ?? 1;
-  return { allowed: used <= AI_MONTHLY_CAP, used, cap: AI_MONTHLY_CAP };
+  return { allowed: true, used, cap: AI_MONTHLY_CAP };
 }
 
 export async function getAiUsage(userId: number): Promise<{ used: number; cap: number; yearMonth: string }> {

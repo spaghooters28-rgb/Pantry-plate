@@ -186,6 +186,7 @@ router.post("/meals/generate-ai", requireAuth, requireTier("pro_ai"), generateAi
       error: `Monthly AI limit reached (${usage.cap} requests/month). Resets next month.`,
       used: usage.used,
       cap: usage.cap,
+      limitExceeded: true,
     });
     return;
   }

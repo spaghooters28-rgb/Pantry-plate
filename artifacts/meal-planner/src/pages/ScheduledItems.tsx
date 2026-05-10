@@ -16,8 +16,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Clock, Plus, Pause, Play, Trash2, ShoppingCart, Bell, CalendarClock } from "lucide-react";
+import { Clock, Plus, Pause, Play, Trash2, ShoppingCart, Bell, CalendarClock, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useTier } from "@/contexts/AuthContext";
+import { UpgradeModal } from "@/components/UpgradeModal";
 
 const CATEGORIES = ["Produce", "Dairy & Eggs", "Meat & Seafood", "Grains & Bread", "Pantry", "Frozen", "Beverages", "Other"];
 const SCHEDULE_TYPES = [
@@ -53,6 +55,8 @@ export function ScheduledItems() {
     scheduleType: "weekly", scheduleDaysInterval: 7,
   });
   const { toast } = useToast();
+  const { isPro } = useTier();
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const queryClient = useQueryClient();
   const qKey = getListScheduledItemsQueryKey();
   const dueQKey = getGetDueScheduledItemsQueryKey();
@@ -107,15 +111,15 @@ export function ScheduledItems() {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetGroceryListQueryKey() });
           // Advance the next due date
-          const days = item.scheduleType === "every_other_day" ? 2
+          const intervalDays = item.scheduleType === "weekly" ? 7
             : item.scheduleType === "biweekly" ? 14
-            : item.scheduleType === "custom" ? (item.scheduleDaysInterval ?? 7)
-            : 7;
-          const next = new Date();
-          next.setDate(next.getDate() + days);
+            : item.scheduleType === "every_other_day" ? 2
+            : (item.scheduleDaysInterval ?? 7);
+          const next = new Date(item.nextDueDate);
+          next.setDate(next.getDate() + intervalDays);
           updateMutation.mutate(
             { id: item.id, data: { nextDueDate: next.toISOString().split("T")[0] } },
-            { onSuccess: () => queryClient.invalidateQueries({ queryKey: qKey }) }
+            { onSuccess: () => queryClient.invalidateQueries({ queryKey: dueQKey }) }
           );
           toast({ title: `${item.name} added to grocery list!` });
         },
@@ -123,7 +127,7 @@ export function ScheduledItems() {
     );
   }
 
-  function handleCreate(e: React.FormEvent) {
+  async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!newItem.name.trim()) return;
     createMutation.mutate(
@@ -140,12 +144,13 @@ export function ScheduledItems() {
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: qKey });
-          queryClient.invalidateQueries({ queryKey: dueQKey });
           setAddOpen(false);
           setNewItem({ name: "", quantity: "1", unit: "", category: "Dairy & Eggs", scheduleType: "weekly", scheduleDaysInterval: 7 });
-          toast({ title: "Scheduled item created!", description: "It'll be added to your grocery list automatically." });
+          toast({ title: `${newItem.name.trim()} scheduled!` });
         },
-        onError: () => toast({ title: "Error", description: "Could not create scheduled item.", variant: "destructive" }),
+        onError: () => {
+          toast({ title: "Error", description: "Could not schedule item.", variant: "destructive" });
+        },
       }
     );
   }
@@ -175,155 +180,176 @@ export function ScheduledItems() {
           <h1 className="text-3xl font-serif font-bold text-primary mb-1">Scheduled Items</h1>
           <p className="text-muted-foreground">Recurring groceries added automatically.</p>
         </div>
-        <Button onClick={() => setAddOpen(true)}>
-          <Plus className="w-4 h-4 mr-2" />
+        <Button onClick={isPro ? () => setAddOpen(true) : () => setUpgradeModalOpen(true)}>
+          {isPro ? <Plus className="w-4 h-4 mr-2" /> : <Lock className="w-4 h-4 mr-2" />}
           Schedule Item
         </Button>
       </div>
 
-      {/* Due now banner */}
-      {!isLoading && dueItems && dueItems.length > 0 && (
-        <div className="p-4 rounded-xl bg-primary/5 border border-primary/20">
-          <div className="flex items-center gap-2 mb-3">
-            <Bell className="w-4 h-4 text-primary" />
-            <p className="text-sm font-semibold text-primary">
-              {dueItems.length} item{dueItems.length > 1 ? "s" : ""} due for restocking
+      {/* Locked state for free users */}
+      {!isPro && (
+        <div className="rounded-xl border border-dashed border-border bg-muted/20 p-10 text-center space-y-4">
+          <Lock className="w-10 h-10 text-muted-foreground mx-auto opacity-50" />
+          <div>
+            <p className="font-semibold text-lg">Scheduled Items is a Pro feature</p>
+            <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">
+              Set up recurring reminders for milk, eggs, bread, and any grocery staple — automatically added to your list on your schedule.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {dueItems.map((item) => (
-              <button
-                key={item.id}
-                className="flex items-center gap-1.5 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-full hover:bg-primary/90 transition-colors"
-                onClick={() => handleAddDueToGrocery(item as ScheduledItem)}
-              >
-                <ShoppingCart className="w-3 h-3" />
-                Add {item.name}
-              </button>
-            ))}
-          </div>
+          <Button onClick={() => setUpgradeModalOpen(true)} className="gap-1.5">
+            Upgrade to Pro — $2/mo
+          </Button>
         </div>
       )}
 
-      {isLoading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-20 w-full rounded-xl" />
-          ))}
-        </div>
-      ) : items?.length === 0 ? (
-        <div className="py-16 text-center text-muted-foreground">
-          <CalendarClock className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p className="font-medium mb-1">No scheduled items yet.</p>
-          <p className="text-sm">Schedule recurring groceries and they'll be added automatically.</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {activeItems.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Active</h3>
-              {activeItems.map((item) => (
-                <Card key={item.id}>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <h3 className="font-semibold text-base">{item.name}</h3>
-                          <Badge variant="secondary" className="text-xs">{SCHEDULE_LABELS[item.scheduleType] ?? item.scheduleType}</Badge>
-                          {item.scheduleType === "custom" && item.scheduleDaysInterval && (
-                            <span className="text-xs text-muted-foreground">every {item.scheduleDaysInterval}d</span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                          <span>{item.quantity}{item.unit && item.unit !== item.quantity ? ` ${item.unit}` : ""}</span>
-                          <span className="text-muted-foreground/50">•</span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            <span className={isDue(item.nextDueDate) ? "text-primary font-medium" : ""}>
-                              {formatDueDate(item.nextDueDate)}
-                            </span>
-                          </span>
-                          <span className="text-muted-foreground/50">•</span>
-                          <span>{item.category}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        {isDue(item.nextDueDate) && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 px-2 text-xs"
-                            onClick={() => handleAddDueToGrocery(item as ScheduledItem)}
-                          >
-                            <ShoppingCart className="w-3 h-3 mr-1" />
-                            Add Now
-                          </Button>
-                        )}
-                        <button
-                          className="p-1.5 text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted"
-                          onClick={() => handleTogglePause(item as ScheduledItem)}
-                          title="Pause"
-                        >
-                          <Pause className="w-4 h-4" />
-                        </button>
-                        <button
-                          className="p-1.5 text-muted-foreground hover:text-destructive transition-colors rounded-md hover:bg-muted"
-                          onClick={() => handleDelete(item.id, item.name)}
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+      {/* Full UI for Pro+ users */}
+      {isPro && (
+        <>
+          {/* Due now banner */}
+          {!isLoading && dueItems && dueItems.length > 0 && (
+            <div className="p-4 rounded-xl bg-primary/5 border border-primary/20">
+              <div className="flex items-center gap-2 mb-3">
+                <Bell className="w-4 h-4 text-primary" />
+                <p className="text-sm font-semibold text-primary">
+                  {dueItems.length} item{dueItems.length > 1 ? "s" : ""} due for restocking
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {dueItems.map((item) => (
+                  <button
+                    key={item.id}
+                    className="flex items-center gap-1.5 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-full hover:bg-primary/90 transition-colors"
+                    onClick={() => handleAddDueToGrocery(item as ScheduledItem)}
+                  >
+                    <ShoppingCart className="w-3 h-3" />
+                    Add {item.name}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
-          {pausedItems.length > 0 && (
+          {isLoading ? (
             <div className="space-y-3">
-              <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Paused</h3>
-              {pausedItems.map((item) => (
-                <Card key={item.id} className="opacity-60">
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-semibold text-base">{item.name}</h3>
-                          <Badge variant="outline" className="text-xs">Paused</Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {item.quantity} {item.unit && item.unit !== item.quantity ? item.unit : ""} • {SCHEDULE_LABELS[item.scheduleType] ?? item.scheduleType}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          className="p-1.5 text-muted-foreground hover:text-green-600 transition-colors rounded-md hover:bg-muted"
-                          onClick={() => handleTogglePause(item as ScheduledItem)}
-                          title="Resume"
-                        >
-                          <Play className="w-4 h-4" />
-                        </button>
-                        <button
-                          className="p-1.5 text-muted-foreground hover:text-destructive transition-colors rounded-md hover:bg-muted"
-                          onClick={() => handleDelete(item.id, item.name)}
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-20 w-full rounded-xl" />
               ))}
             </div>
+          ) : items?.length === 0 ? (
+            <div className="py-16 text-center text-muted-foreground">
+              <CalendarClock className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <p className="font-medium mb-1">No scheduled items yet.</p>
+              <p className="text-sm">Schedule recurring groceries and they'll be added automatically.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {activeItems.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Active</h3>
+                  {activeItems.map((item) => (
+                    <Card key={item.id}>
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                              <h3 className="font-semibold text-base">{item.name}</h3>
+                              <Badge variant="secondary" className="text-xs">{SCHEDULE_LABELS[item.scheduleType] ?? item.scheduleType}</Badge>
+                              {item.scheduleType === "custom" && item.scheduleDaysInterval && (
+                                <span className="text-xs text-muted-foreground">every {item.scheduleDaysInterval}d</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                              <span>{item.quantity}{item.unit && item.unit !== item.quantity ? ` ${item.unit}` : ""}</span>
+                              <span className="text-muted-foreground/50">•</span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                <span className={isDue(item.nextDueDate) ? "text-primary font-medium" : ""}>
+                                  {formatDueDate(item.nextDueDate)}
+                                </span>
+                              </span>
+                              <span className="text-muted-foreground/50">•</span>
+                              <span>{item.category}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {isDue(item.nextDueDate) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-xs"
+                                onClick={() => handleAddDueToGrocery(item as ScheduledItem)}
+                              >
+                                <ShoppingCart className="w-3 h-3 mr-1" />
+                                Add Now
+                              </Button>
+                            )}
+                            <button
+                              className="p-1.5 text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted"
+                              onClick={() => handleTogglePause(item as ScheduledItem)}
+                              title="Pause"
+                            >
+                              <Pause className="w-4 h-4" />
+                            </button>
+                            <button
+                              className="p-1.5 text-muted-foreground hover:text-destructive transition-colors rounded-md hover:bg-muted"
+                              onClick={() => handleDelete(item.id, item.name)}
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {pausedItems.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Paused</h3>
+                  {pausedItems.map((item) => (
+                    <Card key={item.id} className="opacity-60">
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="font-semibold text-base">{item.name}</h3>
+                              <Badge variant="outline" className="text-xs">Paused</Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {item.quantity} {item.unit && item.unit !== item.quantity ? item.unit : ""} • {SCHEDULE_LABELS[item.scheduleType] ?? item.scheduleType}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              className="p-1.5 text-muted-foreground hover:text-green-600 transition-colors rounded-md hover:bg-muted"
+                              onClick={() => handleTogglePause(item as ScheduledItem)}
+                              title="Resume"
+                            >
+                              <Play className="w-4 h-4" />
+                            </button>
+                            <button
+                              className="p-1.5 text-muted-foreground hover:text-destructive transition-colors rounded-md hover:bg-muted"
+                              onClick={() => handleDelete(item.id, item.name)}
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
-        </div>
+        </>
       )}
 
-      {/* Add Item Dialog */}
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+      {/* Add Item Dialog (only accessible to Pro+ users) */}
+      <Dialog open={addOpen && isPro} onOpenChange={(v) => !v && setAddOpen(false)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="font-serif">Schedule a Recurring Item</DialogTitle>
@@ -408,6 +434,13 @@ export function ScheduledItems() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <UpgradeModal
+        open={upgradeModalOpen}
+        onClose={() => setUpgradeModalOpen(false)}
+        requiredTier="pro"
+        featureName="Scheduled Items"
+      />
     </div>
   );
 }

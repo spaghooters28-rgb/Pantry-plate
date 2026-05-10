@@ -163,6 +163,7 @@ router.post("/meals/analyze-recipe", requireAuth, requireTier("pro_ai"), analyze
       error: `Monthly AI limit reached (${usage.cap} requests/month). Resets next month.`,
       used: usage.used,
       cap: usage.cap,
+      limitExceeded: true,
     });
     return;
   }

@@ -122,12 +122,36 @@ router.post("/billing/portal", requireAuth, async (req, res): Promise<void> => {
   res.json({ url: portalSession.url });
 });
 
-// ── POST /billing/usage ────────────────────────────────────────────────────────
+// ── GET /billing/usage ────────────────────────────────────────────────────────
 
 router.get("/billing/usage", requireAuth, async (req, res): Promise<void> => {
   const { getAiUsage } = await import("../lib/aiUsage");
   const usage = await getAiUsage(req.session.userId!);
-  res.json(usage);
+
+  // Optionally fetch next billing date from Stripe
+  let nextBillingDate: string | null = null;
+  const stripe = getStripe();
+  if (stripe) {
+    try {
+      const [user] = await db
+        .select({ stripeCustomerId: usersTable.stripeCustomerId })
+        .from(usersTable)
+        .where(eq(usersTable.id, req.session.userId!));
+      if (user?.stripeCustomerId) {
+        const subs = await stripe.subscriptions.list({ customer: user.stripeCustomerId, status: "active", limit: 1 });
+        if (subs.data.length > 0) {
+          const item = subs.data[0].items.data[0];
+          if (item?.current_period_end) {
+            nextBillingDate = new Date(item.current_period_end * 1000).toISOString().split("T")[0];
+          }
+        }
+      }
+    } catch {
+      // Stripe unavailable — omit next billing date
+    }
+  }
+
+  res.json({ ...usage, nextBillingDate });
 });
 
 export default router;

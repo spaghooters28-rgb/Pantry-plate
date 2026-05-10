@@ -13,19 +13,18 @@ interface UpgradeModalProps {
   featureName?: string;
 }
 
+// Features that are actually gated at Pro tier on the backend
 const PRO_FEATURES = [
-  "AI-generated meal ideas",
-  "Recipe Analyzer (import from URL)",
   "Custom recipe creation",
   "Grocery scheduling & reminders",
-  "Protein thaw reminders",
   "Everything in Free",
 ];
 
+// Features that are actually gated at Pro+AI tier on the backend
 const PRO_AI_FEATURES = [
   "AI meal planning assistant (chat)",
-  "AI-powered suggestions",
-  "Cross-device data sync",
+  "AI-generated meal ideas",
+  "Recipe Analyzer (import from URL)",
   "Everything in Pro",
 ];
 
@@ -63,7 +62,7 @@ export function UpgradeModal({ open, onClose, requiredTier, featureName }: Upgra
                     <Sparkles className="w-4 h-4 text-primary" />
                     Pro
                   </p>
-                  <p className="text-sm text-muted-foreground">All premium features, no AI</p>
+                  <p className="text-sm text-muted-foreground">Premium scheduling & recipes</p>
                 </div>
                 <div className="text-right">
                   <p className="font-bold text-lg">$2</p>
@@ -92,7 +91,7 @@ export function UpgradeModal({ open, onClose, requiredTier, featureName }: Upgra
                   Pro+AI
                   <Badge variant="secondary" className="text-xs">Best value</Badge>
                 </p>
-                <p className="text-sm text-muted-foreground">Everything + AI assistant & sync</p>
+                <p className="text-sm text-muted-foreground">All Pro features + AI assistant</p>
               </div>
               <div className="text-right">
                 <p className="font-bold text-lg">$4.99</p>
