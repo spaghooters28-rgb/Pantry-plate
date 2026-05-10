@@ -1,0 +1,13 @@
+uploads = []
+
+[[generated]]
+id = "zh_mRJ-HZIW5nZj1mZeGe"
+uri = "file://attached_assets/generated_images/pantry_plate_icon.png"
+type = "image"
+title = "pantry plate app icon mason jar"
+
+[[outputs]]
+id = "YzsdyhDjcyu8CT1zjL-35"
+uri = "file://attached_assets/generated_images/pantry_plate_icon.png"
+type = "image"
+title = "Pantry & Plate App Icon"
