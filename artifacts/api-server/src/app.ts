@@ -106,6 +106,9 @@ pool.query(`
         "display_name" = "username"
     WHERE "email" IS NULL;
 
+  ALTER TABLE "users" ALTER COLUMN "email" SET NOT NULL;
+  ALTER TABLE "users" ALTER COLUMN "display_name" SET NOT NULL;
+
   CREATE TABLE IF NOT EXISTS "password_reset_tokens" (
     "id" serial PRIMARY KEY,
     "token" text NOT NULL UNIQUE,
