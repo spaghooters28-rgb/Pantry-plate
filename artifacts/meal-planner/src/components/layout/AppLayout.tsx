@@ -10,6 +10,7 @@ import {
   Star,
   Menu,
   Settings,
+  ChefHat,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -33,7 +34,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const NavItems = () => (
     <>
       <div className="px-4 py-6 flex flex-col h-full">
-        <h2 className="text-2xl font-serif font-bold text-primary mb-6">Pantry & Plate</h2>
+        <div className="flex items-center gap-2 mb-6">
+          <ChefHat className="w-7 h-7 text-primary shrink-0" />
+          <h2 className="text-2xl font-serif font-bold text-primary">Pantry & Plate</h2>
+        </div>
         <nav className="space-y-2 flex-1">
           {routes.map((route) => {
             const Icon = route.icon;
@@ -78,7 +82,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-background flex flex-col md:flex-row">
       {/* Mobile Header */}
       <header className="md:hidden flex items-center justify-between p-4 border-b bg-card">
-        <h1 className="text-xl font-serif font-bold text-primary">Pantry & Plate</h1>
+        <div className="flex items-center gap-1.5">
+          <ChefHat className="w-5 h-5 text-primary shrink-0" />
+          <h1 className="text-xl font-serif font-bold text-primary">Pantry & Plate</h1>
+        </div>
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon">
