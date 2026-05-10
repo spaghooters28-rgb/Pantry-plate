@@ -8,9 +8,15 @@ import {
   DeleteScheduledItemParams,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middleware/requireAuth";
-import { requireTier } from "../middleware/requireTier";
+import { requireTier, getUserTier } from "../middleware/requireTier";
 
 const router: IRouter = Router();
+
+const PROTEIN_CATEGORY = "Meat & Seafood";
+
+function isProFeature(category: string, scheduleType: string): boolean {
+  return category === PROTEIN_CATEGORY || scheduleType === "custom";
+}
 
 function getIntervalDays(scheduleType: string, customInterval?: number | null): number {
   switch (scheduleType) {
@@ -32,7 +38,7 @@ function todayStr(): string {
   return new Date().toISOString().split("T")[0];
 }
 
-router.get("/scheduled-items", requireAuth, requireTier("pro"), async (req, res): Promise<void> => {
+router.get("/scheduled-items", requireAuth, async (req, res): Promise<void> => {
   const userId = req.session.userId!;
   const items = await db.select().from(scheduledItemsTable)
     .where(eq(scheduledItemsTable.userId, userId));
@@ -44,12 +50,26 @@ router.get("/scheduled-items", requireAuth, requireTier("pro"), async (req, res)
   })));
 });
 
-router.post("/scheduled-items", requireAuth, requireTier("pro"), async (req, res): Promise<void> => {
+router.post("/scheduled-items", requireAuth, async (req, res): Promise<void> => {
   const userId = req.session.userId!;
   const parsed = CreateScheduledItemBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
+  }
+
+  // Protein-based reminders and custom intervals require Pro
+  if (isProFeature(parsed.data.category, parsed.data.scheduleType)) {
+    const userTier = await getUserTier(userId);
+    if (userTier === "free") {
+      res.status(403).json({
+        error: "This feature requires a subscription upgrade.",
+        requiredTier: "pro",
+        currentTier: userTier,
+        upgradePath: "pro",
+      });
+      return;
+    }
   }
 
   const interval = getIntervalDays(parsed.data.scheduleType, parsed.data.scheduleDaysInterval);
@@ -78,7 +98,7 @@ router.post("/scheduled-items", requireAuth, requireTier("pro"), async (req, res
   });
 });
 
-router.patch("/scheduled-items/:id", requireAuth, requireTier("pro"), async (req, res): Promise<void> => {
+router.patch("/scheduled-items/:id", requireAuth, async (req, res): Promise<void> => {
   const userId = req.session.userId!;
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = UpdateScheduledItemParams.safeParse({ id: raw });
@@ -91,6 +111,20 @@ router.patch("/scheduled-items/:id", requireAuth, requireTier("pro"), async (req
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
+  }
+
+  // If the update is changing scheduleType to "custom", that requires Pro
+  if (parsed.data.scheduleType === "custom") {
+    const userTier = await getUserTier(userId);
+    if (userTier === "free") {
+      res.status(403).json({
+        error: "This feature requires a subscription upgrade.",
+        requiredTier: "pro",
+        currentTier: userTier,
+        upgradePath: "pro",
+      });
+      return;
+    }
   }
 
   const updateData: Record<string, unknown> = {};
@@ -120,7 +154,7 @@ router.patch("/scheduled-items/:id", requireAuth, requireTier("pro"), async (req
   });
 });
 
-router.delete("/scheduled-items/:id", requireAuth, requireTier("pro"), async (req, res): Promise<void> => {
+router.delete("/scheduled-items/:id", requireAuth, async (req, res): Promise<void> => {
   const userId = req.session.userId!;
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = DeleteScheduledItemParams.safeParse({ id: raw });
@@ -142,7 +176,7 @@ router.delete("/scheduled-items/:id", requireAuth, requireTier("pro"), async (re
   res.sendStatus(204);
 });
 
-router.get("/scheduled-items/due-today", requireAuth, requireTier("pro"), async (req, res): Promise<void> => {
+router.get("/scheduled-items/due-today", requireAuth, async (req, res): Promise<void> => {
   const userId = req.session.userId!;
   const today = todayStr();
   const dueItems = await db

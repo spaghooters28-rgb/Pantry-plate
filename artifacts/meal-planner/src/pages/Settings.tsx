@@ -432,80 +432,105 @@ export function Settings() {
       <div className="space-y-4">
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Protein Thaw Reminders</h2>
 
-        <Card>
-          <CardContent className="p-5 space-y-5">
-            <div className="flex items-start justify-between gap-4">
+        {!isPro ? (
+          <Card>
+            <CardContent className="p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
-                <p className="font-semibold mb-0.5">Enable Reminders</p>
-                <p className="text-sm text-muted-foreground">
-                  Get a browser notification the evening before a meal so you remember to set out the protein to thaw.
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="font-semibold">Protein Thaw Reminders</p>
+                  <Badge variant="secondary" className="text-xs">Pro</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground max-w-sm">
+                  Get a browser notification the evening before a meal so you remember to set out the protein to thaw. Upgrade to Pro to enable this feature.
                 </p>
               </div>
-              <Switch
-                checked={reminder.enabled}
-                onCheckedChange={(v) => updateReminder({ enabled: v })}
-                disabled={!permissionGranted}
-              />
-            </div>
-
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="font-medium text-sm mb-0.5">Reminder Time</p>
-                <p className="text-xs text-muted-foreground">When to send the notification each day.</p>
-              </div>
-              <input
-                type="time"
-                value={reminder.time}
-                onChange={(e) => updateReminder({ time: e.target.value })}
-                className="border rounded-md px-3 py-1.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-              />
-            </div>
-
-            <div className="flex flex-wrap gap-2 pt-1 border-t">
-              {!permissionGranted ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5"
-                  onClick={handleRequestPermission}
-                  disabled={permissionDenied}
-                >
-                  <Bell className="w-3.5 h-3.5" />
-                  {permissionDenied ? "Blocked by browser" : "Allow Notifications"}
-                </Button>
-              ) : (
-                <div className="flex items-center gap-1.5 text-sm text-green-600">
-                  <Bell className="w-4 h-4" />
-                  Notifications allowed
-                </div>
-              )}
-
               <Button
                 size="sm"
                 variant="outline"
-                className="gap-1.5 ml-auto"
-                onClick={handleTestNotification}
-                disabled={!permissionGranted}
+                className="shrink-0 gap-1.5"
+                onClick={() => { setUpgradeTarget("pro"); setUpgradeModalOpen(true); }}
               >
-                <FlaskConical className="w-3.5 h-3.5" />
-                Send Test
+                <Zap className="w-3.5 h-3.5" />
+                Upgrade to Pro
               </Button>
-            </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardContent className="p-5 space-y-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="font-semibold mb-0.5">Enable Reminders</p>
+                  <p className="text-sm text-muted-foreground">
+                    Get a browser notification the evening before a meal so you remember to set out the protein to thaw.
+                  </p>
+                </div>
+                <Switch
+                  checked={reminder.enabled}
+                  onCheckedChange={(v) => updateReminder({ enabled: v })}
+                  disabled={!permissionGranted}
+                />
+              </div>
 
-            {permissionDenied && (
-              <p className="text-xs text-destructive flex items-center gap-1.5">
-                <BellOff className="w-3.5 h-3.5 shrink-0" />
-                Notifications are blocked. Go to your browser's site settings to allow them, then refresh.
-              </p>
-            )}
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="font-medium text-sm mb-0.5">Reminder Time</p>
+                  <p className="text-xs text-muted-foreground">When to send the notification each day.</p>
+                </div>
+                <input
+                  type="time"
+                  value={reminder.time}
+                  onChange={(e) => updateReminder({ time: e.target.value })}
+                  className="border rounded-md px-3 py-1.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                />
+              </div>
 
-            {permissionGranted && reminder.enabled && (
-              <p className="text-xs text-muted-foreground bg-muted/60 rounded-lg px-3 py-2">
-                You'll receive a reminder at <strong>{formatTime(reminder.time)}</strong> on days when tomorrow's meal has a protein that needs thawing.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+              <div className="flex flex-wrap gap-2 pt-1 border-t">
+                {!permissionGranted ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5"
+                    onClick={handleRequestPermission}
+                    disabled={permissionDenied}
+                  >
+                    <Bell className="w-3.5 h-3.5" />
+                    {permissionDenied ? "Blocked by browser" : "Allow Notifications"}
+                  </Button>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-sm text-green-600">
+                    <Bell className="w-4 h-4" />
+                    Notifications allowed
+                  </div>
+                )}
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 ml-auto"
+                  onClick={handleTestNotification}
+                  disabled={!permissionGranted}
+                >
+                  <FlaskConical className="w-3.5 h-3.5" />
+                  Send Test
+                </Button>
+              </div>
+
+              {permissionDenied && (
+                <p className="text-xs text-destructive flex items-center gap-1.5">
+                  <BellOff className="w-3.5 h-3.5 shrink-0" />
+                  Notifications are blocked. Go to your browser's site settings to allow them, then refresh.
+                </p>
+              )}
+
+              {permissionGranted && reminder.enabled && (
+                <p className="text-xs text-muted-foreground bg-muted/60 rounded-lg px-3 py-2">
+                  You'll receive a reminder at <strong>{formatTime(reminder.time)}</strong> on days when tomorrow's meal has a protein that needs thawing.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* ── Data Management ── */}

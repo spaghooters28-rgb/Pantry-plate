@@ -106,13 +106,15 @@ export async function sendTestNotification(): Promise<string> {
   }
 }
 
-export function useProteinReminder() {
-  // Register the service worker on mount
+export function useProteinReminder(isPro = false) {
+  // Register the service worker on mount (only for Pro users)
   useEffect(() => {
+    if (!isPro) return;
     registerServiceWorker();
-  }, []);
+  }, [isPro]);
 
   useEffect(() => {
+    if (!isPro) return;
     async function check() {
       const settings = loadReminderSettings();
       if (!settings.enabled) return;
@@ -145,5 +147,5 @@ export function useProteinReminder() {
     check();
     const interval = setInterval(check, 60_000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isPro]);
 }

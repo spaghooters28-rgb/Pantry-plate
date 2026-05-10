@@ -6,7 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AiChatProvider } from "@/contexts/AiChatContext";
-import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth, useTier } from "@/contexts/AuthContext";
 import { useProteinReminder } from "@/hooks/useProteinReminder";
 import { LoginPage } from "@/pages/LoginPage";
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
@@ -31,7 +31,8 @@ const queryClient = new QueryClient({
 });
 
 function ProteinReminderManager() {
-  useProteinReminder();
+  const { isPro } = useTier();
+  useProteinReminder(isPro);
   return null;
 }
 
