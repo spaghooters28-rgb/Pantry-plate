@@ -16,6 +16,14 @@ import {
   UserPlus,
 } from "lucide-react";
 import { LoginPage } from "@/pages/LoginPage";
+import {
+  LANDING_FREE_FEATURES,
+  LANDING_PRO_FEATURES,
+  LANDING_PRO_AI_FEATURES,
+} from "@/lib/tierFeatures";
+
+// Key used in localStorage to pass the desired tier through the auth flow
+const PENDING_CHECKOUT_TIER_KEY = "pendingCheckoutTier";
 
 type LandingMode = "landing" | "login" | "register";
 
@@ -60,15 +68,8 @@ const PLANS = [
     badge: null,
     description: "Everything you need to get started.",
     cta: "Get Started Free",
-    ctaVariant: "outline" as const,
     tier: null as null,
-    features: [
-      "Browse 15+ meals & recipes",
-      "Weekly meal plan generation",
-      "Grocery list with categories",
-      "Pantry tracking",
-      "Favorites & meal history",
-    ],
+    features: LANDING_FREE_FEATURES,
   },
   {
     name: "Pro",
@@ -77,14 +78,8 @@ const PLANS = [
     badge: "Popular",
     description: "Unlock premium planning tools.",
     cta: "Upgrade to Pro",
-    ctaVariant: "outline" as const,
     tier: "pro" as const,
-    features: [
-      "Everything in Free",
-      "Custom recipe creation",
-      "Grocery scheduling & reminders",
-      "Recurring auto-add groceries",
-    ],
+    features: LANDING_PRO_FEATURES,
   },
   {
     name: "Pro+AI",
@@ -93,28 +88,28 @@ const PLANS = [
     badge: "Most Powerful",
     description: "Full AI-powered meal planning.",
     cta: "Upgrade to Pro+AI",
-    ctaVariant: "default" as const,
     tier: "pro_ai" as const,
-    features: [
-      "Everything in Pro",
-      "AI meal planning assistant",
-      "AI-generated meal ideas",
-      "Recipe Analyzer (import from URL)",
-    ],
+    features: LANDING_PRO_AI_FEATURES,
   },
 ];
 
 export function LandingPage() {
   const [mode, setMode] = useState<LandingMode>("landing");
-  const [defaultRegister, setDefaultRegister] = useState(false);
 
-  function goRegister() {
-    setDefaultRegister(true);
+  /**
+   * Navigate to the register form, optionally tagging a desired tier so
+   * AuthenticatedApp can start Stripe Checkout immediately after signup.
+   */
+  function goRegister(tier?: "pro" | "pro_ai") {
+    if (tier) {
+      localStorage.setItem(PENDING_CHECKOUT_TIER_KEY, tier);
+    } else {
+      localStorage.removeItem(PENDING_CHECKOUT_TIER_KEY);
+    }
     setMode("register");
   }
 
   function goLogin() {
-    setDefaultRegister(false);
     setMode("login");
   }
 
@@ -151,7 +146,7 @@ export function LandingPage() {
               <LogIn className="w-4 h-4" />
               <span className="hidden sm:inline">Log in</span>
             </Button>
-            <Button size="sm" onClick={goRegister} className="gap-1.5">
+            <Button size="sm" onClick={() => goRegister()} className="gap-1.5">
               <UserPlus className="w-4 h-4" />
               Sign up free
             </Button>
@@ -181,7 +176,7 @@ export function LandingPage() {
             Discover recipes, build your weekly plan, keep your grocery list, and track your pantry — all in one place, shared across your whole household.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Button size="lg" onClick={goRegister} className="gap-2 px-8 text-base h-12 w-full sm:w-auto">
+            <Button size="lg" onClick={() => goRegister()} className="gap-2 px-8 text-base h-12 w-full sm:w-auto">
               <UserPlus className="w-5 h-5" />
               Get Started Free
             </Button>
@@ -298,7 +293,15 @@ export function LandingPage() {
                 <Button
                   variant={isHighlighted ? "default" : "outline"}
                   className="w-full"
-                  onClick={goRegister}
+                  onClick={() => {
+                    if (plan.tier) {
+                      // Store desired tier so AuthenticatedApp can start
+                      // Stripe Checkout automatically after registration.
+                      goRegister(plan.tier);
+                    } else {
+                      goRegister();
+                    }
+                  }}
                 >
                   {plan.cta}
                 </Button>
@@ -359,7 +362,7 @@ export function LandingPage() {
         <p className="text-muted-foreground text-lg mb-8 max-w-lg mx-auto">
           Join households already using Pantry & Plate. Free to get started, no credit card needed.
         </p>
-        <Button size="lg" onClick={goRegister} className="gap-2 px-10 text-base h-12">
+        <Button size="lg" onClick={() => goRegister()} className="gap-2 px-10 text-base h-12">
           <UserPlus className="w-5 h-5" />
           Create your free account
         </Button>
@@ -376,7 +379,7 @@ export function LandingPage() {
             <button onClick={goLogin} className="hover:text-foreground transition-colors">
               Log in
             </button>
-            <button onClick={goRegister} className="hover:text-foreground transition-colors font-medium text-foreground">
+            <button onClick={() => goRegister()} className="hover:text-foreground transition-colors font-medium text-foreground">
               Sign up free
             </button>
           </div>

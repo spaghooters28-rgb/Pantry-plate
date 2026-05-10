@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -64,8 +65,20 @@ function isResetPasswordPath(): boolean {
   return path === "/reset-password" || path.endsWith("/reset-password");
 }
 
+const PENDING_CHECKOUT_TIER_KEY = "pendingCheckoutTier";
+
 function AuthenticatedApp() {
-  const { user, loading } = useAuth();
+  const { user, loading, startCheckout } = useAuth();
+
+  // After signup from a pricing CTA, automatically redirect to Stripe Checkout
+  useEffect(() => {
+    if (!user) return;
+    const tier = localStorage.getItem(PENDING_CHECKOUT_TIER_KEY) as "pro" | "pro_ai" | null;
+    if (tier === "pro" || tier === "pro_ai") {
+      localStorage.removeItem(PENDING_CHECKOUT_TIER_KEY);
+      startCheckout(tier);
+    }
+  }, [user, startCheckout]);
 
   // Allow reset-password page without authentication
   if (isResetPasswordPath()) {

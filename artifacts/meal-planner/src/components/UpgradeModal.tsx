@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Check, Sparkles, Zap, Lock } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { UPGRADE_PRO_FEATURES, UPGRADE_PRO_AI_FEATURES } from "@/lib/tierFeatures";
 
 type RequiredTier = "pro" | "pro_ai";
 
@@ -13,20 +14,8 @@ interface UpgradeModalProps {
   featureName?: string;
 }
 
-// Features that are actually gated at Pro tier on the backend
-const PRO_FEATURES = [
-  "Custom recipe creation",
-  "Grocery scheduling & reminders",
-  "Everything in Free",
-];
-
-// Features that are actually gated at Pro+AI tier on the backend
-const PRO_AI_FEATURES = [
-  "AI meal planning assistant (chat)",
-  "AI-generated meal ideas",
-  "Recipe Analyzer (import from URL)",
-  "Everything in Pro",
-];
+const PRO_FEATURES = UPGRADE_PRO_FEATURES;
+const PRO_AI_FEATURES = UPGRADE_PRO_AI_FEATURES;
 
 export function UpgradeModal({ open, onClose, requiredTier, featureName }: UpgradeModalProps) {
   const { startCheckout } = useAuth();
