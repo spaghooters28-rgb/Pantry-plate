@@ -8,6 +8,7 @@ import {
   DeleteScheduledItemParams,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middleware/requireAuth";
+import { requireTier } from "../middleware/requireTier";
 
 const router: IRouter = Router();
 
@@ -43,7 +44,7 @@ router.get("/scheduled-items", requireAuth, async (req, res): Promise<void> => {
   })));
 });
 
-router.post("/scheduled-items", requireAuth, async (req, res): Promise<void> => {
+router.post("/scheduled-items", requireAuth, requireTier("pro"), async (req, res): Promise<void> => {
   const userId = req.session.userId!;
   const parsed = CreateScheduledItemBody.safeParse(req.body);
   if (!parsed.success) {
@@ -77,7 +78,7 @@ router.post("/scheduled-items", requireAuth, async (req, res): Promise<void> => 
   });
 });
 
-router.patch("/scheduled-items/:id", requireAuth, async (req, res): Promise<void> => {
+router.patch("/scheduled-items/:id", requireAuth, requireTier("pro"), async (req, res): Promise<void> => {
   const userId = req.session.userId!;
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = UpdateScheduledItemParams.safeParse({ id: raw });
@@ -119,7 +120,7 @@ router.patch("/scheduled-items/:id", requireAuth, async (req, res): Promise<void
   });
 });
 
-router.delete("/scheduled-items/:id", requireAuth, async (req, res): Promise<void> => {
+router.delete("/scheduled-items/:id", requireAuth, requireTier("pro"), async (req, res): Promise<void> => {
   const userId = req.session.userId!;
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = DeleteScheduledItemParams.safeParse({ id: raw });

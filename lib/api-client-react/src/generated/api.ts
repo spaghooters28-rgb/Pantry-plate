@@ -22,12 +22,14 @@ import type {
   AddPantryItemBody,
   AddPinBody,
   AddWeekToGroceryList200,
+  AiUsageResult,
   AnalyzeRecipeBody,
   AnalyzeRecipeResult,
   AuthUser,
   AvailableRecipe,
   ChangePasswordBody,
   CheckPantryBody,
+  CheckoutResult,
   ClearAllGroceryItems200,
   ClearAllPantryItems200,
   CreateCustomMealBody,
@@ -59,6 +61,7 @@ import type {
   SaveRecipeBody,
   ScheduledItem,
   SendOpenaiMessageBody,
+  StartCheckoutBody,
   UpdateDayMealBody,
   UpdateGroceryItemBody,
   UpdatePantryItemBody,
@@ -4748,3 +4751,245 @@ export const useSendOpenaiMessage = <
 > => {
   return useMutation(getSendOpenaiMessageMutationOptions(options));
 };
+
+/**
+ * @summary Create a Stripe Checkout session for a subscription tier
+ */
+export const getStartCheckoutUrl = () => {
+  return `/api/billing/checkout`;
+};
+
+export const startCheckout = async (
+  startCheckoutBody: StartCheckoutBody,
+  options?: RequestInit,
+): Promise<CheckoutResult> => {
+  return customFetch<CheckoutResult>(getStartCheckoutUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(startCheckoutBody),
+  });
+};
+
+export const getStartCheckoutMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof startCheckout>>,
+    TError,
+    { data: BodyType<StartCheckoutBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof startCheckout>>,
+  TError,
+  { data: BodyType<StartCheckoutBody> },
+  TContext
+> => {
+  const mutationKey = ["startCheckout"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof startCheckout>>,
+    { data: BodyType<StartCheckoutBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return startCheckout(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type StartCheckoutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof startCheckout>>
+>;
+export type StartCheckoutMutationBody = BodyType<StartCheckoutBody>;
+export type StartCheckoutMutationError = ErrorType<void>;
+
+/**
+ * @summary Create a Stripe Checkout session for a subscription tier
+ */
+export const useStartCheckout = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof startCheckout>>,
+    TError,
+    { data: BodyType<StartCheckoutBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof startCheckout>>,
+  TError,
+  { data: BodyType<StartCheckoutBody> },
+  TContext
+> => {
+  return useMutation(getStartCheckoutMutationOptions(options));
+};
+
+/**
+ * @summary Create a Stripe Billing Portal session for the current subscriber
+ */
+export const getOpenBillingPortalUrl = () => {
+  return `/api/billing/portal`;
+};
+
+export const openBillingPortal = async (
+  options?: RequestInit,
+): Promise<CheckoutResult> => {
+  return customFetch<CheckoutResult>(getOpenBillingPortalUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getOpenBillingPortalMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof openBillingPortal>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof openBillingPortal>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["openBillingPortal"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof openBillingPortal>>,
+    void
+  > = () => {
+    return openBillingPortal(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type OpenBillingPortalMutationResult = NonNullable<
+  Awaited<ReturnType<typeof openBillingPortal>>
+>;
+
+export type OpenBillingPortalMutationError = ErrorType<void>;
+
+/**
+ * @summary Create a Stripe Billing Portal session for the current subscriber
+ */
+export const useOpenBillingPortal = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof openBillingPortal>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof openBillingPortal>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getOpenBillingPortalMutationOptions(options));
+};
+
+/**
+ * @summary Get current month AI request usage for the authenticated user
+ */
+export const getGetAiUsageUrl = () => {
+  return `/api/billing/usage`;
+};
+
+export const getAiUsage = async (
+  options?: RequestInit,
+): Promise<AiUsageResult> => {
+  return customFetch<AiUsageResult>(getGetAiUsageUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAiUsageQueryKey = () => {
+  return [`/api/billing/usage`] as const;
+};
+
+export const getGetAiUsageQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAiUsage>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAiUsage>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetAiUsageQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getAiUsage>>> = ({
+    signal,
+  }) => getAiUsage({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAiUsage>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAiUsageQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAiUsage>>
+>;
+export type GetAiUsageQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get current month AI request usage for the authenticated user
+ */
+
+export function useGetAiUsage<
+  TData = Awaited<ReturnType<typeof getAiUsage>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAiUsage>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAiUsageQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}

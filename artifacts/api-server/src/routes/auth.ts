@@ -133,15 +133,24 @@ router.post("/auth/logout", (req, res): void => {
 
 // ── Me ───────────────────────────────────────────────────────────────────────
 
-router.get("/auth/me", (req, res): void => {
+router.get("/auth/me", async (req, res): Promise<void> => {
   if (!req.session.userId) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
+  const [user] = await db
+    .select({ id: usersTable.id, email: usersTable.email, displayName: usersTable.displayName, tier: usersTable.tier })
+    .from(usersTable)
+    .where(eq(usersTable.id, req.session.userId));
+  if (!user) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
   res.json({
-    id: req.session.userId,
-    email: req.session.email ?? "",
-    displayName: req.session.displayName ?? req.session.username ?? "",
+    id: user.id,
+    email: user.email,
+    displayName: user.displayName,
+    tier: user.tier ?? "free",
   });
 });
 

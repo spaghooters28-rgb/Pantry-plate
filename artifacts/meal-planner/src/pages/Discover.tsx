@@ -19,8 +19,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Clock, Flame, ChefHat, ShoppingCart, CheckCircle2, AlertCircle, Users, Sparkles, RefreshCw, Star, BookOpen, ChevronDown, ChevronUp } from "lucide-react";
+import { Clock, Flame, ChefHat, ShoppingCart, CheckCircle2, AlertCircle, Users, Sparkles, RefreshCw, Star, BookOpen, ChevronDown, ChevronUp, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useTier } from "@/contexts/AuthContext";
+import { UpgradeModal } from "@/components/UpgradeModal";
 
 type Meal = {
   id: number;
@@ -100,6 +102,8 @@ export function Discover() {
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiProgress, setAiProgress] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
+  const { isProAi } = useTier();
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
 
   function handleOpenMeal(meal: Meal) {
     setSelectedMeal(meal);
@@ -241,6 +245,14 @@ export function Discover() {
     }
   }
 
+  function handleGenerateAiClick() {
+    if (!isProAi) {
+      setUpgradeModalOpen(true);
+      return;
+    }
+    void handleGenerateAi();
+  }
+
   async function handleGenerateAi() {
     if (aiGenerating) return;
     setAiGenerating(true);
@@ -332,10 +344,10 @@ export function Discover() {
           <p className="text-muted-foreground">Find your next favorite meal.</p>
         </div>
         <Button
-          onClick={handleGenerateAi}
+          onClick={handleGenerateAiClick}
           disabled={aiGenerating}
           className="gap-2 shrink-0"
-          variant="outline"
+          variant={isProAi ? "outline" : "secondary"}
         >
           {aiGenerating ? (
             <>
@@ -356,8 +368,22 @@ export function Discover() {
         </Button>
       </div>
 
-      {/* AI Chat Panel */}
-      <AiChatPanel onAction={handleAiAction} />
+      {/* AI Chat Panel — gated to Pro+AI */}
+      {isProAi ? (
+        <AiChatPanel onAction={handleAiAction} />
+      ) : (
+        <button
+          onClick={() => setUpgradeModalOpen(true)}
+          className="w-full rounded-xl border border-dashed border-border bg-muted/30 hover:bg-muted/60 transition-colors px-5 py-4 flex items-center gap-3 text-sm text-muted-foreground group"
+        >
+          <Lock className="w-4 h-4 shrink-0 group-hover:text-primary transition-colors" />
+          <span className="flex-1 text-left">
+            <span className="font-medium text-foreground">AI Meal Planning Assistant</span>
+            {" — "}chat with an AI to plan your meals, assign dishes to days, and get personalized suggestions.
+          </span>
+          <span className="text-xs font-medium text-primary shrink-0">Pro+AI →</span>
+        </button>
+      )}
 
       {/* AI generation loading banner */}
       {aiGenerating && (
@@ -794,6 +820,12 @@ export function Discover() {
           )}
         </DialogContent>
       </Dialog>
+
+      <UpgradeModal
+        open={upgradeModalOpen}
+        onClose={() => setUpgradeModalOpen(false)}
+        requiredTier="pro_ai"
+      />
     </div>
   );
 }

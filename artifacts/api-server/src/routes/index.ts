@@ -12,6 +12,7 @@ import analyzeRecipeRouter from "./analyze-recipe";
 import historyRouter from "./history";
 import pinsRouter from "./pins";
 import openaiRouter from "./openai/index";
+import billingRouter from "./billing";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(preferencesRouter);
 router.use(historyRouter);
 router.use(pinsRouter);
 router.use(openaiRouter);
+router.use(billingRouter);
 
 export default router;

@@ -3,7 +3,9 @@ import { eq, desc, ilike, and, isNull, or } from "drizzle-orm";
 import { db, pantryItemsTable, mealsTable, ingredientsTable, recipeHistoryTable, weeklyPlansTable, weeklyPlanDaysTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { requireAuth } from "../middleware/requireAuth";
+import { requireTier } from "../middleware/requireTier";
 import { createUserRateLimit, createIpRateLimit } from "../middleware/rateLimit";
+import { checkAndIncrementAiUsage } from "../lib/aiUsage";
 import dns from "dns";
 import net from "net";
 import https from "https";
@@ -47,7 +49,6 @@ function isPrivateIpv6(addr: string): boolean {
   if (lower === "::1") return true;
   if (lower.startsWith("fc") || lower.startsWith("fd")) return true;
   if (lower.startsWith("fe8") || lower.startsWith("fe9") || lower.startsWith("fea") || lower.startsWith("feb")) return true;
-  // IPv4-mapped IPv6 ::ffff:<ipv4>
   const mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
   if (mapped) return isPrivateIpv4(mapped[1]);
   return false;
@@ -59,13 +60,6 @@ function isPrivateAddress(addr: string): boolean {
   return false;
 }
 
-/**
- * Validates the URL and resolves the hostname exactly once.
- * Returns the pinned IP address to use for the actual connection,
- * eliminating the TOCTOU window that DNS rebinding exploits.
- * Throws if the URL is invalid, uses a disallowed scheme, or
- * resolves to any private/internal address.
- */
 async function resolveAndValidateUrl(rawUrl: string): Promise<{ parsed: URL; pinnedIp: string }> {
   let parsed: URL;
   try {
@@ -84,13 +78,11 @@ async function resolveAndValidateUrl(rawUrl: string): Promise<{ parsed: URL; pin
     if (pattern.test(hostname)) throw new Error("Disallowed hostname");
   }
 
-  // If the hostname is already an IP literal, check it directly — no DNS involved
   if (net.isIP(hostname)) {
     if (isPrivateAddress(hostname)) throw new Error("IP address is in a private range");
     return { parsed, pinnedIp: hostname };
   }
 
-  // Resolve DNS once and validate every returned address
   let addresses: dns.LookupAddress[];
   try {
     addresses = await dns.promises.lookup(hostname, { all: true });
@@ -106,27 +98,18 @@ async function resolveAndValidateUrl(rawUrl: string): Promise<{ parsed: URL; pin
     if (isPrivateAddress(address)) throw new Error("Hostname resolves to a private address");
   }
 
-  // Pin to the first resolved address — the actual TCP connection will use this
-  // IP directly so the hostname cannot be rebound between check and fetch.
   return { parsed, pinnedIp: addresses[0].address };
 }
 
-/**
- * Fetches the URL using the pre-resolved, pre-validated IP address so DNS
- * is never re-queried at fetch time. For HTTPS the original hostname is used
- * for SNI and the Host header so TLS validation and vhosts work correctly.
- */
 function fetchWithPinnedIp(parsed: URL, pinnedIp: string): Promise<{ ok: boolean; status: number; text: () => Promise<string> }> {
   const isHttps = parsed.protocol === "https:";
   const port = parsed.port ? parseInt(parsed.port, 10) : (isHttps ? 443 : 80);
   const path = parsed.pathname + parsed.search;
   const hostname = parsed.hostname;
-  // Include non-standard ports in the Host header
   const hostHeader = parsed.port ? `${hostname}:${parsed.port}` : hostname;
 
   return new Promise((resolve, reject) => {
     const options = {
-      // Connect to the pinned IP — no re-resolution happens here
       host: pinnedIp,
       port,
       path,
@@ -136,13 +119,11 @@ function fetchWithPinnedIp(parsed: URL, pinnedIp: string): Promise<{ ok: boolean
         "User-Agent": "Mozilla/5.0 (compatible; PantryPlateBot/1.0)",
         "Accept": "text/html,application/xhtml+xml",
       },
-      // SNI hostname for TLS (must be the original hostname, not the IP)
       servername: hostname,
       timeout: 10000,
     };
 
     const req = (isHttps ? https : http).request(options, (res: IncomingMessage) => {
-      // Reject any redirect — prevents redirect-based SSRF chaining
       const status = res.statusCode ?? 0;
       if (status >= 300 && status < 400) {
         req.destroy();
@@ -173,7 +154,19 @@ function fetchWithPinnedIp(parsed: URL, pinnedIp: string): Promise<{ ok: boolean
   });
 }
 
-router.post("/meals/analyze-recipe", requireAuth, analyzeIpRateLimit, analyzeRateLimit, async (req, res): Promise<void> => {
+router.post("/meals/analyze-recipe", requireAuth, requireTier("pro_ai"), analyzeIpRateLimit, analyzeRateLimit, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
+
+  const usage = await checkAndIncrementAiUsage(userId);
+  if (!usage.allowed) {
+    res.status(429).json({
+      error: `Monthly AI limit reached (${usage.cap} requests/month). Resets next month.`,
+      used: usage.used,
+      cap: usage.cap,
+    });
+    return;
+  }
+
   const { url } = req.body as { url?: string };
 
   if (!url || typeof url !== "string") {
@@ -325,7 +318,7 @@ function getWeekStart(): string {
   return monday.toISOString().split("T")[0];
 }
 
-router.post("/meals/save-recipe", requireAuth, async (req, res): Promise<void> => {
+router.post("/meals/save-recipe", requireAuth, requireTier("pro"), async (req, res): Promise<void> => {
   const userId = req.session.userId!;
 
   const body = req.body as {
@@ -354,9 +347,6 @@ router.post("/meals/save-recipe", requireAuth, async (req, res): Promise<void> =
   const instructions = body.instructions ?? null;
   const sourceUrl = body.sourceUrl ?? null;
 
-  // Prevent duplicate meals for this user: if same name exists and belongs to
-  // this user (or is a seeded meal), reuse it; otherwise create a new one scoped
-  // to this user so we never write into another user's namespace.
   const [existingMeal] = await db
     .select()
     .from(mealsTable)
@@ -384,7 +374,6 @@ router.post("/meals/save-recipe", requireAuth, async (req, res): Promise<void> =
     createdByUserId: userId,
   }).returning())[0];
 
-  // Only insert ingredients for brand-new meals (not when reusing an existing one)
   if (!existingMeal && Array.isArray(body.ingredients) && body.ingredients.length > 0) {
     await db.insert(ingredientsTable).values(
       body.ingredients.map((ing) => ({
@@ -398,7 +387,6 @@ router.post("/meals/save-recipe", requireAuth, async (req, res): Promise<void> =
     );
   }
 
-  // Upsert history scoped to this user — skip if already saved under this name for this user
   const [existingHistory] = await db
     .select()
     .from(recipeHistoryTable)
@@ -425,7 +413,6 @@ router.post("/meals/save-recipe", requireAuth, async (req, res): Promise<void> =
   }
 
   if (body.assignToDay && ALL_DAYS.includes(body.assignToDay)) {
-    // Scope the weekly plan lookup to the authenticated user
     let plan = (
       await db
         .select()

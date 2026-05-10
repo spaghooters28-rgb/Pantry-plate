@@ -1,6 +1,8 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
-export type AuthUser = { id: number; email: string; displayName: string };
+export type Tier = "free" | "pro" | "pro_ai";
+
+export type AuthUser = { id: number; email: string; displayName: string; tier: Tier };
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -11,6 +13,9 @@ type AuthContextValue = {
   forgotPassword: (email: string) => Promise<void>;
   resetPassword: (token: string, password: string) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  startCheckout: (tier: "pro" | "pro_ai") => void;
+  openPortal: () => void;
+  refreshUser: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -19,13 +24,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
+  async function fetchUser(): Promise<AuthUser | null> {
+    try {
+      const r = await fetch("/api/auth/me", { credentials: "include" });
+      if (!r.ok) return null;
+      return await r.json() as AuthUser;
+    } catch {
+      return null;
+    }
+  }
+
   useEffect(() => {
-    fetch("/api/auth/me", { credentials: "include" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: AuthUser | null) => setUser(data))
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false));
+    fetchUser().then(setUser).finally(() => setLoading(false));
   }, []);
+
+  async function refreshUser() {
+    const data = await fetchUser();
+    setUser(data);
+  }
 
   async function login(email: string, password: string) {
     const r = await fetch("/api/auth/login", {
@@ -99,8 +115,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  function startCheckout(tier: "pro" | "pro_ai") {
+    fetch("/api/billing/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ tier }),
+    })
+      .then((r) => r.json())
+      .then((data: { url?: string; error?: string }) => {
+        if (data.url) {
+          window.location.href = data.url;
+        } else {
+          alert(data.error ?? "Could not start checkout. Please try again.");
+        }
+      })
+      .catch(() => {
+        alert("Could not start checkout. Please try again.");
+      });
+  }
+
+  function openPortal() {
+    fetch("/api/billing/portal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    })
+      .then((r) => r.json())
+      .then((data: { url?: string; error?: string }) => {
+        if (data.url) {
+          window.location.href = data.url;
+        } else {
+          alert(data.error ?? "Could not open billing portal. Please try again.");
+        }
+      })
+      .catch(() => {
+        alert("Could not open billing portal. Please try again.");
+      });
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, forgotPassword, resetPassword, changePassword }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, forgotPassword, resetPassword, changePassword, startCheckout, openPortal, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
@@ -110,4 +165,15 @@ export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
+}
+
+export function useTier() {
+  const { user } = useAuth();
+  const tier = user?.tier ?? "free";
+  return {
+    tier,
+    isPro: tier === "pro" || tier === "pro_ai",
+    isProAi: tier === "pro_ai",
+    isFree: tier === "free",
+  };
 }

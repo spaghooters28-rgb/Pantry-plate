@@ -37,6 +37,7 @@ export const LoginResponse = zod.object({
   id: zod.number(),
   email: zod.string().email(),
   displayName: zod.string(),
+  tier: zod.string().describe("Subscription tier: free | pro | pro_ai"),
 });
 
 /**
@@ -53,6 +54,7 @@ export const GetMeResponse = zod.object({
   id: zod.number(),
   email: zod.string().email(),
   displayName: zod.string(),
+  tier: zod.string().describe("Subscription tier: free | pro | pro_ai"),
 });
 
 /**
@@ -1200,4 +1202,31 @@ export const SendOpenaiMessageParams = zod.object({
 
 export const SendOpenaiMessageBody = zod.object({
   content: zod.string(),
+});
+
+/**
+ * @summary Create a Stripe Checkout session for a subscription tier
+ */
+export const StartCheckoutBody = zod.object({
+  tier: zod.string().describe("pro | pro_ai"),
+});
+
+export const StartCheckoutResponse = zod.object({
+  url: zod.string().describe("Stripe-hosted redirect URL"),
+});
+
+/**
+ * @summary Create a Stripe Billing Portal session for the current subscriber
+ */
+export const OpenBillingPortalResponse = zod.object({
+  url: zod.string().describe("Stripe-hosted redirect URL"),
+});
+
+/**
+ * @summary Get current month AI request usage for the authenticated user
+ */
+export const GetAiUsageResponse = zod.object({
+  used: zod.number().describe("Number of AI requests used this month"),
+  cap: zod.number().describe("Monthly cap for this tier"),
+  yearMonth: zod.string().describe("YYYY-MM of the current billing period"),
 });

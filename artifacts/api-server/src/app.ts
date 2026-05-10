@@ -4,6 +4,7 @@ import pinoHttp from "pino-http";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import router from "./routes";
+import { handleStripeWebhook } from "./routes/billing";
 import { logger } from "./lib/logger";
 import { pool } from "@workspace/db";
 import { allowedOrigins } from "./middleware/originCheck";
@@ -13,8 +14,6 @@ const PgSession = connectPgSimple(session);
 const app: Express = express();
 
 // Trust Replit's reverse proxy so req.secure is true in production
-// (without this, express-session won't send Secure cookies because the
-// internal connection is HTTP even though the external one is HTTPS)
 app.set("trust proxy", 1);
 
 app.use(
@@ -58,6 +57,10 @@ app.use(
     credentials: true,
   }),
 );
+
+// Stripe webhook must receive the raw request body BEFORE express.json() parses it
+app.post("/api/billing/webhook", express.raw({ type: "application/json" }), handleStripeWebhook);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -119,6 +122,32 @@ pool.query(`
   );
 `).catch((err: unknown) => {
   logger.error({ err }, "Failed to run email auth migrations");
+});
+
+// Billing & subscription migration
+pool.query(`
+  ALTER TABLE "users"
+    ADD COLUMN IF NOT EXISTS "tier" text NOT NULL DEFAULT 'free';
+  ALTER TABLE "users"
+    ADD COLUMN IF NOT EXISTS "stripe_customer_id" text;
+
+  CREATE TABLE IF NOT EXISTS "subscription_events" (
+    "id" serial PRIMARY KEY,
+    "stripe_event_id" text NOT NULL UNIQUE,
+    "user_id" integer REFERENCES "users"("id") ON DELETE SET NULL,
+    "event_type" text NOT NULL,
+    "tier" text,
+    "processed_at" timestamptz NOT NULL DEFAULT now()
+  );
+
+  CREATE TABLE IF NOT EXISTS "ai_usage" (
+    "user_id" integer NOT NULL,
+    "year_month" text NOT NULL,
+    "count" integer NOT NULL DEFAULT 0,
+    PRIMARY KEY ("user_id", "year_month")
+  );
+`).catch((err: unknown) => {
+  logger.error({ err }, "Failed to run billing migrations");
 });
 
 app.use(

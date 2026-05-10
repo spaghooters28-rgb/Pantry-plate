@@ -9,6 +9,8 @@ export interface AuthUser {
   id: number;
   email: string;
   displayName: string;
+  /** Subscription tier: free | pro | pro_ai */
+  tier: string;
 }
 
 export interface OkResponse {
@@ -408,6 +410,25 @@ export interface UpdateScheduledItemBody {
   scheduleDaysInterval?: number | null;
   isActive?: boolean | null;
   nextDueDate?: string | null;
+}
+
+export interface StartCheckoutBody {
+  /** pro | pro_ai */
+  tier: string;
+}
+
+export interface CheckoutResult {
+  /** Stripe-hosted redirect URL */
+  url: string;
+}
+
+export interface AiUsageResult {
+  /** Number of AI requests used this month */
+  used: number;
+  /** Monthly cap for this tier */
+  cap: number;
+  /** YYYY-MM of the current billing period */
+  yearMonth: string;
 }
 
 export type ListMealsParams = {

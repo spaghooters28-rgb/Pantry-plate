@@ -7,6 +7,7 @@ import {
   ToggleMealFavoriteParams,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middleware/requireAuth";
+import { requireTier } from "../middleware/requireTier";
 import { z } from "zod";
 
 const CustomIngredientSchema = z.object({
@@ -248,7 +249,7 @@ router.post("/meals/:id/toggle-favorite", requireAuth, async (req, res): Promise
   res.json(await buildMealResponse(meal, favoritedIds));
 });
 
-router.post("/meals/custom", requireAuth, async (req, res): Promise<void> => {
+router.post("/meals/custom", requireAuth, requireTier("pro"), async (req, res): Promise<void> => {
   const userId = req.session.userId as number;
   const parsed = CreateCustomMealSchema.safeParse(req.body);
   if (!parsed.success) {

@@ -7,7 +7,9 @@ import {
   SendOpenaiMessageBody,
 } from "@workspace/api-zod";
 import { requireAuth } from "../../middleware/requireAuth";
+import { requireTier } from "../../middleware/requireTier";
 import { createUserRateLimit } from "../../middleware/rateLimit";
+import { checkAndIncrementAiUsage } from "../../lib/aiUsage";
 
 const router: IRouter = Router();
 
@@ -44,7 +46,7 @@ Available days: sunday, monday, tuesday, wednesday, thursday, friday, saturday
 Use lowercase day names only. Use the exact meal name as you referred to it in the conversation. Include ACTION blocks at the very end of your response, after your normal text. Only emit ACTION blocks when the user explicitly requests an assignment or favorite action.`;
 }
 
-router.get("/openai/conversations", requireAuth, async (req, res): Promise<void> => {
+router.get("/openai/conversations", requireAuth, requireTier("pro_ai"), async (req, res): Promise<void> => {
   const userId = req.session.userId!;
   const rows = await db
     .select()
@@ -54,7 +56,7 @@ router.get("/openai/conversations", requireAuth, async (req, res): Promise<void>
   res.json(rows);
 });
 
-router.post("/openai/conversations", requireAuth, async (req, res): Promise<void> => {
+router.post("/openai/conversations", requireAuth, requireTier("pro_ai"), async (req, res): Promise<void> => {
   const userId = req.session.userId!;
   const parsed = CreateOpenaiConversationBody.safeParse(req.body);
   if (!parsed.success) {
@@ -68,7 +70,7 @@ router.post("/openai/conversations", requireAuth, async (req, res): Promise<void
   res.status(201).json(conv);
 });
 
-router.get("/openai/conversations/:id", requireAuth, async (req, res): Promise<void> => {
+router.get("/openai/conversations/:id", requireAuth, requireTier("pro_ai"), async (req, res): Promise<void> => {
   const userId = req.session.userId!;
   const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) {
@@ -91,7 +93,7 @@ router.get("/openai/conversations/:id", requireAuth, async (req, res): Promise<v
   res.json({ ...conv, messages: msgs });
 });
 
-router.delete("/openai/conversations/:id", requireAuth, async (req, res): Promise<void> => {
+router.delete("/openai/conversations/:id", requireAuth, requireTier("pro_ai"), async (req, res): Promise<void> => {
   const userId = req.session.userId!;
   const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) {
@@ -109,7 +111,7 @@ router.delete("/openai/conversations/:id", requireAuth, async (req, res): Promis
   res.status(204).end();
 });
 
-router.get("/openai/conversations/:id/messages", requireAuth, async (req, res): Promise<void> => {
+router.get("/openai/conversations/:id/messages", requireAuth, requireTier("pro_ai"), async (req, res): Promise<void> => {
   const userId = req.session.userId!;
   const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) {
@@ -132,11 +134,22 @@ router.get("/openai/conversations/:id/messages", requireAuth, async (req, res): 
   res.json(msgs);
 });
 
-router.post("/openai/conversations/:id/messages", requireAuth, messageSendRateLimit, async (req, res): Promise<void> => {
+router.post("/openai/conversations/:id/messages", requireAuth, requireTier("pro_ai"), messageSendRateLimit, async (req, res): Promise<void> => {
   const userId = req.session.userId!;
   const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+
+  // Monthly AI usage cap
+  const usage = await checkAndIncrementAiUsage(userId);
+  if (!usage.allowed) {
+    res.status(429).json({
+      error: `Monthly AI limit reached (${usage.cap} requests/month). Resets next month.`,
+      used: usage.used,
+      cap: usage.cap,
+    });
     return;
   }
 

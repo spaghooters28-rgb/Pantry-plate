@@ -6,5 +6,6 @@ declare module "express-session" {
     username?: string;
     email?: string;
     displayName?: string;
+    tier?: string;
   }
 }

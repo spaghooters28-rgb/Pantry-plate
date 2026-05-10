@@ -30,6 +30,8 @@ tags:
     description: Cooking Board pinned items
   - name: openai
     description: OpenAI AI chat operations
+  - name: billing
+    description: Subscription billing and Stripe integration
 
 paths:
   /healthz:
@@ -1089,6 +1091,57 @@ paths:
           content:
             text/event-stream: {}
 
+  # ── BILLING ────────────────────────────────────────────────────────────────
+
+  /billing/checkout:
+    post:
+      operationId: startCheckout
+      tags: [billing]
+      summary: Create a Stripe Checkout session for a subscription tier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartCheckoutBody"
+      responses:
+        "200":
+          description: Checkout session URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutResult"
+        "503":
+          description: Stripe not configured
+
+  /billing/portal:
+    post:
+      operationId: openBillingPortal
+      tags: [billing]
+      summary: Create a Stripe Billing Portal session for the current subscriber
+      responses:
+        "200":
+          description: Portal session URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutResult"
+        "400":
+          description: No active subscription
+
+  /billing/usage:
+    get:
+      operationId: getAiUsage
+      tags: [billing]
+      summary: Get current month AI request usage for the authenticated user
+      responses:
+        "200":
+          description: AI usage stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiUsageResult"
+
 components:
   schemas:
     # ── AUTH ────────────────────────────────────────────────────────────────
@@ -1103,7 +1156,10 @@ components:
           format: email
         displayName:
           type: string
-      required: [id, email, displayName]
+        tier:
+          type: string
+          description: "Subscription tier: free | pro | pro_ai"
+      required: [id, email, displayName, tier]
 
     OkResponse:
       type: object
@@ -2006,3 +2062,35 @@ components:
           type: string
           format: date
           nullable: true
+
+    # ── BILLING ─────────────────────────────────────────────────────────────
+
+    StartCheckoutBody:
+      type: object
+      properties:
+        tier:
+          type: string
+          description: "pro | pro_ai"
+      required: [tier]
+
+    CheckoutResult:
+      type: object
+      properties:
+        url:
+          type: string
+          description: Stripe-hosted redirect URL
+      required: [url]
+
+    AiUsageResult:
+      type: object
+      properties:
+        used:
+          type: integer
+          description: Number of AI requests used this month
+        cap:
+          type: integer
+          description: Monthly cap for this tier
+        yearMonth:
+          type: string
+          description: "YYYY-MM of the current billing period"
+      required: [used, cap, yearMonth]

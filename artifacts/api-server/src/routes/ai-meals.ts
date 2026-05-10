@@ -3,7 +3,9 @@ import { eq, and, isNull, or } from "drizzle-orm";
 import { db, mealsTable, ingredientsTable, sidesTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { requireAuth } from "../middleware/requireAuth";
+import { requireTier } from "../middleware/requireTier";
 import { createUserRateLimit, createIpRateLimit } from "../middleware/rateLimit";
+import { checkAndIncrementAiUsage } from "../lib/aiUsage";
 
 const router: IRouter = Router();
 
@@ -105,7 +107,6 @@ async function generateAndSaveMeal(
 
   if (!suggestion.name || existingNames.includes(suggestion.name)) return null;
 
-  // Apply filters on server side in case AI ignored them
   if (cuisineFilter && suggestion.cuisine !== cuisineFilter) {
     suggestion.cuisine = cuisineFilter;
   }
@@ -175,9 +176,20 @@ async function generateAndSaveMeal(
 const generateAiRateLimit = createUserRateLimit(5, 60 * 60 * 1000);
 const generateAiIpRateLimit = createIpRateLimit(10, 60 * 60 * 1000);
 
-// SSE streaming endpoint — generates meals one-by-one and streams each as it's saved
-router.post("/meals/generate-ai", requireAuth, generateAiIpRateLimit, generateAiRateLimit, async (req, res): Promise<void> => {
+router.post("/meals/generate-ai", requireAuth, requireTier("pro_ai"), generateAiIpRateLimit, generateAiRateLimit, async (req, res): Promise<void> => {
   const userId = req.session.userId!;
+
+  // Monthly AI cap check
+  const usage = await checkAndIncrementAiUsage(userId);
+  if (!usage.allowed) {
+    res.status(429).json({
+      error: `Monthly AI limit reached (${usage.cap} requests/month). Resets next month.`,
+      used: usage.used,
+      cap: usage.cap,
+    });
+    return;
+  }
+
   const { cuisine, protein, glutenFree, count = 5 } = req.body ?? {};
 
   const cuisineFilter = typeof cuisine === "string" && cuisine ? cuisine : null;
@@ -185,15 +197,12 @@ router.post("/meals/generate-ai", requireAuth, generateAiIpRateLimit, generateAi
   const glutenFreeFilter = typeof glutenFree === "boolean" ? glutenFree : null;
   const mealCount = Math.min(Math.max(Number(count) || 5, 1), 8);
 
-  // SSE headers — keeps connection alive through the proxy
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
   res.setHeader("X-Accel-Buffering", "no");
   res.flushHeaders();
 
-  // Load names from seeded catalog (createdByUserId IS NULL) and this user's
-  // own generated meals to avoid duplicates, without exposing other users' data.
   const existingRows = await db
     .select({ name: mealsTable.name })
     .from(mealsTable)

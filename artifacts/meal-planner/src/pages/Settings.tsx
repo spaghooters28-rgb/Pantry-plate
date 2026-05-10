@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Trash2, Settings as SettingsIcon, Bell, BellOff, FlaskConical, LogOut, Eye, EyeOff, KeyRound } from "lucide-react";
+import { Trash2, Settings as SettingsIcon, Bell, BellOff, FlaskConical, LogOut, Eye, EyeOff, KeyRound, CreditCard, Check, Sparkles, Zap, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   loadReminderSettings,
@@ -24,23 +25,35 @@ import {
   sendTestNotification,
   type ReminderSettings,
 } from "@/hooks/useProteinReminder";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, useTier } from "@/contexts/AuthContext";
+import { UpgradeModal } from "@/components/UpgradeModal";
+
+const TIER_LABELS: Record<string, string> = {
+  free: "Free",
+  pro: "Pro",
+  pro_ai: "Pro+AI",
+};
+
+const TIER_DESCRIPTIONS: Record<string, string> = {
+  free: "Basic meal planning features",
+  pro: "All premium features — $2/month",
+  pro_ai: "Everything + AI assistant — $4.99/month",
+};
 
 export function Settings() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { user, logout, changePassword } = useAuth();
+  const { user, logout, changePassword, startCheckout, openPortal } = useAuth();
+  const { tier, isPro, isProAi, isFree } = useTier();
 
   const [confirmGrocery, setConfirmGrocery] = useState(false);
   const [confirmPantry, setConfirmPantry] = useState(false);
   const [clearingGrocery, setClearingGrocery] = useState(false);
   const [clearingPantry, setClearingPantry] = useState(false);
 
-  // Reminder settings
   const [reminder, setReminder] = useState<ReminderSettings>({ enabled: false, time: "18:00" });
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>("default");
 
-  // Change password
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -48,17 +61,33 @@ export function Settings() {
   const [showNew, setShowNew] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
 
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [upgradeTarget, setUpgradeTarget] = useState<"pro" | "pro_ai">("pro");
+
   useEffect(() => {
     setReminder(loadReminderSettings());
     if ("Notification" in window) setNotifPermission(Notification.permission);
+
+    // Handle Stripe redirect back with subscription status
+    const params = new URLSearchParams(window.location.search);
+    const subStatus = params.get("subscription");
+    if (subStatus === "success") {
+      toast({ title: "Subscription activated!", description: "Your plan has been upgraded. It may take a moment to reflect." });
+      const url = new URL(window.location.href);
+      url.searchParams.delete("subscription");
+      window.history.replaceState({}, "", url.toString());
+    } else if (subStatus === "cancelled") {
+      toast({ title: "Checkout cancelled", description: "No charges were made." });
+      const url = new URL(window.location.href);
+      url.searchParams.delete("subscription");
+      window.history.replaceState({}, "", url.toString());
+    }
   }, []);
 
   const VALID_TIME_RE = /^\d{2}:\d{2}$/;
 
   function updateReminder(patch: Partial<ReminderSettings>) {
-    if ("time" in patch && !VALID_TIME_RE.test(patch.time ?? "")) {
-      return;
-    }
+    if ("time" in patch && !VALID_TIME_RE.test(patch.time ?? "")) return;
     const next = { ...reminder, ...patch };
     setReminder(next);
     saveReminderSettings(next);
@@ -85,7 +114,7 @@ export function Settings() {
     }
     const result = await sendTestNotification();
     if (result === "sent") {
-      toast({ title: "Test notification sent!", description: "Check your notifications — if you don't see it, open the app in a real browser tab." });
+      toast({ title: "Test notification sent!", description: "Check your notifications." });
     } else if (result === "not-supported") {
       toast({ title: "Not supported", description: "Your browser doesn't support notifications.", variant: "destructive" });
     } else {
@@ -147,7 +176,6 @@ export function Settings() {
 
   const permissionDenied = notifPermission === "denied";
   const permissionGranted = notifPermission === "granted";
-
   const isPlaceholderEmail = user?.email?.endsWith("@placeholder.pantryplate.local");
 
   return (
@@ -157,14 +185,13 @@ export function Settings() {
           <SettingsIcon className="w-7 h-7" />
           Settings
         </h1>
-        <p className="text-muted-foreground">Manage your app data and preferences.</p>
+        <p className="text-muted-foreground">Manage your account, subscription, and preferences.</p>
       </div>
 
       {/* ── Account ── */}
       <div className="space-y-4">
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Account</h2>
 
-        {/* Profile info */}
         <Card>
           <CardContent className="p-5 space-y-3">
             <div className="flex items-start justify-between gap-4">
@@ -190,7 +217,6 @@ export function Settings() {
           </CardContent>
         </Card>
 
-        {/* Change Password */}
         <Card>
           <CardHeader className="pb-3 pt-5 px-5">
             <div className="flex items-center justify-between">
@@ -238,7 +264,6 @@ export function Settings() {
                     </button>
                   </div>
                 </div>
-
                 <div className="space-y-1.5">
                   <Label htmlFor="newPw">New Password</Label>
                   <div className="relative">
@@ -263,7 +288,6 @@ export function Settings() {
                     </button>
                   </div>
                 </div>
-
                 <Button
                   type="submit"
                   size="sm"
@@ -282,6 +306,116 @@ export function Settings() {
               </form>
             </CardContent>
           )}
+        </Card>
+      </div>
+
+      {/* ── Subscription ── */}
+      <div className="space-y-4">
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Subscription</h2>
+
+        {/* Current plan */}
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  {tier === "pro_ai" ? (
+                    <Zap className="w-4 h-4 text-amber-500" />
+                  ) : tier === "pro" ? (
+                    <Sparkles className="w-4 h-4 text-primary" />
+                  ) : (
+                    <CreditCard className="w-4 h-4 text-muted-foreground" />
+                  )}
+                  <p className="font-semibold text-base">
+                    {TIER_LABELS[tier] ?? "Free"} Plan
+                  </p>
+                  {!isFree && (
+                    <Badge variant="secondary" className="text-xs">Active</Badge>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">{TIER_DESCRIPTIONS[tier]}</p>
+              </div>
+              {!isFree && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 gap-1.5"
+                  onClick={openPortal}
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Manage
+                </Button>
+              )}
+            </div>
+
+            {isFree && (
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5 w-full"
+                    onClick={() => { setUpgradeTarget("pro"); setUpgradeModalOpen(true); }}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Upgrade to Pro — $2/mo
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="gap-1.5 w-full"
+                    onClick={() => { setUpgradeTarget("pro_ai"); setUpgradeModalOpen(true); }}
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                    Pro+AI — $4.99/mo
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground text-center">Cancel anytime. Billed via Stripe.</p>
+              </div>
+            )}
+
+            {tier === "pro" && (
+              <Button
+                size="sm"
+                className="gap-1.5 w-full"
+                onClick={() => startCheckout("pro_ai")}
+              >
+                <Zap className="w-3.5 h-3.5" />
+                Upgrade to Pro+AI — $4.99/mo
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Features comparison */}
+        <Card>
+          <CardContent className="p-5 space-y-3">
+            <p className="text-sm font-medium">What's included</p>
+            <div className="space-y-2 text-sm">
+              {[
+                { label: "Basic meal planning & discovery", tiers: ["free", "pro", "pro_ai"] },
+                { label: "Grocery list & pantry tracking", tiers: ["free", "pro", "pro_ai"] },
+                { label: "Weekly meal plan generation", tiers: ["free", "pro", "pro_ai"] },
+                { label: "Custom recipe creation", tiers: ["pro", "pro_ai"] },
+                { label: "Recipe analyzer (import from URL)", tiers: ["pro_ai"] },
+                { label: "Grocery scheduling & reminders", tiers: ["pro", "pro_ai"] },
+                { label: "AI meal planning assistant", tiers: ["pro_ai"] },
+                { label: "AI-generated meal ideas", tiers: ["pro_ai"] },
+              ].map(({ label, tiers }) => {
+                const included = tiers.includes(tier);
+                return (
+                  <div key={label} className={`flex items-center gap-2 ${included ? "" : "opacity-40"}`}>
+                    <Check className={`w-3.5 h-3.5 shrink-0 ${included ? "text-primary" : "text-muted-foreground"}`} />
+                    <span>{label}</span>
+                    {!included && (
+                      <Badge variant="outline" className="text-xs ml-auto">
+                        {tiers.includes("pro_ai") && !tiers.includes("pro") ? "Pro+AI" : "Pro"}
+                      </Badge>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
         </Card>
       </div>
 
@@ -305,7 +439,6 @@ export function Settings() {
               />
             </div>
 
-            {/* Reminder time */}
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="font-medium text-sm mb-0.5">Reminder Time</p>
@@ -319,7 +452,6 @@ export function Settings() {
               />
             </div>
 
-            {/* Permission & test */}
             <div className="flex flex-wrap gap-2 pt-1 border-t">
               {!permissionGranted ? (
                 <Button
@@ -414,7 +546,6 @@ export function Settings() {
         </Card>
       </div>
 
-      {/* Clear Grocery Confirmation */}
       <AlertDialog open={confirmGrocery} onOpenChange={setConfirmGrocery}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -436,7 +567,6 @@ export function Settings() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Clear Pantry Confirmation */}
       <AlertDialog open={confirmPantry} onOpenChange={setConfirmPantry}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -457,6 +587,12 @@ export function Settings() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <UpgradeModal
+        open={upgradeModalOpen}
+        onClose={() => setUpgradeModalOpen(false)}
+        requiredTier={upgradeTarget}
+      />
     </div>
   );
 }
