@@ -17,7 +17,7 @@ const CustomIngredientSchema = z.object({
 });
 
 const CreateCustomMealSchema = z.object({
-  name: z.string().min(1, "name is required"),
+  name: z.string().trim().min(1, "name is required"),
   description: z.string().optional().default(""),
   cuisine: z.string().optional().default("Other"),
   protein: z.string().optional().default("Other"),
