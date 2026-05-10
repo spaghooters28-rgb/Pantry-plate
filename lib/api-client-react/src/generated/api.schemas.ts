@@ -139,6 +139,12 @@ export interface Meal {
   tags: string[];
 }
 
+export interface ListMealsResponse {
+  meals: Meal[];
+  /** Number of additional meals locked behind a Pro upgrade (0 for Pro/Pro+AI users) */
+  lockedCount: number;
+}
+
 export interface WeeklyPlanDay {
   day: string;
   meal?: Meal | null;

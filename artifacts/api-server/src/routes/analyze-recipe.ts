@@ -320,7 +320,7 @@ function getWeekStart(): string {
   return monday.toISOString().split("T")[0];
 }
 
-router.post("/meals/save-recipe", requireAuth, requireTier("pro"), async (req, res): Promise<void> => {
+router.post("/meals/save-recipe", requireAuth, requireTier("pro_ai"), async (req, res): Promise<void> => {
   const userId = req.session.userId!;
 
   const body = req.body as {

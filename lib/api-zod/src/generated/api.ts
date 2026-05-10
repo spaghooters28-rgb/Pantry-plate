@@ -112,41 +112,49 @@ export const ListMealsQueryParams = zod.object({
   side: zod.coerce.string().optional().describe("Filter by side dish type"),
 });
 
-export const ListMealsResponseItem = zod.object({
-  id: zod.number(),
-  name: zod.string(),
-  description: zod.string(),
-  cuisine: zod.string(),
-  protein: zod.string(),
-  isGlutenFree: zod.boolean(),
-  cookTimeMinutes: zod.number(),
-  servings: zod.number(),
-  calories: zod.number(),
-  imageUrl: zod.string().nullish(),
-  isFavorited: zod.boolean(),
-  instructions: zod.string().nullish(),
-  ingredients: zod.array(
-    zod.object({
-      id: zod.number(),
-      name: zod.string(),
-      quantity: zod.string(),
-      unit: zod.string(),
-      category: zod.string().describe("produce, dairy, meat, pantry, etc."),
-      isCommonPantryItem: zod
-        .boolean()
-        .describe("Common spices\/staples likely already in pantry"),
-    }),
-  ),
-  availableSides: zod.array(
+export const ListMealsResponse = zod.object({
+  meals: zod.array(
     zod.object({
       id: zod.number(),
       name: zod.string(),
       description: zod.string(),
+      cuisine: zod.string(),
+      protein: zod.string(),
+      isGlutenFree: zod.boolean(),
+      cookTimeMinutes: zod.number(),
+      servings: zod.number(),
+      calories: zod.number(),
+      imageUrl: zod.string().nullish(),
+      isFavorited: zod.boolean(),
+      instructions: zod.string().nullish(),
+      ingredients: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+          quantity: zod.string(),
+          unit: zod.string(),
+          category: zod.string().describe("produce, dairy, meat, pantry, etc."),
+          isCommonPantryItem: zod
+            .boolean()
+            .describe("Common spices\/staples likely already in pantry"),
+        }),
+      ),
+      availableSides: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+          description: zod.string(),
+        }),
+      ),
+      tags: zod.array(zod.string()),
     }),
   ),
-  tags: zod.array(zod.string()),
+  lockedCount: zod
+    .number()
+    .describe(
+      "Number of additional meals locked behind a Pro upgrade (0 for Pro\/Pro+AI users)",
+    ),
 });
-export const ListMealsResponse = zod.array(ListMealsResponseItem);
 
 /**
  * @summary Get a single meal with full ingredients

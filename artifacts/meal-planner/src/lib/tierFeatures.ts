@@ -31,7 +31,7 @@ export const UPGRADE_PRO_AI_FEATURES: string[] = [
 // ── Landing page pricing table lists ────────────────────────────────────────
 
 export const LANDING_FREE_FEATURES: string[] = [
-  "Browse 15+ meals & recipes",
+  "Access to 100 curated recipes",
   "Weekly meal plan generation",
   "Grocery list with categories",
   "Pantry tracking",
@@ -40,6 +40,7 @@ export const LANDING_FREE_FEATURES: string[] = [
 
 export const LANDING_PRO_FEATURES: string[] = [
   "Everything in Free",
+  "Full access to all 726+ recipes",
   "Custom recipe creation",
   "Grocery scheduling & reminders",
   "Recurring auto-add groceries",

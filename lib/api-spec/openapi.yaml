@@ -213,9 +213,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Meal"
+                $ref: "#/components/schemas/ListMealsResponse"
 
   /meals/{id}:
     get:
@@ -1399,6 +1397,18 @@ components:
           matchScore,
           missingIngredients,
         ]
+
+    ListMealsResponse:
+      type: object
+      properties:
+        meals:
+          type: array
+          items:
+            $ref: "#/components/schemas/Meal"
+        lockedCount:
+          type: integer
+          description: Number of additional meals locked behind a Pro upgrade (0 for Pro/Pro+AI users)
+      required: [meals, lockedCount]
 
     Meal:
       type: object

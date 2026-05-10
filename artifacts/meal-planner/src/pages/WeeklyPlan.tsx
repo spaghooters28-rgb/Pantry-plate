@@ -188,7 +188,8 @@ export function WeeklyPlan() {
     });
   }
 
-  const { data: allMeals } = useListMeals({}, { query: { queryKey: getListMealsQueryKey({}), staleTime: 5 * 60 * 1000 } });
+  const { data: listMealsData } = useListMeals({}, { query: { queryKey: getListMealsQueryKey({}), staleTime: 5 * 60 * 1000 } });
+  const allMeals = listMealsData?.meals;
   const { data: cuisines } = useListCuisines();
   const { data: proteins } = useListProteins();
 

@@ -7,7 +7,7 @@ import {
   ToggleMealFavoriteParams,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middleware/requireAuth";
-import { requireTier } from "../middleware/requireTier";
+import { requireTier, getUserTier } from "../middleware/requireTier";
 import { z } from "zod";
 
 const CustomIngredientSchema = z.object({
@@ -78,6 +78,8 @@ function catalogVisibilityCondition(userId: number | undefined) {
   return isNull(mealsTable.createdByUserId);
 }
 
+const FREE_MEAL_CAP = 100;
+
 router.get("/meals", async (req, res): Promise<void> => {
   const params = ListMealsQueryParams.safeParse(req.query);
   if (!params.success) {
@@ -88,19 +90,28 @@ router.get("/meals", async (req, res): Promise<void> => {
   const { cuisine, protein, glutenFree } = params.data;
   const userId = req.session?.userId as number | undefined;
 
+  const tier = userId ? await getUserTier(userId) : "free";
+  const isCapped = tier === "free";
+
   const conditions = [catalogVisibilityCondition(userId)!];
   if (cuisine) conditions.push(eq(mealsTable.cuisine, cuisine));
   if (protein) conditions.push(eq(mealsTable.protein, protein));
   if (glutenFree !== undefined) conditions.push(eq(mealsTable.isGlutenFree, glutenFree));
 
-  const meals = await db.select().from(mealsTable).where(and(...conditions));
+  let allMatchingMeals = await db.select().from(mealsTable).where(and(...conditions));
 
-  if (meals.length === 0) {
-    res.json([]);
+  let lockedCount = 0;
+  if (isCapped && allMatchingMeals.length > FREE_MEAL_CAP) {
+    lockedCount = allMatchingMeals.length - FREE_MEAL_CAP;
+    allMatchingMeals = allMatchingMeals.slice(0, FREE_MEAL_CAP);
+  }
+
+  if (allMatchingMeals.length === 0) {
+    res.json({ meals: [], lockedCount });
     return;
   }
 
-  const mealIds = meals.map((m) => m.id);
+  const mealIds = allMatchingMeals.map((m) => m.id);
 
   const [allIngredients, allSides] = await Promise.all([
     db.select().from(ingredientsTable).where(inArray(ingredientsTable.mealId, mealIds)),
@@ -130,7 +141,10 @@ router.get("/meals", async (req, res): Promise<void> => {
     sidesMap.set(side.mealId, list);
   }
 
-  res.json(meals.map((m) => buildMealResponseFromMaps(m, ingredientMap, sidesMap, favoritedIds)));
+  res.json({
+    meals: allMatchingMeals.map((m) => buildMealResponseFromMaps(m, ingredientMap, sidesMap, favoritedIds)),
+    lockedCount,
+  });
 });
 
 const CUISINES = [

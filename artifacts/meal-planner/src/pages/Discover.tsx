@@ -84,10 +84,12 @@ export function Discover() {
     glutenFree: glutenFreeOnly || undefined,
   };
 
-  const { data: allMeals, isLoading } = useListMeals(params, {
+  const { data: listMealsData, isLoading } = useListMeals(params, {
     query: { queryKey: getListMealsQueryKey(params), staleTime: 5 * 60 * 1000 },
   });
 
+  const allMeals = listMealsData?.meals;
+  const lockedCount = listMealsData?.lockedCount ?? 0;
   const meals = favoritesOnly ? allMeals?.filter((m) => (m as Meal).isFavorited) : allMeals;
 
   const { data: cuisines } = useListCuisines();
@@ -187,7 +189,8 @@ export function Discover() {
   async function handleAiAction(actions: ChatAction[]) {
     for (const action of actions) {
       if (action.type === "assign_meal" && action.day && action.mealName) {
-        const allMealsForSearch = queryClient.getQueryData<Meal[]>(getListMealsQueryKey({})) ?? (allMeals as Meal[] | undefined) ?? [];
+        const cachedData = queryClient.getQueryData<{ meals: Meal[] }>(getListMealsQueryKey({}));
+        const allMealsForSearch = cachedData?.meals ?? allMeals ?? [];
         const nameLower = action.mealName.toLowerCase();
         const meal = allMealsForSearch.find(
           (m) => m.name.toLowerCase() === nameLower || m.name.toLowerCase().includes(nameLower)
@@ -214,7 +217,8 @@ export function Discover() {
           });
         }
       } else if (action.type === "toggle_favorite" && action.mealName) {
-        const allMealsForSearch = queryClient.getQueryData<Meal[]>(getListMealsQueryKey({})) ?? (allMeals as Meal[] | undefined) ?? [];
+        const cachedData = queryClient.getQueryData<{ meals: Meal[] }>(getListMealsQueryKey({}));
+        const allMealsForSearch = cachedData?.meals ?? allMeals ?? [];
         const nameLower = action.mealName.toLowerCase();
         const meal = allMealsForSearch.find(
           (m) => m.name.toLowerCase() === nameLower || m.name.toLowerCase().includes(nameLower)
@@ -589,6 +593,30 @@ export function Discover() {
               ))
             )}
           </div>
+
+          {/* Locked meals upgrade banner */}
+          {lockedCount > 0 && (
+            <div className="mt-2 rounded-xl border-2 border-primary/30 bg-primary/5 px-5 py-4 flex flex-col sm:flex-row items-center gap-4">
+              <div className="flex items-center gap-3 flex-1">
+                <Lock className="w-5 h-5 text-primary shrink-0" />
+                <div>
+                  <p className="font-semibold text-sm">
+                    {lockedCount} more recipe{lockedCount !== 1 ? "s" : ""} available
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Upgrade to Pro to unlock the full catalog of 726+ recipes.
+                  </p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                className="shrink-0"
+                onClick={() => setUpgradeModalOpen(true)}
+              >
+                Unlock all recipes
+              </Button>
+            </div>
+          )}
 
           {/* Load More strip */}
           <div className="flex justify-center pt-4">

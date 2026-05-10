@@ -43,6 +43,7 @@ import type {
   GrocerySuggestion,
   HealthStatus,
   ListMealsParams,
+  ListMealsResponse,
   LoginBody,
   Meal,
   MovePantryItemToGrocery200,
@@ -749,8 +750,8 @@ export const getListMealsUrl = (params?: ListMealsParams) => {
 export const listMeals = async (
   params?: ListMealsParams,
   options?: RequestInit,
-): Promise<Meal[]> => {
-  return customFetch<Meal[]>(getListMealsUrl(params), {
+): Promise<ListMealsResponse> => {
+  return customFetch<ListMealsResponse>(getListMealsUrl(params), {
     ...options,
     method: "GET",
   });
