@@ -43,7 +43,15 @@ export function Settings() {
     if ("Notification" in window) setNotifPermission(Notification.permission);
   }, []);
 
+  const VALID_TIME_RE = /^\d{2}:\d{2}$/;
+
   function updateReminder(patch: Partial<ReminderSettings>) {
+    // Don't persist mid-edit empty strings the browser emits while the user
+    // is still typing in the time input — only save when the value is valid.
+    if ("time" in patch && !VALID_TIME_RE.test(patch.time ?? "")) {
+      setReminder((prev) => ({ ...prev, ...patch }));
+      return;
+    }
     const next = { ...reminder, ...patch };
     setReminder(next);
     saveReminderSettings(next);
@@ -324,6 +332,7 @@ export function Settings() {
 }
 
 function formatTime(time: string): string {
+  if (!time || !/^\d{2}:\d{2}$/.test(time)) return "6:00 PM";
   const [hh, mm] = time.split(":").map(Number);
   const period = hh >= 12 ? "PM" : "AM";
   const h = hh % 12 || 12;

@@ -173,7 +173,7 @@ router.post("/pantry/items/:id/to-grocery", requireAuth, async (req, res): Promi
     await db.insert(groceryItemsTable).values({
       userId,
       name: item.name,
-      quantity: item.quantity ?? "1",
+      quantity: "1",
       unit: null,
       category: item.category,
       isChecked: false,

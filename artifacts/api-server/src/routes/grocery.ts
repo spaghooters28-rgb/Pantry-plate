@@ -406,15 +406,53 @@ router.get("/grocery-list/suggestions", requireAuth, async (req, res): Promise<v
     { name: "Onion", category: "Produce", reason: "Used in many recipes" },
     { name: "Lemons", category: "Produce", reason: "Common flavor enhancer" },
     { name: "Butter", category: "Dairy & Eggs", reason: "Common cooking staple" },
+    { name: "Apples", category: "Produce", reason: "Healthy everyday fruit" },
+    { name: "Bananas", category: "Produce", reason: "Healthy everyday fruit" },
+    { name: "Spinach", category: "Produce", reason: "Versatile leafy green" },
+    { name: "Carrots", category: "Produce", reason: "Versatile snack and cooking veggie" },
+    { name: "Broccoli", category: "Produce", reason: "Popular weeknight veggie" },
+    { name: "Avocado", category: "Produce", reason: "Great for salads and toast" },
+    { name: "Bell Peppers", category: "Produce", reason: "Adds color and flavor to meals" },
+    { name: "Tomatoes", category: "Produce", reason: "Salad and cooking essential" },
+    { name: "Cheddar Cheese", category: "Dairy & Eggs", reason: "Common meal addition" },
+    { name: "Greek Yogurt", category: "Dairy & Eggs", reason: "Nutritious snack or breakfast" },
+    { name: "Cream Cheese", category: "Dairy & Eggs", reason: "Versatile spread and baking ingredient" },
+    { name: "Sour Cream", category: "Dairy & Eggs", reason: "Common topping and recipe ingredient" },
+    { name: "Heavy Cream", category: "Dairy & Eggs", reason: "Used in sauces and desserts" },
+    { name: "Chicken Breasts", category: "Meat", reason: "Popular weeknight protein" },
+    { name: "Ground Beef", category: "Meat", reason: "Versatile protein for many dishes" },
+    { name: "Bacon", category: "Meat", reason: "Breakfast and cooking staple" },
+    { name: "Pasta", category: "Pantry", reason: "Quick weeknight meal base" },
+    { name: "Canned Tomatoes", category: "Pantry", reason: "Sauce and soup staple" },
+    { name: "Chicken Broth", category: "Pantry", reason: "Base for soups and sauces" },
+    { name: "Rice", category: "Pantry", reason: "Versatile meal base" },
+    { name: "All-Purpose Flour", category: "Pantry", reason: "Baking and coating staple" },
+    { name: "Sugar", category: "Pantry", reason: "Baking and cooking essential" },
+    { name: "Baking Powder", category: "Pantry", reason: "Essential for baked goods" },
+    { name: "Oats", category: "Pantry", reason: "Healthy breakfast and baking staple" },
+    { name: "Canned Beans", category: "Pantry", reason: "Quick protein and fiber source" },
+    { name: "Hot Sauce", category: "Condiments", reason: "Popular flavor enhancer" },
+    { name: "Soy Sauce", category: "Condiments", reason: "Essential for Asian-style dishes" },
+    { name: "Apple Cider Vinegar", category: "Condiments", reason: "Dressings and marinades" },
+    { name: "Coffee", category: "Beverages", reason: "Morning essential" },
+    { name: "Sparkling Water", category: "Beverages", reason: "Healthy beverage option" },
+    { name: "Dish Soap", category: "Cleaning", reason: "Household essential" },
+    { name: "Paper Towels", category: "Cleaning", reason: "Household essential" },
+    { name: "Trash Bags", category: "Cleaning", reason: "Household essential" },
   ];
 
-  for (const staple of staples) {
-    if (!currentNames.has(staple.name.toLowerCase()) && suggestions.length < 10) {
-      suggestions.push({ ...staple, frequency: "Weekly" });
-    }
+  // Shuffle and pick from staples not already in cart
+  const eligible = staples.filter((s) => !currentNames.has(s.name.toLowerCase()));
+  for (let i = eligible.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [eligible[i], eligible[j]] = [eligible[j], eligible[i]];
+  }
+  for (const staple of eligible) {
+    if (suggestions.length >= 15) break;
+    suggestions.push({ ...staple, frequency: "Weekly" });
   }
 
-  res.json(suggestions.slice(0, 8));
+  res.json(suggestions.slice(0, 15));
 });
 
 export default router;

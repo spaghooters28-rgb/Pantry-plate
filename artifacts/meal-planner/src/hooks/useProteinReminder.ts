@@ -10,10 +10,18 @@ export type ReminderSettings = {
 
 const ALL_DAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
+const VALID_TIME_RE = /^\d{2}:\d{2}$/;
+
 export function loadReminderSettings(): ReminderSettings {
   try {
     const raw = localStorage.getItem(LS_REMINDER_KEY);
-    if (raw) return JSON.parse(raw) as ReminderSettings;
+    if (raw) {
+      const parsed = JSON.parse(raw) as ReminderSettings;
+      if (!VALID_TIME_RE.test(parsed.time ?? "")) {
+        parsed.time = "18:00";
+      }
+      return parsed;
+    }
   } catch { /* ignore */ }
   return { enabled: false, time: "18:00" };
 }
