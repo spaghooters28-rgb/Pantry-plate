@@ -31,7 +31,7 @@ const FEATURES = [
   {
     icon: ChefHat,
     title: "Discover Meals",
-    desc: "Browse 15+ recipes filterable by cuisine, protein, and dietary needs. See exactly what's in your pantry vs. what to buy.",
+    desc: "Browse 100 free curated recipes filterable by cuisine, protein, and dietary needs. See exactly what's in your pantry vs. what to buy.",
   },
   {
     icon: Calendar,
@@ -218,7 +218,7 @@ export function LandingPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
           <div className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-12 text-center">
             {[
-              { stat: "15+", label: "Curated meals" },
+              { stat: "726+", label: "Curated meals" },
               { stat: "5", label: "Meal categories" },
               { stat: "1-click", label: "Weekly plan generation" },
               { stat: "100%", label: "Shared across your household" },

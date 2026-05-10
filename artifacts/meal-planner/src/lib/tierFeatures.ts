@@ -20,6 +20,7 @@ export const PRO_AI_GATED_FEATURES = [
 
 export const UPGRADE_PRO_FEATURES: string[] = [
   ...PRO_GATED_FEATURES,
+  "Full access to all 726+ recipes",
   "Everything in Free",
 ];
 
