@@ -2,10 +2,13 @@ import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
 import { ilike } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
+import { createIpRateLimit } from "../middleware/rateLimit";
 
 const router: IRouter = Router();
 
-router.post("/auth/register", async (req, res): Promise<void> => {
+const registerIpRateLimit = createIpRateLimit(5, 60 * 60 * 1000);
+
+router.post("/auth/register", registerIpRateLimit, async (req, res): Promise<void> => {
   const { username, password } = req.body as { username?: string; password?: string };
 
   if (!username || typeof username !== "string" || username.trim().length < 3) {

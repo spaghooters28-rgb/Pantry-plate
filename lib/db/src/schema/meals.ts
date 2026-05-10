@@ -1,6 +1,7 @@
 import { pgTable, text, serial, integer, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { usersTable } from "./users";
 
 export const mealsTable = pgTable("meals", {
   id: serial("id").primaryKey(),
@@ -17,6 +18,7 @@ export const mealsTable = pgTable("meals", {
   isFavorited: boolean("is_favorited").notNull().default(false),
   instructions: text("instructions"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  createdByUserId: integer("created_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
 });
 
 export const insertMealSchema = createInsertSchema(mealsTable).omit({ id: true, createdAt: true });

@@ -61,6 +61,9 @@ pool.query(`
 
   ALTER TABLE "conversations"
     ADD COLUMN IF NOT EXISTS "user_id" integer REFERENCES "users"("id") ON DELETE CASCADE;
+
+  ALTER TABLE "meals"
+    ADD COLUMN IF NOT EXISTS "created_by_user_id" integer REFERENCES "users"("id") ON DELETE SET NULL;
 `).catch((err: unknown) => {
   logger.error({ err }, "Failed to run startup migrations");
 });

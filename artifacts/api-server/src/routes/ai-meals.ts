@@ -1,9 +1,9 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, and, isNull, or } from "drizzle-orm";
 import { db, mealsTable, ingredientsTable, sidesTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { requireAuth } from "../middleware/requireAuth";
-import { createUserRateLimit } from "../middleware/rateLimit";
+import { createUserRateLimit, createIpRateLimit } from "../middleware/rateLimit";
 
 const router: IRouter = Router();
 
@@ -79,7 +79,8 @@ async function generateAndSaveMeal(
   cuisineFilter: string | null,
   proteinFilter: string | null,
   glutenFreeFilter: boolean | null,
-  existingNames: string[]
+  existingNames: string[],
+  createdByUserId: number,
 ): Promise<object | null> {
   const prompt = buildPrompt(cuisineFilter, proteinFilter, glutenFreeFilter, existingNames);
 
@@ -129,6 +130,7 @@ async function generateAndSaveMeal(
         typeof suggestion.instructions === "string" && suggestion.instructions.trim()
           ? suggestion.instructions.trim()
           : null,
+      createdByUserId,
     })
     .returning();
 
@@ -171,9 +173,11 @@ async function generateAndSaveMeal(
 }
 
 const generateAiRateLimit = createUserRateLimit(5, 60 * 60 * 1000);
+const generateAiIpRateLimit = createIpRateLimit(10, 60 * 60 * 1000);
 
 // SSE streaming endpoint — generates meals one-by-one and streams each as it's saved
-router.post("/meals/generate-ai", requireAuth, generateAiRateLimit, async (req, res): Promise<void> => {
+router.post("/meals/generate-ai", requireAuth, generateAiIpRateLimit, generateAiRateLimit, async (req, res): Promise<void> => {
+  const userId = req.session.userId!;
   const { cuisine, protein, glutenFree, count = 5 } = req.body ?? {};
 
   const cuisineFilter = typeof cuisine === "string" && cuisine ? cuisine : null;
@@ -188,10 +192,12 @@ router.post("/meals/generate-ai", requireAuth, generateAiRateLimit, async (req, 
   res.setHeader("X-Accel-Buffering", "no");
   res.flushHeaders();
 
-  // Load existing names to avoid duplicates
+  // Load names from seeded catalog (createdByUserId IS NULL) and this user's
+  // own generated meals to avoid duplicates, without exposing other users' data.
   const existingRows = await db
     .select({ name: mealsTable.name })
-    .from(mealsTable);
+    .from(mealsTable)
+    .where(or(isNull(mealsTable.createdByUserId), eq(mealsTable.createdByUserId, userId)));
   const existingNames = existingRows.map((r) => r.name);
   const generatedThisSession: string[] = [];
 
@@ -204,7 +210,8 @@ router.post("/meals/generate-ai", requireAuth, generateAiRateLimit, async (req, 
         cuisineFilter,
         proteinFilter,
         glutenFreeFilter,
-        allKnownNames
+        allKnownNames,
+        userId,
       );
 
       if (meal) {

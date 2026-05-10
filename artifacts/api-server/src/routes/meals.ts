@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, isNull, or } from "drizzle-orm";
 import { db, mealsTable, ingredientsTable, sidesTable, userFavoritesTable } from "@workspace/db";
 import {
   ListMealsQueryParams,
@@ -42,6 +42,20 @@ async function buildMealResponse(
   );
 }
 
+/**
+ * Returns a Drizzle condition that limits meal visibility to:
+ * - Seeded/official meals (createdByUserId IS NULL), visible to everyone
+ * - Meals created by the current authenticated user (createdByUserId = userId)
+ * This prevents one user from seeing or being affected by another user's
+ * AI-generated or imported recipes.
+ */
+function catalogVisibilityCondition(userId: number | undefined) {
+  if (userId) {
+    return or(isNull(mealsTable.createdByUserId), eq(mealsTable.createdByUserId, userId));
+  }
+  return isNull(mealsTable.createdByUserId);
+}
+
 router.get("/meals", async (req, res): Promise<void> => {
   const params = ListMealsQueryParams.safeParse(req.query);
   if (!params.success) {
@@ -50,15 +64,14 @@ router.get("/meals", async (req, res): Promise<void> => {
   }
 
   const { cuisine, protein, glutenFree } = params.data;
+  const userId = req.session?.userId as number | undefined;
 
-  const conditions = [];
+  const conditions = [catalogVisibilityCondition(userId)!];
   if (cuisine) conditions.push(eq(mealsTable.cuisine, cuisine));
   if (protein) conditions.push(eq(mealsTable.protein, protein));
   if (glutenFree !== undefined) conditions.push(eq(mealsTable.isGlutenFree, glutenFree));
 
-  const meals = conditions.length > 0
-    ? await db.select().from(mealsTable).where(and(...conditions))
-    : await db.select().from(mealsTable);
+  const meals = await db.select().from(mealsTable).where(and(...conditions));
 
   if (meals.length === 0) {
     res.json([]);
@@ -67,8 +80,7 @@ router.get("/meals", async (req, res): Promise<void> => {
 
   const mealIds = meals.map((m) => m.id);
 
-  const [userId, allIngredients, allSides] = await Promise.all([
-    Promise.resolve(req.session?.userId as number | undefined),
+  const [allIngredients, allSides] = await Promise.all([
     db.select().from(ingredientsTable).where(inArray(ingredientsTable.mealId, mealIds)),
     db.select().from(sidesTable).where(inArray(sidesTable.mealId, mealIds)),
   ]);
@@ -139,20 +151,41 @@ const PROTEINS = [
   "Other",
 ];
 
-router.get("/meals/cuisines", async (_req, res): Promise<void> => {
-  const dbRows = await db.selectDistinct({ cuisine: mealsTable.cuisine }).from(mealsTable);
+router.get("/meals/cuisines", async (req, res): Promise<void> => {
+  const userId = req.session?.userId as number | undefined;
+  const dbRows = await db
+    .selectDistinct({ cuisine: mealsTable.cuisine })
+    .from(mealsTable)
+    .where(catalogVisibilityCondition(userId));
   const dbValues = dbRows.map((m) => m.cuisine).filter((c) => !CUISINES.includes(c));
   res.json([...CUISINES, ...dbValues]);
 });
 
-router.get("/meals/proteins", async (_req, res): Promise<void> => {
-  const dbRows = await db.selectDistinct({ protein: mealsTable.protein }).from(mealsTable);
+router.get("/meals/proteins", async (req, res): Promise<void> => {
+  const userId = req.session?.userId as number | undefined;
+  const dbRows = await db
+    .selectDistinct({ protein: mealsTable.protein })
+    .from(mealsTable)
+    .where(catalogVisibilityCondition(userId));
   const dbValues = dbRows.map((m) => m.protein).filter((p) => !PROTEINS.includes(p));
   res.json([...PROTEINS, ...dbValues]);
 });
 
-router.get("/meals/sides", async (_req, res): Promise<void> => {
-  const allSides = await db.selectDistinct({ name: sidesTable.name }).from(sidesTable);
+router.get("/meals/sides", async (req, res): Promise<void> => {
+  const userId = req.session?.userId as number | undefined;
+  const visibleMeals = await db
+    .select({ id: mealsTable.id })
+    .from(mealsTable)
+    .where(catalogVisibilityCondition(userId));
+  const visibleMealIds = visibleMeals.map((m) => m.id);
+  if (visibleMealIds.length === 0) {
+    res.json([]);
+    return;
+  }
+  const allSides = await db
+    .selectDistinct({ name: sidesTable.name })
+    .from(sidesTable)
+    .where(inArray(sidesTable.mealId, visibleMealIds));
   res.json(allSides.map((s) => s.name));
 });
 
@@ -167,7 +200,11 @@ router.post("/meals/:id/toggle-favorite", requireAuth, async (req, res): Promise
   const userId = req.session.userId as number;
   const mealId = params.data.id;
 
-  const [meal] = await db.select().from(mealsTable).where(eq(mealsTable.id, mealId));
+  // Only allow favoriting meals visible to this user
+  const [meal] = await db
+    .select()
+    .from(mealsTable)
+    .where(and(eq(mealsTable.id, mealId), catalogVisibilityCondition(userId)!));
   if (!meal) {
     res.status(404).json({ error: "Meal not found" });
     return;
@@ -198,13 +235,18 @@ router.get("/meals/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [meal] = await db.select().from(mealsTable).where(eq(mealsTable.id, params.data.id));
+  const userId = req.session?.userId as number | undefined;
+
+  // Only return the meal if it is visible to the requesting user
+  const [meal] = await db
+    .select()
+    .from(mealsTable)
+    .where(and(eq(mealsTable.id, params.data.id), catalogVisibilityCondition(userId)!));
   if (!meal) {
     res.status(404).json({ error: "Meal not found" });
     return;
   }
 
-  const userId = req.session?.userId as number | undefined;
   let favoritedIds: Set<number> = new Set();
   if (userId) {
     const favRows = await db

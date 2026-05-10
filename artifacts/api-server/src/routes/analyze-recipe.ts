@@ -1,15 +1,19 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, ilike, and } from "drizzle-orm";
+import { eq, desc, ilike, and, isNull, or } from "drizzle-orm";
 import { db, pantryItemsTable, mealsTable, ingredientsTable, recipeHistoryTable, weeklyPlansTable, weeklyPlanDaysTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { requireAuth } from "../middleware/requireAuth";
-import { createUserRateLimit } from "../middleware/rateLimit";
+import { createUserRateLimit, createIpRateLimit } from "../middleware/rateLimit";
 import dns from "dns";
 import net from "net";
+import https from "https";
+import http from "http";
+import type { IncomingMessage } from "http";
 
 const router: IRouter = Router();
 
 const analyzeRateLimit = createUserRateLimit(10, 60 * 60 * 1000);
+const analyzeIpRateLimit = createIpRateLimit(20, 60 * 60 * 1000);
 
 interface ExtractedIngredient {
   name: string;
@@ -55,44 +59,121 @@ function isPrivateAddress(addr: string): boolean {
   return false;
 }
 
-async function isSafeRecipeUrl(rawUrl: string): Promise<boolean> {
+/**
+ * Validates the URL and resolves the hostname exactly once.
+ * Returns the pinned IP address to use for the actual connection,
+ * eliminating the TOCTOU window that DNS rebinding exploits.
+ * Throws if the URL is invalid, uses a disallowed scheme, or
+ * resolves to any private/internal address.
+ */
+async function resolveAndValidateUrl(rawUrl: string): Promise<{ parsed: URL; pinnedIp: string }> {
   let parsed: URL;
   try {
     parsed = new URL(rawUrl);
   } catch {
-    return false;
+    throw new Error("Invalid URL");
   }
 
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    return false;
+    throw new Error("Only http and https URLs are allowed");
   }
 
   const hostname = parsed.hostname.toLowerCase();
 
   for (const pattern of BLOCKED_HOSTNAME_PATTERNS) {
-    if (pattern.test(hostname)) return false;
+    if (pattern.test(hostname)) throw new Error("Disallowed hostname");
   }
 
-  // If the hostname is already an IP, check it directly
+  // If the hostname is already an IP literal, check it directly — no DNS involved
   if (net.isIP(hostname)) {
-    return !isPrivateAddress(hostname);
+    if (isPrivateAddress(hostname)) throw new Error("IP address is in a private range");
+    return { parsed, pinnedIp: hostname };
   }
 
-  // Resolve all addresses and reject if any resolve to a private range
+  // Resolve DNS once and validate every returned address
+  let addresses: dns.LookupAddress[];
   try {
-    const addresses = await dns.promises.lookup(hostname, { all: true });
-    for (const { address } of addresses) {
-      if (isPrivateAddress(address)) return false;
-    }
+    addresses = await dns.promises.lookup(hostname, { all: true });
   } catch {
-    // DNS resolution failure — treat as unsafe
-    return false;
+    throw new Error("DNS resolution failed");
   }
 
-  return true;
+  if (addresses.length === 0) {
+    throw new Error("DNS resolution returned no addresses");
+  }
+
+  for (const { address } of addresses) {
+    if (isPrivateAddress(address)) throw new Error("Hostname resolves to a private address");
+  }
+
+  // Pin to the first resolved address — the actual TCP connection will use this
+  // IP directly so the hostname cannot be rebound between check and fetch.
+  return { parsed, pinnedIp: addresses[0].address };
 }
 
-router.post("/meals/analyze-recipe", requireAuth, analyzeRateLimit, async (req, res): Promise<void> => {
+/**
+ * Fetches the URL using the pre-resolved, pre-validated IP address so DNS
+ * is never re-queried at fetch time. For HTTPS the original hostname is used
+ * for SNI and the Host header so TLS validation and vhosts work correctly.
+ */
+function fetchWithPinnedIp(parsed: URL, pinnedIp: string): Promise<{ ok: boolean; status: number; text: () => Promise<string> }> {
+  const isHttps = parsed.protocol === "https:";
+  const port = parsed.port ? parseInt(parsed.port, 10) : (isHttps ? 443 : 80);
+  const path = parsed.pathname + parsed.search;
+  const hostname = parsed.hostname;
+  // Include non-standard ports in the Host header
+  const hostHeader = parsed.port ? `${hostname}:${parsed.port}` : hostname;
+
+  return new Promise((resolve, reject) => {
+    const options = {
+      // Connect to the pinned IP — no re-resolution happens here
+      host: pinnedIp,
+      port,
+      path,
+      method: "GET",
+      headers: {
+        "Host": hostHeader,
+        "User-Agent": "Mozilla/5.0 (compatible; PantryPlateBot/1.0)",
+        "Accept": "text/html,application/xhtml+xml",
+      },
+      // SNI hostname for TLS (must be the original hostname, not the IP)
+      servername: hostname,
+      timeout: 10000,
+    };
+
+    const req = (isHttps ? https : http).request(options, (res: IncomingMessage) => {
+      // Reject any redirect — prevents redirect-based SSRF chaining
+      const status = res.statusCode ?? 0;
+      if (status >= 300 && status < 400) {
+        req.destroy();
+        reject(new Error("Redirects are not allowed"));
+        return;
+      }
+
+      resolve({
+        ok: status >= 200 && status < 300,
+        status,
+        text: () =>
+          new Promise<string>((textResolve, textReject) => {
+            let data = "";
+            res.setEncoding("utf8");
+            res.on("data", (chunk: string) => { data += chunk; });
+            res.on("end", () => { textResolve(data); });
+            res.on("error", textReject);
+          }),
+      });
+    });
+
+    req.on("error", reject);
+    req.on("timeout", () => {
+      req.destroy(new Error("Request timed out"));
+    });
+
+    req.end();
+  });
+}
+
+router.post("/meals/analyze-recipe", requireAuth, analyzeIpRateLimit, analyzeRateLimit, async (req, res): Promise<void> => {
   const { url } = req.body as { url?: string };
 
   if (!url || typeof url !== "string") {
@@ -100,21 +181,18 @@ router.post("/meals/analyze-recipe", requireAuth, analyzeRateLimit, async (req, 
     return;
   }
 
-  if (!(await isSafeRecipeUrl(url))) {
+  let parsed: URL;
+  let pinnedIp: string;
+  try {
+    ({ parsed, pinnedIp } = await resolveAndValidateUrl(url));
+  } catch {
     res.status(400).json({ error: "Invalid or disallowed URL" });
     return;
   }
 
   let pageContent = "";
   try {
-    const response = await fetch(url, {
-      redirect: "error",
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; PantryPlateBot/1.0)",
-        "Accept": "text/html,application/xhtml+xml",
-      },
-      signal: AbortSignal.timeout(10000),
-    });
+    const response = await fetchWithPinnedIp(parsed, pinnedIp);
     if (!response.ok) {
       res.status(400).json({ error: `Could not fetch URL (HTTP ${response.status})` });
       return;
@@ -186,7 +264,7 @@ Rules:
     const content = response.choices[0]?.message?.content ?? "";
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]) as {
+      const parsedResult = JSON.parse(jsonMatch[0]) as {
         recipeName: string;
         cuisine?: string | null;
         protein?: string | null;
@@ -197,15 +275,15 @@ Rules:
         instructions?: string | null;
         ingredients: ExtractedIngredient[];
       };
-      recipeName = parsed.recipeName || "Unknown Recipe";
-      cuisine = parsed.cuisine ?? null;
-      protein = parsed.protein ?? null;
-      isGlutenFree = parsed.isGlutenFree ?? null;
-      cookTimeMinutes = typeof parsed.cookTimeMinutes === "number" ? parsed.cookTimeMinutes : null;
-      calories = typeof parsed.calories === "number" ? parsed.calories : null;
-      servings = typeof parsed.servings === "number" ? parsed.servings : null;
-      instructions = parsed.instructions ?? null;
-      extracted = Array.isArray(parsed.ingredients) ? parsed.ingredients : [];
+      recipeName = parsedResult.recipeName || "Unknown Recipe";
+      cuisine = parsedResult.cuisine ?? null;
+      protein = parsedResult.protein ?? null;
+      isGlutenFree = parsedResult.isGlutenFree ?? null;
+      cookTimeMinutes = typeof parsedResult.cookTimeMinutes === "number" ? parsedResult.cookTimeMinutes : null;
+      calories = typeof parsedResult.calories === "number" ? parsedResult.calories : null;
+      servings = typeof parsedResult.servings === "number" ? parsedResult.servings : null;
+      instructions = parsedResult.instructions ?? null;
+      extracted = Array.isArray(parsedResult.ingredients) ? parsedResult.ingredients : [];
     }
   } catch (err) {
     req.log.error({ err }, "AI recipe analysis failed");
@@ -276,11 +354,18 @@ router.post("/meals/save-recipe", requireAuth, async (req, res): Promise<void> =
   const instructions = body.instructions ?? null;
   const sourceUrl = body.sourceUrl ?? null;
 
-  // Prevent duplicate meals: if same name exists, reuse it
+  // Prevent duplicate meals for this user: if same name exists and belongs to
+  // this user (or is a seeded meal), reuse it; otherwise create a new one scoped
+  // to this user so we never write into another user's namespace.
   const [existingMeal] = await db
     .select()
     .from(mealsTable)
-    .where(ilike(mealsTable.name, body.recipeName))
+    .where(
+      and(
+        ilike(mealsTable.name, body.recipeName),
+        or(isNull(mealsTable.createdByUserId), eq(mealsTable.createdByUserId, userId))
+      )
+    )
     .limit(1);
 
   const meal = existingMeal ?? (await db.insert(mealsTable).values({
@@ -296,6 +381,7 @@ router.post("/meals/save-recipe", requireAuth, async (req, res): Promise<void> =
     isFavorited: false,
     instructions,
     imageUrl: null,
+    createdByUserId: userId,
   }).returning())[0];
 
   // Only insert ingredients for brand-new meals (not when reusing an existing one)
