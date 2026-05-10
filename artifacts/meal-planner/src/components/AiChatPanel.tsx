@@ -4,14 +4,10 @@ import { useCreateOpenaiConversation } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Bot, Send, Loader2, RotateCcw, X, Sparkles } from "lucide-react";
-import { useAiChat } from "@/contexts/AiChatContext";
+import { Bot, Send, Loader2, RotateCcw, X, Sparkles, Check, Ban } from "lucide-react";
+import { useAiChat, type ChatAction, type ChatMessage } from "@/contexts/AiChatContext";
 
-export type ChatAction = {
-  type: "assign_meal" | "toggle_favorite";
-  day?: string;
-  mealName: string;
-};
+export type { ChatAction } from "@/contexts/AiChatContext";
 
 const STARTER_PROMPTS = [
   "What should I cook this week?",
@@ -37,10 +33,23 @@ function parseActions(text: string): { cleanText: string; actions: ChatAction[] 
   return { cleanText, actions };
 }
 
+function actionLabel(action: ChatAction): string {
+  if (action.type === "assign_meal" && action.day) {
+    const day = action.day.charAt(0).toUpperCase() + action.day.slice(1);
+    return `Assign "${action.mealName}" to ${day}`;
+  }
+  if (action.type === "toggle_favorite") {
+    return `Toggle favorite for "${action.mealName}"`;
+  }
+  return `Action: ${action.type}`;
+}
+
 export function AiChatPanel({ onAction }: { onAction?: (actions: ChatAction[]) => Promise<void> }) {
   const { messages, setMessages, conversationId, setConversationId, isOpen, setIsOpen } = useAiChat();
+  const typedMessages = messages as ChatMessage[];
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [applyingIdx, setApplyingIdx] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -126,7 +135,7 @@ export function AiChatPanel({ onAction }: { onAction?: (actions: ChatAction[]) =
               const { cleanText } = parseActions(fullContent);
               setMessages((prev) => {
                 const next = [...prev];
-                const msg = next[next.length - 1];
+                const msg = next[next.length - 1] as ChatMessage;
                 if (msg?.role === "assistant") {
                   next[next.length - 1] = { ...msg, content: cleanText || fullContent };
                 }
@@ -142,24 +151,28 @@ export function AiChatPanel({ onAction }: { onAction?: (actions: ChatAction[]) =
 
       const { cleanText, actions } = parseActions(fullContent);
 
+      // Attach parsed actions as pendingActions requiring explicit user confirmation.
+      // Actions are NOT executed automatically — the user must click "Apply" below.
       setMessages((prev) => {
         const next = [...prev];
-        const msg = next[next.length - 1];
+        const msg = next[next.length - 1] as ChatMessage;
         if (msg?.role === "assistant") {
-          next[next.length - 1] = { ...msg, content: cleanText || fullContent, streaming: false };
+          next[next.length - 1] = {
+            ...msg,
+            content: cleanText || fullContent,
+            streaming: false,
+            pendingActions: actions.length > 0 ? actions : undefined,
+          };
         }
         return next;
       });
-
-      if (actions.length > 0 && onAction) {
-        await onAction(actions);
-      }
     } catch (err) {
       if ((err as Error).name !== "AbortError") {
         setMessages((prev) => {
-          const withoutPartial = prev[prev.length - 1]?.streaming
-            ? prev.slice(0, -1)
-            : prev;
+          const msgs = prev as ChatMessage[];
+          const withoutPartial = msgs[msgs.length - 1]?.streaming
+            ? msgs.slice(0, -1)
+            : msgs;
           return [...withoutPartial, { role: "assistant", content: "Sorry, I ran into an issue. Please try again." }];
         });
       }
@@ -167,6 +180,34 @@ export function AiChatPanel({ onAction }: { onAction?: (actions: ChatAction[]) =
       setIsStreaming(false);
       abortRef.current = null;
     }
+  }
+
+  async function handleApplyActions(idx: number, actions: ChatAction[]) {
+    if (!onAction || applyingIdx !== null) return;
+    setApplyingIdx(idx);
+    try {
+      await onAction(actions);
+    } finally {
+      // Clear the pending actions from that message regardless of outcome
+      setMessages((prev) => {
+        const next = [...prev] as ChatMessage[];
+        if (next[idx]) {
+          next[idx] = { ...next[idx], pendingActions: undefined };
+        }
+        return next;
+      });
+      setApplyingIdx(null);
+    }
+  }
+
+  function handleDismissActions(idx: number) {
+    setMessages((prev) => {
+      const next = [...prev] as ChatMessage[];
+      if (next[idx]) {
+        next[idx] = { ...next[idx], pendingActions: undefined };
+      }
+      return next;
+    });
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -184,7 +225,7 @@ export function AiChatPanel({ onAction }: { onAction?: (actions: ChatAction[]) =
     setIsStreaming(false);
   }
 
-  const userMsgCount = messages.filter((m) => m.role === "user").length;
+  const userMsgCount = typedMessages.filter((m) => m.role === "user").length;
 
   return (
     <>
@@ -224,7 +265,7 @@ export function AiChatPanel({ onAction }: { onAction?: (actions: ChatAction[]) =
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {messages.length > 0 && (
+              {typedMessages.length > 0 && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -249,7 +290,7 @@ export function AiChatPanel({ onAction }: { onAction?: (actions: ChatAction[]) =
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-            {messages.length === 0 ? (
+            {typedMessages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center gap-5 pb-8">
                 <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
                   <Bot className="w-8 h-8 text-primary" />
@@ -273,28 +314,68 @@ export function AiChatPanel({ onAction }: { onAction?: (actions: ChatAction[]) =
                 </div>
               </div>
             ) : (
-              messages.map((msg, i) => (
-                <div
-                  key={i}
-                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                >
-                  {msg.role === "assistant" && (
-                    <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-1 mr-2">
-                      <Bot className="w-4 h-4 text-primary" />
+              typedMessages.map((msg, i) => (
+                <div key={i} className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}>
+                  <div className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} w-full`}>
+                    {msg.role === "assistant" && (
+                      <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-1 mr-2">
+                        <Bot className="w-4 h-4 text-primary" />
+                      </div>
+                    )}
+                    <div
+                      className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+                        msg.role === "user"
+                          ? "bg-primary text-primary-foreground rounded-tr-sm"
+                          : "bg-muted text-foreground rounded-tl-sm"
+                      }`}
+                    >
+                      {msg.content}
+                      {msg.streaming && (
+                        <span className="inline-block w-1.5 h-4 ml-0.5 bg-current opacity-70 animate-pulse rounded-sm" />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Pending action confirmation — only shown after streaming ends */}
+                  {!msg.streaming && msg.pendingActions && msg.pendingActions.length > 0 && onAction && (
+                    <div className="mt-2 ml-9 w-full max-w-[80%] rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 space-y-2">
+                      <p className="text-xs font-semibold text-primary uppercase tracking-wide">
+                        Suggested {msg.pendingActions.length === 1 ? "action" : "actions"} — confirm to apply
+                      </p>
+                      <ul className="space-y-1">
+                        {msg.pendingActions.map((action, ai) => (
+                          <li key={ai} className="text-sm text-foreground">
+                            • {actionLabel(action)}
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="flex gap-2 pt-1">
+                        <Button
+                          size="sm"
+                          className="h-7 text-xs gap-1"
+                          onClick={() => handleApplyActions(i, msg.pendingActions!)}
+                          disabled={applyingIdx !== null}
+                        >
+                          {applyingIdx === i ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Check className="w-3 h-3" />
+                          )}
+                          Apply
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                          onClick={() => handleDismissActions(i)}
+                          disabled={applyingIdx !== null}
+                        >
+                          <Ban className="w-3 h-3" />
+                          Dismiss
+                        </Button>
+                      </div>
                     </div>
                   )}
-                  <div
-                    className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
-                      msg.role === "user"
-                        ? "bg-primary text-primary-foreground rounded-tr-sm"
-                        : "bg-muted text-foreground rounded-tl-sm"
-                    }`}
-                  >
-                    {msg.content}
-                    {msg.streaming && (
-                      <span className="inline-block w-1.5 h-4 ml-0.5 bg-current opacity-70 animate-pulse rounded-sm" />
-                    )}
-                  </div>
                 </div>
               ))
             )}

@@ -1,9 +1,16 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 
+export type ChatAction = {
+  type: "assign_meal" | "toggle_favorite";
+  day?: string;
+  mealName: string;
+};
+
 export type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   streaming?: boolean;
+  pendingActions?: ChatAction[];
 };
 
 type AiChatContextValue = {
