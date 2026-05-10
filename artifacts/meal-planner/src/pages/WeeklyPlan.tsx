@@ -420,7 +420,7 @@ export function WeeklyPlan() {
       },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getListMealsQueryKey({}) });
+          queryClient.invalidateQueries({ queryKey: ["/api/meals"] });
           setRecipeBuilderOpen(false);
           toast({ title: "Recipe created!", description: `"${newRecipe.name.trim()}" is now in your meal library.` });
         },
