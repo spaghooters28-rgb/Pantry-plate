@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { OfflineBanner } from "@/components/OfflineBanner";
 import { AiChatProvider } from "@/contexts/AiChatContext";
 import { AuthProvider, useAuth, useTier } from "@/contexts/AuthContext";
 import { useProteinReminder } from "@/hooks/useProteinReminder";
@@ -117,6 +118,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+        <OfflineBanner />
         <AuthProvider>
           <AuthenticatedApp />
         </AuthProvider>
