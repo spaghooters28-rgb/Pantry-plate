@@ -626,7 +626,8 @@ export function WeeklyPlan() {
     let successCount = 0;
 
     for (const day of days) {
-      const available = candidates.filter((m) => !usedIds.has(m.id));
+      const currentMealId = plan?.days.find((d) => d.day === day)?.meal?.id;
+      const available = candidates.filter((m) => !usedIds.has(m.id) && m.id !== currentMealId);
       if (available.length === 0) break;
       const pick = available[Math.floor(Math.random() * available.length)];
       usedIds.add(pick.id);

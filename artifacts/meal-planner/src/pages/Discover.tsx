@@ -101,6 +101,7 @@ export function Discover() {
 
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiProgress, setAiProgress] = useState(0);
+  const [aiProcessed, setAiProcessed] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
 
   function handleOpenMeal(meal: Meal) {
@@ -267,6 +268,7 @@ export function Discover() {
     if (aiGenerating) return;
     setAiGenerating(true);
     setAiProgress(0);
+    setAiProcessed(0);
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -293,6 +295,7 @@ export function Discover() {
       let buffer = "";
       let savedCount = 0;
       let errorCount = 0;
+      let processedCount = 0;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -312,10 +315,17 @@ export function Discover() {
             };
             if (event.type === "meal") {
               savedCount++;
+              processedCount++;
               setAiProgress(savedCount);
+              setAiProcessed(processedCount);
               queryClient.invalidateQueries({ queryKey: getListMealsQueryKey(params) });
             } else if (event.type === "error") {
               errorCount++;
+              processedCount++;
+              setAiProcessed(processedCount);
+            } else if (event.type === "skip") {
+              processedCount++;
+              setAiProcessed(processedCount);
             } else if (event.type === "done") {
               const finalCount = event.count ?? savedCount;
               if (finalCount === 0) {
@@ -402,7 +412,7 @@ export function Discover() {
           <span>
             AI is creating new{" "}
             {activeFilters.length > 0 ? activeFilters.join(" + ").toLowerCase() + " " : ""}
-            meal ideas…{aiProgress > 0 ? ` ${aiProgress} added so far.` : ""}
+            meal ideas…{aiProcessed > 0 ? ` ${aiProcessed} checked${aiProgress > 0 ? `, ${aiProgress} added` : ""}.` : ""}
           </span>
         </div>
       )}
