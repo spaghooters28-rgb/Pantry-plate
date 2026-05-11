@@ -5,15 +5,12 @@ import {
   getListRecipeHistoryQueryKey,
   useListMeals,
   getListMealsQueryKey,
-  useToggleMealFavorite,
   useAddMealToGroceryList,
   getGetGroceryListQueryKey,
   useGetPins,
   getGetPinsQueryKey,
-  useAddPin,
   useRemovePin,
 } from "@workspace/api-client-react";
-import { usePinsMigration } from "@/hooks/usePinsMigration";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,7 +24,6 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
-  History,
   Trash2,
   Clock,
   Flame,
@@ -35,10 +31,10 @@ import {
   ExternalLink,
   ChevronDown,
   ChevronUp,
-  Star,
   Pin,
   PinOff,
   ShoppingBasket,
+  UtensilsCrossed,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -78,31 +74,11 @@ type FavMeal = {
   ingredients?: Ingredient[];
 };
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
-
-function timeAgo(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime();
-  const days = Math.floor(diff / 86400000);
-  if (days === 0) return "Today";
-  if (days === 1) return "Yesterday";
-  if (days < 7) return `${days} days ago`;
-  if (days < 30) return `${Math.floor(days / 7)} week${Math.floor(days / 7) > 1 ? "s" : ""} ago`;
-  return formatDate(iso);
-}
-
-type Tab = "saved" | "favorites";
-
-
-export function HistoryPage() {
-  const [tab, setTab] = useState<Tab>("saved");
+export function CookingBoard() {
   const [selected, setSelected] = useState<HistoryEntry | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
   const [selectedFavMeal, setSelectedFavMeal] = useState<FavMeal | null>(null);
   const [showFavInstructions, setShowFavInstructions] = useState(false);
-
-  const [pinTarget, setPinTarget] = useState<HistoryEntry | null>(null);
   const [unpinTarget, setUnpinTarget] = useState<HistoryEntry | null>(null);
 
   const { toast } = useToast();
@@ -114,43 +90,37 @@ export function HistoryPage() {
   const { data: entries, isLoading: historyLoading } = useListRecipeHistory({ query: { queryKey: qKey } });
   const deleteMutation = useDeleteRecipeHistory();
 
-  const { data: listMealsData, isLoading: favLoading } = useListMeals(
+  const { data: listMealsData, isLoading: mealsLoading } = useListMeals(
     {},
     { query: { queryKey: allMealsKey } }
   );
   const allMeals = listMealsData?.meals;
-  const toggleFavMutation = useToggleMealFavorite();
   const addToGroceryMutation = useAddMealToGroceryList();
 
   const { data: pinsData, isLoading: pinsLoading } = useGetPins({
     query: { queryKey: pinsQueryKey },
   });
-
-  const addPinMutation = useAddPin();
   const removePinMutation = useRemovePin();
 
-  usePinsMigration();
-
-  const favorites = ((allMeals ?? []) as FavMeal[]).filter((m) => m.isFavorited);
+  const isLoading = historyLoading || mealsLoading || pinsLoading;
 
   const pinnedIds = new Set<number>(pinsData?.recipeIds ?? []);
   const pinnedMealIds = new Set<number>(pinsData?.mealIds ?? []);
 
-  function handlePin(entry: HistoryEntry) {
-    addPinMutation.mutate(
-      { data: { itemType: "recipe", itemId: entry.id } },
-      {
-        onSuccess: (result) => {
-          queryClient.setQueryData(pinsQueryKey, result);
-          setPinTarget(null);
-          toast({ title: `"${entry.name}" added to Cooking Board!` });
-        },
-        onError: () => toast({ title: "Error", description: "Could not pin item.", variant: "destructive" }),
-      }
-    );
-  }
+  const allEntries = (entries ?? []) as HistoryEntry[];
+  const pinnedEntries = allEntries.filter((e) => pinnedIds.has(e.id));
 
-  function handleUnpin(entry: HistoryEntry, action: "back" | "saved" | "delete") {
+  const mealMap = new Map<number, FavMeal>(
+    ((allMeals ?? []) as FavMeal[]).map((m) => [m.id, m])
+  );
+
+  const pinnedMeals = [...pinnedMealIds]
+    .map((id) => mealMap.get(id))
+    .filter((m): m is FavMeal => m != null);
+
+  const hasItems = pinnedEntries.length > 0 || pinnedMeals.length > 0;
+
+  function handleUnpinEntry(entry: HistoryEntry, action: "back" | "delete") {
     removePinMutation.mutate(
       { itemType: "recipe", itemId: entry.id },
       {
@@ -172,23 +142,10 @@ export function HistoryPage() {
               }
             );
           } else {
-            toast({ title: `"${entry.name}" moved back to Saved.` });
+            toast({ title: `"${entry.name}" unpinned from Cooking Board.` });
           }
         },
         onError: () => toast({ title: "Error", description: "Could not unpin item.", variant: "destructive" }),
-      }
-    );
-  }
-
-  function handlePinMeal(meal: FavMeal) {
-    addPinMutation.mutate(
-      { data: { itemType: "meal", itemId: meal.id } },
-      {
-        onSuccess: (result) => {
-          queryClient.setQueryData(pinsQueryKey, result);
-          toast({ title: `"${meal.name}" added to Cooking Board!` });
-        },
-        onError: () => toast({ title: "Error", description: "Could not pin meal.", variant: "destructive" }),
       }
     );
   }
@@ -208,47 +165,7 @@ export function HistoryPage() {
     );
   }
 
-  function handleDelete(entry: HistoryEntry) {
-    if (pinnedIds.has(entry.id)) {
-      removePinMutation.mutate(
-        { itemType: "recipe", itemId: entry.id },
-        {
-          onSuccess: () => {
-            queryClient.setQueryData(pinsQueryKey, (old: typeof pinsData) =>
-              old ? { ...old, recipeIds: old.recipeIds.filter((id) => id !== entry.id) } : old
-            );
-          },
-        }
-      );
-    }
-    deleteMutation.mutate(
-      { id: entry.id },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: qKey });
-          if (selected?.id === entry.id) setSelected(null);
-          toast({ title: `"${entry.name}" removed from saved.` });
-        },
-        onError: () => toast({ title: "Error", description: "Could not remove from saved.", variant: "destructive" }),
-      }
-    );
-  }
-
-  function handleToggleFavorite(meal: FavMeal) {
-    toggleFavMutation.mutate(
-      { id: meal.id },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: allMealsKey });
-          toast({ title: meal.isFavorited ? "Removed from favorites." : "Added to favorites!" });
-        },
-        onError: () =>
-          toast({ title: "Error", description: "Could not update favorite.", variant: "destructive" }),
-      }
-    );
-  }
-
-  function handleAddFavToGrocery(meal: FavMeal) {
+  function handleAddMealToGrocery(meal: FavMeal) {
     addToGroceryMutation.mutate(
       { mealId: meal.id },
       {
@@ -261,13 +178,6 @@ export function HistoryPage() {
       }
     );
   }
-
-  const isLoading = historyLoading || favLoading || pinsLoading;
-  const allEntries = (entries ?? []) as HistoryEntry[];
-
-  const mealMap = new Map<number, FavMeal>(
-    ((allMeals ?? []) as FavMeal[]).map((m) => [m.id, m])
-  );
 
   const IngredientsList = ({ ingredients }: { ingredients: Ingredient[] }) => (
     <div className="mt-2.5 pt-2.5 border-t border-border/60">
@@ -288,23 +198,13 @@ export function HistoryPage() {
     </div>
   );
 
-  const RecipeCard = ({
-    entry,
-    isPinned = false,
-  }: {
-    entry: HistoryEntry;
-    isPinned?: boolean;
-  }) => {
+  const RecipeCard = ({ entry }: { entry: HistoryEntry }) => {
     const meal = entry.mealId != null ? mealMap.get(entry.mealId) : undefined;
     const ingredients = meal?.ingredients ?? [];
 
     return (
       <Card
-        className={`cursor-pointer transition-colors ${
-          isPinned
-            ? "border-amber-300/60 bg-amber-50/50 hover:border-amber-400/80 dark:bg-amber-950/20"
-            : "hover:border-primary/40"
-        }`}
+        className="cursor-pointer border-amber-300/60 bg-amber-50/50 hover:border-amber-400/80 dark:bg-amber-950/20 transition-colors"
         onClick={() => {
           setSelected(entry);
           setShowInstructions(false);
@@ -330,59 +230,18 @@ export function HistoryPage() {
                   </span>
                 )}
               </div>
+              {ingredients.length > 0 && <IngredientsList ingredients={ingredients} />}
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              <span className="text-xs text-muted-foreground whitespace-nowrap">{timeAgo(entry.addedAt)}</span>
-              {meal && (
-                <button
-                  className={`p-1.5 transition-colors rounded ${
-                    meal.isFavorited
-                      ? "text-amber-400 hover:text-amber-500"
-                      : "text-muted-foreground hover:text-amber-400"
-                  }`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleToggleFavorite(meal);
-                  }}
-                  disabled={toggleFavMutation.isPending}
-                  title={meal.isFavorited ? "Remove from favorites" : "Add to favorites"}
-                >
-                  <Star className={`w-3.5 h-3.5 ${meal.isFavorited ? "fill-amber-400" : ""}`} />
-                </button>
-              )}
-              {isPinned ? (
-                <button
-                  className="p-1.5 text-amber-500 hover:text-amber-600 transition-colors rounded"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setUnpinTarget(entry);
-                  }}
-                  title="Remove from Cooking Board"
-                >
-                  <PinOff className="w-3.5 h-3.5" />
-                </button>
-              ) : (
-                <button
-                  className="p-1.5 text-muted-foreground hover:text-primary transition-colors rounded"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setPinTarget(entry);
-                  }}
-                  title="Add to Cooking Board"
-                >
-                  <Pin className="w-3.5 h-3.5" />
-                </button>
-              )}
               <button
-                className="p-1.5 text-muted-foreground hover:text-destructive transition-colors rounded"
+                className="p-1.5 text-amber-500 hover:text-amber-600 transition-colors rounded"
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleDelete(entry);
+                  setUnpinTarget(entry);
                 }}
-                title="Remove from saved"
-                disabled={deleteMutation.isPending}
+                title="Remove from Cooking Board"
               >
-                <Trash2 className="w-3.5 h-3.5" />
+                <PinOff className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -391,176 +250,104 @@ export function HistoryPage() {
     );
   };
 
+  const MealCard = ({ meal }: { meal: FavMeal }) => (
+    <Card
+      className="cursor-pointer border-amber-300/60 bg-amber-50/50 hover:border-amber-400/80 dark:bg-amber-950/20 transition-colors"
+      onClick={() => {
+        setSelectedFavMeal(meal);
+        setShowFavInstructions(false);
+      }}
+    >
+      <CardContent className="p-3.5">
+        <div className="flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm leading-tight">{meal.name}</p>
+            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+              <Badge variant="secondary" className="text-xs">{meal.cuisine}</Badge>
+              {meal.isGlutenFree && (
+                <Badge variant="outline" className="text-xs border-green-500 text-green-600">Gluten Free</Badge>
+              )}
+              {meal.cookTimeMinutes > 0 && (
+                <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
+                  <Clock className="w-3 h-3" />{meal.cookTimeMinutes}m
+                </span>
+              )}
+              {meal.calories > 0 && (
+                <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
+                  <Flame className="w-3 h-3" />{meal.calories}kcal
+                </span>
+              )}
+            </div>
+            {meal.ingredients && meal.ingredients.length > 0 && (
+              <IngredientsList ingredients={meal.ingredients} />
+            )}
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              className="p-1.5 text-muted-foreground hover:text-primary transition-colors rounded"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAddMealToGrocery(meal);
+              }}
+              title="Add to grocery list"
+              disabled={addToGroceryMutation.isPending}
+            >
+              <ShoppingBasket className="w-3.5 h-3.5" />
+            </button>
+            <button
+              className="p-1.5 text-amber-500 hover:text-amber-600 transition-colors rounded"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleUnpinMeal(meal.id, meal.name);
+              }}
+              title="Remove from Cooking Board"
+            >
+              <PinOff className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-3xl font-serif font-bold text-primary mb-1">Saved</h1>
-        <p className="text-muted-foreground">Your saved recipes and starred meals.</p>
-      </div>
-
-      {/* Tab switcher */}
-      <div className="flex border-b">
-        <button
-          onClick={() => setTab("saved")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-            tab === "saved"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <History className="w-4 h-4" />
-          Saved Recipes
-          {!isLoading && allEntries.length > 0 && (
-            <span className="ml-1 bg-muted text-muted-foreground text-xs rounded-full px-1.5 py-0.5 leading-none">
-              {allEntries.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setTab("favorites")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-            tab === "favorites"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Star className="w-4 h-4" />
-          Favorites
-          {!isLoading && favorites.length > 0 && (
-            <span className="ml-1 bg-muted text-muted-foreground text-xs rounded-full px-1.5 py-0.5 leading-none">
-              {favorites.length}
-            </span>
-          )}
-        </button>
+        <h1 className="text-3xl font-serif font-bold text-primary mb-1">Cooking Board</h1>
+        <p className="text-muted-foreground">Recipes and meals pinned for your next cook.</p>
       </div>
 
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => <Skeleton key={i} className="h-[72px] w-full rounded-xl" />)}
         </div>
-      ) : tab === "saved" ? (
-        <div className="space-y-5">
-          {allEntries.length === 0 ? (
-            <div className="py-16 text-center text-muted-foreground border border-dashed rounded-xl">
-              <History className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p className="font-medium text-sm mb-1">No saved recipes yet</p>
-              <p className="text-xs">Add meals to your grocery list and they'll appear here.</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {allEntries.map((entry) => (
-                <RecipeCard key={entry.id} entry={entry} isPinned={pinnedIds.has(entry.id)} />
-              ))}
-            </div>
-          )}
+      ) : !hasItems ? (
+        <div className="py-20 text-center text-muted-foreground border border-dashed rounded-xl">
+          <UtensilsCrossed className="w-10 h-10 mx-auto mb-3 opacity-25" />
+          <p className="font-medium text-sm mb-1">Your Cooking Board is empty</p>
+          <p className="text-xs max-w-xs mx-auto">
+            Pin meals from the Weekly Plan, or pin saved recipes from the Saved tab, to keep them front and centre while you cook.
+          </p>
         </div>
       ) : (
-        /* ── Favorites ── */
-        favorites.length === 0 ? (
-          <div className="py-16 text-center text-muted-foreground border border-dashed rounded-xl">
-            <Star className="w-8 h-8 mx-auto mb-2 opacity-30" />
-            <p className="font-medium text-sm mb-1">No favorites yet</p>
-            <p className="text-xs">Star meals in Discover to save them here.</p>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 mb-3">
+            <Pin className="w-4 h-4 text-amber-500 fill-amber-500" />
+            <h2 className="font-semibold text-sm text-amber-700 dark:text-amber-400">Pinned</h2>
+            <span className="ml-auto text-xs text-muted-foreground">
+              {pinnedEntries.length + pinnedMeals.length} item{pinnedEntries.length + pinnedMeals.length !== 1 ? "s" : ""}
+            </span>
           </div>
-        ) : (
-          <div className="space-y-2">
-            {favorites.map((meal) => (
-              <Card key={meal.id} className="hover:border-amber-300/60 transition-colors">
-                <CardContent className="p-3.5">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm leading-tight">{meal.name}</p>
-                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                        <Badge variant="secondary" className="text-xs">{meal.cuisine}</Badge>
-                        {meal.isGlutenFree && (
-                          <Badge variant="outline" className="text-xs border-green-500 text-green-600">Gluten Free</Badge>
-                        )}
-                        {meal.cookTimeMinutes > 0 && (
-                          <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
-                            <Clock className="w-3 h-3" />{meal.cookTimeMinutes}m
-                          </span>
-                        )}
-                        {meal.calories > 0 && (
-                          <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
-                            <Flame className="w-3 h-3" />{meal.calories}kcal
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        className="p-1.5 text-muted-foreground hover:text-primary transition-colors rounded"
-                        onClick={() => handleAddFavToGrocery(meal)}
-                        disabled={addToGroceryMutation.isPending}
-                        title="Add to grocery list"
-                      >
-                        <ShoppingBasket className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        className={`p-1.5 transition-colors rounded ${
-                          pinnedMealIds.has(meal.id)
-                            ? "text-amber-500 hover:text-amber-600"
-                            : "text-muted-foreground hover:text-primary"
-                        }`}
-                        onClick={() =>
-                          pinnedMealIds.has(meal.id)
-                            ? handleUnpinMeal(meal.id, meal.name)
-                            : handlePinMeal(meal)
-                        }
-                        title={pinnedMealIds.has(meal.id) ? "Remove from Cooking Board" : "Add to Cooking Board"}
-                      >
-                        {pinnedMealIds.has(meal.id)
-                          ? <PinOff className="w-3.5 h-3.5" />
-                          : <Pin className="w-3.5 h-3.5" />
-                        }
-                      </button>
-                      <button
-                        className="p-1 text-amber-400 hover:text-muted-foreground transition-colors shrink-0 mt-0.5"
-                        onClick={() => handleToggleFavorite(meal)}
-                        disabled={toggleFavMutation.isPending}
-                        title="Remove from favorites"
-                      >
-                        <Star className="w-4 h-4 fill-amber-400" />
-                      </button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )
+          {pinnedEntries.map((entry) => (
+            <RecipeCard key={`h-${entry.id}`} entry={entry} />
+          ))}
+          {pinnedMeals.map((meal) => (
+            <MealCard key={`m-${meal.id}`} meal={meal} />
+          ))}
+        </div>
       )}
 
-      {/* ── Add to Cooking Board prompt ── */}
-      <Dialog open={!!pinTarget} onOpenChange={(open) => { if (!open) setPinTarget(null); }}>
-        {pinTarget && (
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <DialogTitle className="font-serif flex items-center gap-2">
-                <Pin className="w-5 h-5 text-amber-500" />
-                Add to Cooking Board?
-              </DialogTitle>
-              <DialogDescription>
-                Pin <span className="font-medium text-foreground">"{pinTarget.name}"</span> to your Cooking Board so it stays front and centre while you cook.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="flex gap-2 justify-end pt-1">
-              <Button variant="outline" size="sm" onClick={() => setPinTarget(null)}>Cancel</Button>
-              <Button
-                size="sm"
-                className="gap-1.5 bg-amber-500 hover:bg-amber-600 text-white"
-                onClick={() => handlePin(pinTarget)}
-                disabled={addPinMutation.isPending}
-              >
-                <Pin className="w-3.5 h-3.5" />
-                Add to Cooking Board
-              </Button>
-            </div>
-          </DialogContent>
-        )}
-      </Dialog>
-
-      {/* ── Remove from Cooking Board dialog ── */}
+      {/* Unpin recipe dialog */}
       <Dialog open={!!unpinTarget} onOpenChange={(open) => { if (!open) setUnpinTarget(null); }}>
         {unpinTarget && (
           <DialogContent className="max-w-sm">
@@ -578,25 +365,25 @@ export function HistoryPage() {
               <Button
                 variant="outline"
                 className="justify-start gap-2 h-auto py-3 px-4"
-                onClick={() => handleUnpin(unpinTarget, "saved")}
+                onClick={() => handleUnpinEntry(unpinTarget, "back")}
                 disabled={removePinMutation.isPending}
               >
                 <Pin className="w-4 h-4 text-muted-foreground shrink-0" />
                 <div className="text-left">
-                  <p className="font-medium text-sm">Move to Saved</p>
-                  <p className="text-xs text-muted-foreground">Unpin and place at the top of your Saved list</p>
+                  <p className="font-medium text-sm">Keep in Saved</p>
+                  <p className="text-xs text-muted-foreground">Unpin it — it stays in your Saved Recipes list</p>
                 </div>
               </Button>
               <Button
                 variant="outline"
                 className="justify-start gap-2 h-auto py-3 px-4 border-destructive/30 hover:border-destructive/60 hover:bg-destructive/5"
-                onClick={() => handleUnpin(unpinTarget, "delete")}
+                onClick={() => handleUnpinEntry(unpinTarget, "delete")}
                 disabled={deleteMutation.isPending || removePinMutation.isPending}
               >
                 <Trash2 className="w-4 h-4 text-destructive shrink-0" />
                 <div className="text-left">
                   <p className="font-medium text-sm text-destructive">Remove from Saved</p>
-                  <p className="text-xs text-muted-foreground">Delete from Saved list entirely</p>
+                  <p className="text-xs text-muted-foreground">Delete from your Saved Recipes list entirely</p>
                 </div>
               </Button>
               <Button variant="ghost" size="sm" onClick={() => setUnpinTarget(null)} className="mt-1">
@@ -607,11 +394,8 @@ export function HistoryPage() {
         )}
       </Dialog>
 
-      {/* ── Recipe Detail Dialog (history entry) ── */}
-      <Dialog
-        open={!!selected}
-        onOpenChange={(open) => { if (!open) setSelected(null); }}
-      >
+      {/* Recipe detail dialog */}
+      <Dialog open={!!selected} onOpenChange={(open) => { if (!open) setSelected(null); }}>
         {selected && (
           <DialogContent className="max-w-lg max-h-[80vh] flex flex-col gap-4">
             <DialogHeader>
@@ -637,7 +421,6 @@ export function HistoryPage() {
                   <Flame className="w-4 h-4" />{selected.calories} kcal
                 </span>
               )}
-              <span className="ml-auto text-xs">{formatDate(selected.addedAt)}</span>
             </div>
 
             {selected.sourceUrl && (
@@ -700,11 +483,8 @@ export function HistoryPage() {
         )}
       </Dialog>
 
-      {/* ── Favorite Meal Detail Dialog ── */}
-      <Dialog
-        open={!!selectedFavMeal}
-        onOpenChange={(open) => { if (!open) setSelectedFavMeal(null); }}
-      >
+      {/* Meal detail dialog */}
+      <Dialog open={!!selectedFavMeal} onOpenChange={(open) => { if (!open) setSelectedFavMeal(null); }}>
         {selectedFavMeal && (
           <DialogContent className="max-w-lg max-h-[80vh] flex flex-col gap-4">
             <DialogHeader>

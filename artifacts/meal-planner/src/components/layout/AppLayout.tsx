@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
-  Home,
+  Sparkles,
   Calendar,
   ShoppingCart,
   PackageSearch,
@@ -11,12 +11,14 @@ import {
   Menu,
   Settings,
   ChefHat,
+  UtensilsCrossed,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 
 const routes = [
-  { name: "Discover", path: "/", icon: Home },
+  { name: "Cooking Board", path: "/cooking-board", icon: UtensilsCrossed },
+  { name: "Discover", path: "/", icon: Sparkles },
   { name: "Weekly Plan", path: "/weekly-plan", icon: Calendar },
   { name: "Grocery List", path: "/grocery-list", icon: ShoppingCart },
   { name: "Pantry", path: "/pantry", icon: PackageSearch },
@@ -25,7 +27,7 @@ const routes = [
   { name: "Saved", path: "/history", icon: History },
 ];
 
-const bottomRoutes = [routes[0], routes[1], routes[2], routes[3], routes[6]];
+const bottomRoutes = [routes[0], routes[1], routes[2], routes[3], routes[7]];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();

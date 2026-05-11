@@ -21,6 +21,7 @@ import { ScheduledItems } from "@/pages/ScheduledItems";
 import { HistoryPage } from "@/pages/History";
 import { Favorites } from "@/pages/Favorites";
 import { Settings } from "@/pages/Settings";
+import { CookingBoard } from "@/pages/CookingBoard";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -55,6 +56,7 @@ function Router() {
         <Route path="/grocery-list" component={GroceryList} />
         <Route path="/pantry" component={Pantry} />
         <Route path="/schedule" component={ScheduledItems} />
+        <Route path="/cooking-board" component={CookingBoard} />
         <Route path="/history" component={HistoryPage} />
         <Route path="/favorites" component={Favorites} />
         <Route path="/settings" component={Settings} />

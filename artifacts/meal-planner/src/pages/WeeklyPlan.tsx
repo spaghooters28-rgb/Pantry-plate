@@ -925,7 +925,6 @@ export function WeeklyPlan() {
                               className={`p-1.5 rounded transition-colors ${mealFavoriteMap.get(day.meal.id) ? "text-amber-400 hover:text-amber-500" : "text-muted-foreground hover:text-amber-400"}`}
                               title={mealFavoriteMap.get(day.meal.id) ? "Remove from favorites" : "Add to favorites"}
                               onClick={() => handleToggleFavorite(day.meal!.id)}
-                              disabled={toggleFavoriteMutation.isPending}
                             >
                               <Star className={`w-3.5 h-3.5 ${mealFavoriteMap.get(day.meal.id) ? "fill-amber-400" : ""}`} />
                             </button>
