@@ -36,6 +36,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useTier } from "@/contexts/AuthContext";
 import { UpgradeModal } from "@/components/UpgradeModal";
+import { CachedDataBanner } from "@/components/CachedDataBanner";
 
 const ALL_DAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
@@ -716,6 +717,7 @@ export function WeeklyPlan() {
 
   return (
     <div className="space-y-6">
+      <CachedDataBanner hasData={!!plan} />
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-serif font-bold text-primary mb-1">Weekly Plan</h1>

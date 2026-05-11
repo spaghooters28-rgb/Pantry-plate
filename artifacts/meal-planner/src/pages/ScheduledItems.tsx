@@ -20,6 +20,7 @@ import { Clock, Plus, Pause, Play, Trash2, ShoppingCart, Bell, CalendarClock, Lo
 import { useToast } from "@/hooks/use-toast";
 import { useTier } from "@/contexts/AuthContext";
 import { UpgradeModal } from "@/components/UpgradeModal";
+import { CachedDataBanner } from "@/components/CachedDataBanner";
 
 const CATEGORIES = ["Produce", "Dairy & Eggs", "Meat & Seafood", "Grains & Bread", "Pantry", "Frozen", "Beverages", "Other"];
 const SCHEDULE_TYPES = [
@@ -196,6 +197,7 @@ export function ScheduledItems() {
 
   return (
     <div className="space-y-6">
+      <CachedDataBanner hasData={!!items} />
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-serif font-bold text-primary mb-1">Scheduled Items</h1>
