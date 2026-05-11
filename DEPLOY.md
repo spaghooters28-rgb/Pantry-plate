@@ -128,6 +128,8 @@ docker compose up --build
 # App is now at http://localhost:3000
 ```
 
+> **Note:** Database tables are created automatically on first boot — no manual migration step is needed.
+
 Your data is stored in a Docker volume (`db_data`) and survives restarts. To back it up:
 ```bash
 docker compose exec db pg_dump -U pantryplate pantryplate > backup.sql

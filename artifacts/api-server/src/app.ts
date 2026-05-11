@@ -65,98 +65,12 @@ app.post("/api/billing/webhook", express.raw({ type: "application/json" }), hand
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Run startup migrations — drizzle-kit push requires an interactive TTY so we
-// apply schema changes that can't be done interactively here instead.
-pool.query(`
-  CREATE TABLE IF NOT EXISTS "user_sessions" (
-    "sid" varchar NOT NULL,
-    "sess" json NOT NULL,
-    "expire" timestamp(6) NOT NULL,
-    CONSTRAINT "user_sessions_pkey" PRIMARY KEY ("sid")
-  );
-  CREATE INDEX IF NOT EXISTS "IDX_user_sessions_expire" ON "user_sessions" ("expire");
-
-  CREATE TABLE IF NOT EXISTS "pinned_items" (
-    "id" serial PRIMARY KEY,
-    "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
-    "item_type" text NOT NULL,
-    "item_id" integer NOT NULL,
-    "pinned_at" timestamp DEFAULT now() NOT NULL,
-    UNIQUE("user_id", "item_type", "item_id")
-  );
-
-  ALTER TABLE "conversations"
-    ADD COLUMN IF NOT EXISTS "user_id" integer REFERENCES "users"("id") ON DELETE CASCADE;
-
-  ALTER TABLE "meals"
-    ADD COLUMN IF NOT EXISTS "created_by_user_id" integer REFERENCES "users"("id") ON DELETE SET NULL;
-`).catch((err: unknown) => {
-  logger.error({ err }, "Failed to run startup migrations");
-});
-
-// Email auth migration — adds email/displayName to users, creates reset token table
-pool.query(`
-  ALTER TABLE "users"
-    ADD COLUMN IF NOT EXISTS "email" text;
-  ALTER TABLE "users"
-    ADD COLUMN IF NOT EXISTS "display_name" text;
-
-  CREATE UNIQUE INDEX IF NOT EXISTS "users_email_unique"
-    ON "users" ("email")
-    WHERE "email" IS NOT NULL;
-
-  UPDATE "users"
-    SET "email" = "username" || '@placeholder.pantryplate.local',
-        "display_name" = "username"
-    WHERE "email" IS NULL;
-
-  ALTER TABLE "users" ALTER COLUMN "email" SET NOT NULL;
-  ALTER TABLE "users" ALTER COLUMN "display_name" SET NOT NULL;
-
-  CREATE TABLE IF NOT EXISTS "password_reset_tokens" (
-    "id" serial PRIMARY KEY,
-    "token" text NOT NULL UNIQUE,
-    "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
-    "expires_at" timestamptz NOT NULL,
-    "used_at" timestamptz,
-    "created_at" timestamptz NOT NULL DEFAULT now()
-  );
-`).catch((err: unknown) => {
-  logger.error({ err }, "Failed to run email auth migrations");
-});
-
-// Billing & subscription migration
-pool.query(`
-  ALTER TABLE "users"
-    ADD COLUMN IF NOT EXISTS "tier" text NOT NULL DEFAULT 'free';
-  ALTER TABLE "users"
-    ADD COLUMN IF NOT EXISTS "stripe_customer_id" text;
-
-  CREATE TABLE IF NOT EXISTS "subscription_events" (
-    "id" serial PRIMARY KEY,
-    "stripe_event_id" text NOT NULL UNIQUE,
-    "user_id" integer REFERENCES "users"("id") ON DELETE SET NULL,
-    "event_type" text NOT NULL,
-    "tier" text,
-    "processed_at" timestamptz NOT NULL DEFAULT now()
-  );
-
-  CREATE TABLE IF NOT EXISTS "ai_usage" (
-    "user_id" integer NOT NULL,
-    "year_month" text NOT NULL,
-    "count" integer NOT NULL DEFAULT 0,
-    PRIMARY KEY ("user_id", "year_month")
-  );
-`).catch((err: unknown) => {
-  logger.error({ err }, "Failed to run billing migrations");
-});
-
 app.use(
   session({
     store: new PgSession({
       pool,
       tableName: "user_sessions",
-      createTableIfMissing: false,
+      createTableIfMissing: true,
     }),
     name: "pp_session",
     secret: process.env.SESSION_SECRET ?? "fallback-dev-secret-change-me",
