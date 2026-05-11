@@ -14,6 +14,10 @@ import {
   BookOpen,
   LogIn,
   UserPlus,
+  Download,
+  Share,
+  SquarePlus,
+  X,
 } from "lucide-react";
 import { LoginPage } from "@/pages/LoginPage";
 import {
@@ -21,6 +25,7 @@ import {
   LANDING_PRO_FEATURES,
   LANDING_PRO_AI_FEATURES,
 } from "@/lib/tierFeatures";
+import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 
 // Key used in localStorage to pass the desired tier through the auth flow
 const PENDING_CHECKOUT_TIER_KEY = "pendingCheckoutTier";
@@ -95,6 +100,16 @@ const PLANS = [
 
 export function LandingPage() {
   const [mode, setMode] = useState<LandingMode>("landing");
+  const [showIosSheet, setShowIosSheet] = useState(false);
+  const { canInstall, isIos, triggerInstall } = useInstallPrompt();
+
+  function handleInstall() {
+    if (isIos) {
+      setShowIosSheet(true);
+    } else {
+      triggerInstall();
+    }
+  }
 
   /**
    * Navigate to the register form, optionally tagging a desired tier so
@@ -142,6 +157,12 @@ export function LandingPage() {
             <span className="text-lg font-serif font-bold text-primary">Pantry & Plate</span>
           </div>
           <div className="flex items-center gap-2">
+            {canInstall && (
+              <Button variant="ghost" size="sm" onClick={handleInstall} className="gap-1.5">
+                <Download className="w-4 h-4" />
+                <span className="hidden sm:inline">Install App</span>
+              </Button>
+            )}
             <Button variant="ghost" size="sm" onClick={goLogin} className="gap-1.5">
               <LogIn className="w-4 h-4" />
               <span className="hidden sm:inline">Log in</span>
@@ -184,6 +205,12 @@ export function LandingPage() {
               <LogIn className="w-5 h-5" />
               Sign in
             </Button>
+            {canInstall && (
+              <Button variant="outline" size="lg" onClick={handleInstall} className="gap-2 px-8 text-base h-12 w-full sm:w-auto">
+                <Download className="w-5 h-5" />
+                Install App
+              </Button>
+            )}
           </div>
           <p className="mt-4 text-sm text-muted-foreground">Free forever — no credit card required.</p>
         </div>
@@ -386,6 +413,83 @@ export function LandingPage() {
           <p>© {new Date().getFullYear()} Pantry & Plate</p>
         </div>
       </footer>
+
+      {/* ── iOS Install Instructions Sheet ── */}
+      {showIosSheet && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+          onClick={() => setShowIosSheet(false)}
+        >
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div
+            className="relative bg-background border border-border rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm mx-0 sm:mx-4 p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowIosSheet(false)}
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                <Download className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-base">Add to Home Screen</h3>
+                <p className="text-sm text-muted-foreground">Install Pantry & Plate using Safari</p>
+              </div>
+            </div>
+
+            <ol className="space-y-4">
+              <li className="flex items-start gap-3">
+                <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+                  1
+                </span>
+                <div className="flex-1">
+                  <p className="text-sm">
+                    Tap the{" "}
+                    <span className="inline-flex items-center gap-0.5 font-medium">
+                      <Share className="w-4 h-4 text-blue-500 inline" /> Share
+                    </span>{" "}
+                    button in Safari's toolbar at the bottom of the screen.
+                  </p>
+                </div>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+                  2
+                </span>
+                <div className="flex-1">
+                  <p className="text-sm">
+                    Scroll down and tap{" "}
+                    <span className="inline-flex items-center gap-1 font-medium">
+                      <SquarePlus className="w-4 h-4 inline" /> Add to Home Screen
+                    </span>
+                    .
+                  </p>
+                </div>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+                  3
+                </span>
+                <div className="flex-1">
+                  <p className="text-sm">
+                    Tap <span className="font-medium">Add</span> in the top-right corner. The app icon will appear on your home screen.
+                  </p>
+                </div>
+              </li>
+            </ol>
+
+            <Button className="w-full mt-6" onClick={() => setShowIosSheet(false)}>
+              Got it
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
