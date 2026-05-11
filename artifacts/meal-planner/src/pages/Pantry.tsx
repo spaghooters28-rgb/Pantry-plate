@@ -258,6 +258,37 @@ export function Pantry() {
     );
   }
 
+  async function handleToggleInStock(id: number, currentInStock: boolean) {
+    await queryClient.cancelQueries({ queryKey: qKey });
+    const snapshot = queryClient.getQueryData(qKey);
+    const newInStock = !currentInStock;
+    queryClient.setQueryData(qKey, (old: typeof items) => {
+      if (!old) return old;
+      return old.map((item) => item.id === id ? { ...item, inStock: newInStock } : item);
+    });
+    if (!navigator.onLine) {
+      enqueueOp({
+        key: `pantry-instock-${id}`,
+        type: "pantry-instock",
+        itemId: id,
+        payload: { inStock: newInStock },
+      });
+      return;
+    }
+    updateMutation.mutate(
+      { id, data: { inStock: newInStock } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: qKey });
+        },
+        onError: () => {
+          queryClient.setQueryData(qKey, snapshot);
+          toast({ title: "Error", description: "Could not update stock status.", variant: "destructive" });
+        },
+      }
+    );
+  }
+
   async function handleGenerateRecipes() {
     if (!isPro) {
       setUpgradeOpen(true);
@@ -410,11 +441,19 @@ export function Pantry() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {grouped[category].map((item) => (
                   <Card key={item.id} className="overflow-hidden">
-                    <div className="h-1 w-full bg-green-500" />
+                    <div className={`h-1 w-full ${item.inStock ? "bg-green-500" : "bg-amber-400"}`} />
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <h3 className="font-semibold text-base leading-tight flex-1">{item.name}</h3>
                         <div className="flex items-center gap-1">
+                          <button
+                            className={`p-1 transition-colors text-xs font-medium rounded px-1.5 ${item.inStock ? "text-green-700 hover:text-amber-600" : "text-amber-600 hover:text-green-700"}`}
+                            onClick={() => handleToggleInStock(item.id, item.inStock)}
+                            disabled={updateMutation.isPending}
+                            title={item.inStock ? "Mark as depleted" : "Mark as in stock"}
+                          >
+                            {item.inStock ? "In Stock" : "Depleted"}
+                          </button>
                           <button
                             className="p-1 text-muted-foreground hover:text-primary transition-colors"
                             onClick={() => handleAddToGrocery(item)}

@@ -371,18 +371,77 @@ export function GroceryList() {
     );
   }
 
-  function handleDelete(id: number) {
+  async function handleDelete(id: number) {
+    await queryClient.cancelQueries({ queryKey: qKey });
+    const snapshot = queryClient.getQueryData(qKey);
+    queryClient.setQueryData(qKey, (old: typeof list) => {
+      if (!old) return old;
+      const item = old.categories.flatMap((c) => c.items).find((i) => i.id === id);
+      return {
+        ...old,
+        totalItems: Math.max(0, old.totalItems - 1),
+        checkedItems: item?.isChecked ? Math.max(0, old.checkedItems - 1) : old.checkedItems,
+        categories: old.categories
+          .map((cat) => ({ ...cat, items: cat.items.filter((i) => i.id !== id) }))
+          .filter((cat) => cat.items.length > 0),
+      };
+    });
+    if (!navigator.onLine) {
+      enqueueOp({
+        key: `grocery-delete-${id}`,
+        type: "grocery-delete",
+        itemId: id,
+        payload: {},
+      });
+      return;
+    }
     deleteMutation.mutate(
       { id },
-      { onSuccess: () => queryClient.invalidateQueries({ queryKey: qKey }) }
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: qKey });
+        },
+        onError: () => {
+          queryClient.setQueryData(qKey, snapshot);
+          toast({ title: "Error", description: "Could not delete item.", variant: "destructive" });
+        },
+      }
     );
   }
 
-  function handleClearChecked() {
+  async function handleClearChecked() {
+    await queryClient.cancelQueries({ queryKey: qKey });
+    const snapshot = queryClient.getQueryData(qKey);
+    queryClient.setQueryData(qKey, (old: typeof list) => {
+      if (!old) return old;
+      const checkedCount = old.checkedItems;
+      return {
+        ...old,
+        totalItems: Math.max(0, old.totalItems - checkedCount),
+        checkedItems: 0,
+        categories: old.categories
+          .map((cat) => ({ ...cat, items: cat.items.filter((i) => !i.isChecked) }))
+          .filter((cat) => cat.items.length > 0),
+      };
+    });
+    if (!navigator.onLine) {
+      enqueueOp({
+        key: `grocery-clear-${Date.now()}`,
+        type: "grocery-clear",
+        itemId: 0,
+        payload: {},
+      });
+      toast({ title: "Saved offline", description: "Checked items will be cleared when you reconnect." });
+      return;
+    }
     clearMutation.mutate(undefined, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: qKey });
         toast({ title: "Cleared!", description: "Checked items removed from your list." });
+      },
+      onError: () => {
+        queryClient.setQueryData(qKey, snapshot);
+        toast({ title: "Error", description: "Could not clear checked items.", variant: "destructive" });
       },
     });
   }
@@ -438,17 +497,54 @@ export function GroceryList() {
   }
 
   function doAdd() {
+    const itemData = {
+      name: newItem.name.trim(),
+      quantity: newItem.quantity,
+      unit: newItem.unit || undefined,
+      category: newItem.category,
+      scheduleType: newItem.scheduleType === "none" ? undefined : newItem.scheduleType,
+      scheduleDaysInterval: newItem.scheduleType === "custom" ? newItem.scheduleDaysInterval : undefined,
+    };
+
+    if (!navigator.onLine) {
+      const tempId = -Date.now();
+      const opKey = `grocery-add-${-tempId}`;
+      queryClient.setQueryData(qKey, (old: typeof list) => {
+        if (!old) return old;
+        const fakeItem = {
+          id: tempId,
+          name: itemData.name,
+          quantity: itemData.quantity,
+          unit: itemData.unit ?? null,
+          category: itemData.category,
+          isChecked: false,
+          isCustom: true,
+          mealId: null,
+          mealName: null,
+        };
+        const existingCat = old.categories.find((c) => c.category === itemData.category);
+        const updatedCategories = existingCat
+          ? old.categories.map((c) =>
+              c.category === itemData.category ? { ...c, items: [...c.items, fakeItem] } : c
+            )
+          : [...old.categories, { category: itemData.category, items: [fakeItem] }];
+        return { ...old, totalItems: old.totalItems + 1, categories: updatedCategories };
+      });
+      enqueueOp({
+        key: opKey,
+        type: "grocery-add",
+        itemId: 0,
+        payload: itemData,
+      });
+      setAddOpen(false);
+      setNewItem({ name: "", quantity: "1", unit: "", category: "Other", scheduleType: "none", scheduleDaysInterval: 7 });
+      setCategoryAutoDetected(false);
+      toast({ title: "Item saved offline", description: "It will be added when you reconnect." });
+      return;
+    }
+
     addMutation.mutate(
-      {
-        data: {
-          name: newItem.name.trim(),
-          quantity: newItem.quantity,
-          unit: newItem.unit || undefined,
-          category: newItem.category,
-          scheduleType: newItem.scheduleType === "none" ? undefined : newItem.scheduleType,
-          scheduleDaysInterval: newItem.scheduleType === "custom" ? newItem.scheduleDaysInterval : undefined,
-        },
-      },
+      { data: itemData },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: qKey });

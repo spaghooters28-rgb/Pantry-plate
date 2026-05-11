@@ -4,7 +4,13 @@ import { getGetGroceryListQueryKey, getListPantryItemsQueryKey } from "@workspac
 
 const QUEUE_KEY = "pp_offline_queue";
 
-export type OfflineOpType = "grocery-toggle" | "pantry-quantity";
+export type OfflineOpType =
+  | "grocery-toggle"
+  | "grocery-add"
+  | "grocery-delete"
+  | "grocery-clear"
+  | "pantry-quantity"
+  | "pantry-instock";
 
 export type QueuedOp = {
   key: string;
@@ -67,19 +73,37 @@ async function runSync(queryClient: ReturnType<typeof useQueryClient>) {
   for (const op of ops) {
     try {
       let url = "";
+      let method = "PATCH";
+
       if (op.type === "grocery-toggle") {
         url = `/api/grocery-list/items/${op.itemId}`;
+        groceryChanged = true;
+      } else if (op.type === "grocery-add") {
+        url = `/api/grocery-list/items`;
+        method = "POST";
+        groceryChanged = true;
+      } else if (op.type === "grocery-delete") {
+        url = `/api/grocery-list/items/${op.itemId}`;
+        method = "DELETE";
+        groceryChanged = true;
+      } else if (op.type === "grocery-clear") {
+        url = `/api/grocery-list/clear`;
+        method = "POST";
         groceryChanged = true;
       } else if (op.type === "pantry-quantity") {
         url = `/api/pantry/items/${op.itemId}`;
         pantryChanged = true;
+      } else if (op.type === "pantry-instock") {
+        url = `/api/pantry/items/${op.itemId}`;
+        pantryChanged = true;
       }
+
       if (!url) continue;
 
       const res = await fetch(url, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(op.payload),
+        method,
+        headers: method !== "DELETE" ? { "Content-Type": "application/json" } : undefined,
+        body: method !== "DELETE" ? JSON.stringify(op.payload) : undefined,
       });
 
       if (res.ok) {
