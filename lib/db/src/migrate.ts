@@ -4,6 +4,8 @@ import path from "node:path";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import type { Pool } from "pg";
+import { mealsTable, ingredientsTable, sidesTable, pantryItemsTable } from "./schema";
+import { seedMeals, seedPantryItems } from "./seed-data";
 
 // The build step copies lib/db/drizzle/ into dist/drizzle/ so the path is
 // always relative to __dirname (set to the dist directory by the esbuild banner).
@@ -55,4 +57,81 @@ export async function runMigrations(pool: Pool): Promise<void> {
   }
 
   await migrate(drizzle(pool), { migrationsFolder });
+}
+
+export async function runSeed(pool: Pool): Promise<void> {
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM meals`
+    );
+    const mealCount = parseInt(rows[0]?.count ?? "0", 10);
+
+    if (mealCount > 0) {
+      return;
+    }
+
+    await client.query("BEGIN");
+
+    const db = drizzle(client);
+
+    for (const meal of seedMeals) {
+      const { ingredients, sides, ...mealData } = meal;
+
+      const [inserted] = await db
+        .insert(mealsTable)
+        .values({ ...mealData, imageUrl: null })
+        .returning();
+
+      if (!inserted) continue;
+
+      if (ingredients.length > 0) {
+        await db.insert(ingredientsTable).values(
+          ingredients.map((ing) => ({
+            mealId: inserted.id,
+            name: ing.name,
+            quantity: ing.quantity,
+            unit: ing.unit,
+            category: ing.category,
+            isCommonPantryItem: ing.isCommonPantryItem,
+          }))
+        );
+      }
+
+      if (sides.length > 0) {
+        await db.insert(sidesTable).values(
+          sides.map((side) => ({
+            mealId: inserted.id,
+            name: side.name,
+            description: side.description,
+          }))
+        );
+      }
+    }
+
+    const { rows: pantryRows } = await client.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM pantry_items WHERE user_id IS NULL`
+    );
+    const pantryCount = parseInt(pantryRows[0]?.count ?? "0", 10);
+
+    if (pantryCount === 0) {
+      await db.insert(pantryItemsTable).values(
+        seedPantryItems.map((item) => ({
+          name: item.name,
+          category: item.category,
+          quantity: item.quantity,
+          inStock: item.inStock,
+          userId: null,
+          notes: null,
+        }))
+      );
+    }
+
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 }

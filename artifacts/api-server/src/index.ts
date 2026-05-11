@@ -1,6 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { pool, runMigrations } from "@workspace/db";
+import { pool, runMigrations, runSeed } from "@workspace/db";
 
 const rawPort = process.env["PORT"];
 
@@ -20,6 +20,10 @@ async function start() {
   logger.info("Running database migrations…");
   await runMigrations(pool);
   logger.info("Migrations complete");
+
+  logger.info("Running database seed check…");
+  await runSeed(pool);
+  logger.info("Seed check complete");
 
   app.listen(port, (err) => {
     if (err) {
