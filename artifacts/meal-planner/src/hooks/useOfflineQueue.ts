@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { getGetGroceryListQueryKey, getListPantryItemsQueryKey } from "@workspace/api-client-react";
+import {
+  getGetGroceryListQueryKey,
+  getListPantryItemsQueryKey,
+  getListScheduledItemsQueryKey,
+  getGetDueScheduledItemsQueryKey,
+} from "@workspace/api-client-react";
 
 const QUEUE_KEY = "pp_offline_queue";
 
@@ -10,7 +15,11 @@ export type OfflineOpType =
   | "grocery-delete"
   | "grocery-clear"
   | "pantry-quantity"
-  | "pantry-instock";
+  | "pantry-instock"
+  | "pantry-add"
+  | "pantry-delete"
+  | "scheduled-pause"
+  | "scheduled-delete";
 
 export type QueuedOp = {
   key: string;
@@ -69,6 +78,7 @@ async function runSync(queryClient: ReturnType<typeof useQueryClient>) {
   const ops = Object.values(queue).sort((a, b) => a.enqueuedAt - b.enqueuedAt);
   let groceryChanged = false;
   let pantryChanged = false;
+  let scheduledChanged = false;
 
   for (const op of ops) {
     try {
@@ -96,6 +106,21 @@ async function runSync(queryClient: ReturnType<typeof useQueryClient>) {
       } else if (op.type === "pantry-instock") {
         url = `/api/pantry/items/${op.itemId}`;
         pantryChanged = true;
+      } else if (op.type === "pantry-add") {
+        url = `/api/pantry/items`;
+        method = "POST";
+        pantryChanged = true;
+      } else if (op.type === "pantry-delete") {
+        url = `/api/pantry/items/${op.itemId}`;
+        method = "DELETE";
+        pantryChanged = true;
+      } else if (op.type === "scheduled-pause") {
+        url = `/api/scheduled-items/${op.itemId}`;
+        scheduledChanged = true;
+      } else if (op.type === "scheduled-delete") {
+        url = `/api/scheduled-items/${op.itemId}`;
+        method = "DELETE";
+        scheduledChanged = true;
       }
 
       if (!url) continue;
@@ -119,6 +144,10 @@ async function runSync(queryClient: ReturnType<typeof useQueryClient>) {
   }
   if (pantryChanged) {
     queryClient.invalidateQueries({ queryKey: getListPantryItemsQueryKey() });
+  }
+  if (scheduledChanged) {
+    queryClient.invalidateQueries({ queryKey: getListScheduledItemsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getGetDueScheduledItemsQueryKey() });
   }
 
   isSyncingModule = false;

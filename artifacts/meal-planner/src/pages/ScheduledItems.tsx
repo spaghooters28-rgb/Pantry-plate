@@ -11,6 +11,7 @@ import {
   getGetGroceryListQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { enqueueOp, dequeueOp } from "@/hooks/useOfflineQueue";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -79,27 +80,48 @@ export function ScheduledItems() {
   const activeItems = items?.filter((i) => i.isActive) ?? [];
   const pausedItems = items?.filter((i) => !i.isActive) ?? [];
 
-  function handleTogglePause(item: ScheduledItem) {
+  async function handleTogglePause(item: ScheduledItem) {
+    const newIsActive = !item.isActive;
+    await queryClient.cancelQueries({ queryKey: qKey });
+    const snapshot = queryClient.getQueryData(qKey);
+    queryClient.setQueryData(qKey, (old: typeof items) => old?.map((i) => i.id === item.id ? { ...i, isActive: newIsActive } : i));
+    if (!navigator.onLine) {
+      enqueueOp({ key: `scheduled-pause-${item.id}`, type: "scheduled-pause", itemId: item.id, payload: { isActive: newIsActive } });
+      toast({ title: newIsActive ? `${item.name} resumed offline — will sync on reconnect` : `${item.name} paused offline — will sync on reconnect` });
+      return;
+    }
     updateMutation.mutate(
-      { id: item.id, data: { isActive: !item.isActive } },
+      { id: item.id, data: { isActive: newIsActive } },
       {
         onSuccess: () => {
+          dequeueOp(`scheduled-pause-${item.id}`);
           queryClient.invalidateQueries({ queryKey: qKey });
-          toast({ title: item.isActive ? `${item.name} paused` : `${item.name} resumed` });
+          toast({ title: newIsActive ? `${item.name} resumed` : `${item.name} paused` });
         },
+        onError: () => queryClient.setQueryData(qKey, snapshot),
       }
     );
   }
 
-  function handleDelete(id: number, name: string) {
+  async function handleDelete(id: number, name: string) {
+    await queryClient.cancelQueries({ queryKey: qKey });
+    const snapshot = queryClient.getQueryData(qKey);
+    queryClient.setQueryData(qKey, (old: typeof items) => old?.filter((i) => i.id !== id));
+    if (!navigator.onLine) {
+      enqueueOp({ key: `scheduled-delete-${id}`, type: "scheduled-delete", itemId: id, payload: {} });
+      toast({ title: `${name} removed offline — will sync on reconnect` });
+      return;
+    }
     deleteMutation.mutate(
       { id },
       {
         onSuccess: () => {
+          dequeueOp(`scheduled-delete-${id}`);
           queryClient.invalidateQueries({ queryKey: qKey });
           queryClient.invalidateQueries({ queryKey: dueQKey });
           toast({ title: `${name} removed from schedule.` });
         },
+        onError: () => queryClient.setQueryData(qKey, snapshot),
       }
     );
   }

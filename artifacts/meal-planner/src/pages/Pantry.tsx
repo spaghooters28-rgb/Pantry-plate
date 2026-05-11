@@ -330,22 +330,49 @@ export function Pantry() {
     );
   }
 
-  function handleDelete(item: PantryItem) {
+  async function handleDelete(item: PantryItem) {
+    await queryClient.cancelQueries({ queryKey: qKey });
+    const snapshot = queryClient.getQueryData(qKey);
+    queryClient.setQueryData(qKey, (old: typeof items) => old?.filter((i) => i.id !== item.id));
+    if (!navigator.onLine) {
+      enqueueOp({ key: `pantry-delete-${item.id}`, type: "pantry-delete", itemId: item.id, payload: {} });
+      toast({ title: `${item.name} removed offline — will sync on reconnect` });
+      return;
+    }
     deleteMutation.mutate(
       { id: item.id },
       {
         onSuccess: () => {
+          dequeueOp(`pantry-delete-${item.id}`);
           queryClient.invalidateQueries({ queryKey: qKey });
           toast({ title: `${item.name} removed from pantry.` });
         },
-        onError: () => toast({ title: "Error", description: "Could not remove item.", variant: "destructive" }),
+        onError: () => {
+          queryClient.setQueryData(qKey, snapshot);
+          toast({ title: "Error", description: "Could not remove item.", variant: "destructive" });
+        },
       }
     );
   }
 
-  function handleAdd(e: React.FormEvent) {
+  async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     if (!newItem.name.trim()) return;
+    if (!navigator.onLine) {
+      const fakeId = -Date.now();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      queryClient.setQueryData(qKey, (old: typeof items) => [...(old ?? []), { id: fakeId, name: newItem.name.trim(), quantity: newItem.quantity || null, category: newItem.category, notes: newItem.notes || null, inStock: true, userId: 0 } as any]);
+      enqueueOp({
+        key: `pantry-add-${fakeId}`,
+        type: "pantry-add",
+        itemId: fakeId,
+        payload: { name: newItem.name.trim(), quantity: newItem.quantity || null, category: newItem.category, notes: newItem.notes || null },
+      });
+      setAddOpen(false);
+      setNewItem({ name: "", quantity: "", category: "Pantry", notes: "" });
+      toast({ title: "Item saved offline — will sync on reconnect" });
+      return;
+    }
     addMutation.mutate(
       {
         data: {
