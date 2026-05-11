@@ -22,6 +22,7 @@ import {
   useAddPin,
   useRemovePin,
   useCreateCustomMeal,
+  ListMealsResponse,
 } from "@workspace/api-client-react";
 import { usePinsMigration } from "@/hooks/usePinsMigration";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
@@ -232,6 +233,39 @@ export function WeeklyPlan() {
   const mealFavoriteMap = new Map<number, boolean>(
     ((allMeals ?? []) as Array<{ id: number; isFavorited: boolean }>).map((m) => [m.id, m.isFavorited])
   );
+
+  function handleToggleFavorite(mealId: number) {
+    const currentlyFavorited = mealFavoriteMap.get(mealId) ?? false;
+    const newFavorited = !currentlyFavorited;
+
+    queryClient.setQueryData(
+      getListMealsQueryKey({}),
+      (old: ListMealsResponse | undefined) => {
+        if (!old?.meals) return old;
+        return { ...old, meals: old.meals.map((m) => m.id === mealId ? { ...m, isFavorited: newFavorited } : m) };
+      }
+    );
+
+    toggleFavoriteMutation.mutate(
+      { id: mealId },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListMealsQueryKey({}) });
+          toast({ title: newFavorited ? "Added to favorites!" : "Removed from favorites." });
+        },
+        onError: () => {
+          queryClient.setQueryData(
+            getListMealsQueryKey({}),
+            (old: ListMealsResponse | undefined) => {
+              if (!old?.meals) return old;
+              return { ...old, meals: old.meals.map((m) => m.id === mealId ? { ...m, isFavorited: currentlyFavorited } : m) };
+            }
+          );
+          toast({ title: "Error", description: "Could not update favorite.", variant: "destructive" });
+        },
+      }
+    );
+  }
 
   const prefs = localPrefs ?? {
     cuisine: (preferences as { cuisine?: string | null } | undefined)?.cuisine ?? "",
@@ -473,22 +507,15 @@ export function WeeklyPlan() {
     toast({ title: "Leftover day cleared." });
   }
 
-  async function handleSaveSelectedToFavorites() {
+  function handleSaveSelectedToFavorites() {
     const mealsToToggle = [...selectedDays]
       .map((day) => plan?.days.find((d) => d.day === day)?.meal)
       .filter((m): m is NonNullable<typeof m> => m != null);
     if (mealsToToggle.length === 0) return;
-    await Promise.all(
-      mealsToToggle.map(
-        (meal) =>
-          new Promise<void>((resolve) =>
-            toggleFavoriteMutation.mutate({ id: meal.id }, { onSuccess: () => resolve(), onError: () => resolve() })
-          )
-      )
-    );
-    queryClient.invalidateQueries({ queryKey: getListMealsQueryKey({}) });
+    for (const meal of mealsToToggle) {
+      handleToggleFavorite(meal.id);
+    }
     setSelectedDays(new Set());
-    toast({ title: `${mealsToToggle.length} meal${mealsToToggle.length > 1 ? "s" : ""} saved to favorites!` });
   }
 
   async function handleAddSelectedToGrocery() {
@@ -904,7 +931,8 @@ export function WeeklyPlan() {
                             <button
                               className={`p-1.5 rounded transition-colors ${mealFavoriteMap.get(day.meal.id) ? "text-amber-400 hover:text-amber-500" : "text-muted-foreground hover:text-amber-400"}`}
                               title={mealFavoriteMap.get(day.meal.id) ? "Remove from favorites" : "Add to favorites"}
-                              onClick={() => toggleFavoriteMutation.mutate({ id: day.meal!.id }, { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListMealsQueryKey({}) }) })}
+                              onClick={() => handleToggleFavorite(day.meal!.id)}
+                              disabled={toggleFavoriteMutation.isPending}
                             >
                               <Star className={`w-3.5 h-3.5 ${mealFavoriteMap.get(day.meal.id) ? "fill-amber-400" : ""}`} />
                             </button>
