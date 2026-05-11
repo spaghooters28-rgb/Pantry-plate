@@ -27,7 +27,7 @@ const routes = [
   { name: "Saved", path: "/history", icon: History },
 ];
 
-const bottomRoutes = [routes[0], routes[1], routes[2], routes[3], routes[7]];
+const bottomRoutes = [routes[1], routes[2], routes[3], routes[4], routes[7]];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();

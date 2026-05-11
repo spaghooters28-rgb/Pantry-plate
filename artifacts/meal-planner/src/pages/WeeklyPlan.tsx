@@ -31,7 +31,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Clock, Flame, Shuffle, ShoppingCart, Calendar, Settings2, ChevronDown, ChevronUp, BookOpen, Star, History, Link, Loader2, Search, CheckCircle2, Trash2, Plus, Pin, PencilLine, X } from "lucide-react";
+import { Clock, Flame, Shuffle, ShoppingCart, Calendar, Settings2, ChevronDown, ChevronUp, BookOpen, Star, History, Link, Loader2, Search, CheckCircle2, Trash2, Plus, Pin, PencilLine, X, Wand2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { CachedDataBanner } from "@/components/CachedDataBanner";
@@ -145,6 +145,7 @@ export function WeeklyPlan() {
   const [addingCustomMeal, setAddingCustomMeal] = useState(false);
   const [recipeBuilderOpen, setRecipeBuilderOpen] = useState(false);
   const [favPendingIds, setFavPendingIds] = useState<Set<number>>(new Set());
+  const [regeneratingDays, setRegeneratingDays] = useState(false);
   const [newRecipe, setNewRecipe] = useState<NewRecipeForm>(BLANK_RECIPE);
   const [localPrefs, setLocalPrefs] = useState<{
     cuisine: string;
@@ -600,6 +601,57 @@ export function WeeklyPlan() {
     });
   }
 
+  async function handleRegenerateSelected() {
+    if (!allMeals || allMeals.length === 0 || regeneratingDays) return;
+    const days = [...selectedDays];
+    setRegeneratingDays(true);
+
+    const keptMealIds = new Set(
+      (plan?.days ?? [])
+        .filter((d) => !selectedDays.has(d.day) && d.meal != null)
+        .map((d) => d.meal!.id)
+    );
+
+    type MealItem = { id: number; cuisine: string; protein: string; isGlutenFree: boolean };
+    let candidates = (allMeals as MealItem[]).filter((m) => {
+      if (prefs.cuisine && m.cuisine !== prefs.cuisine) return false;
+      if (prefs.glutenFree && !m.isGlutenFree) return false;
+      if (prefs.proteins.length > 0 && !prefs.proteins.includes(m.protein)) return false;
+      return true;
+    });
+
+    if (candidates.length < days.length) candidates = allMeals as MealItem[];
+
+    const usedIds = new Set(keptMealIds);
+    let successCount = 0;
+
+    for (const day of days) {
+      const available = candidates.filter((m) => !usedIds.has(m.id));
+      if (available.length === 0) break;
+      const pick = available[Math.floor(Math.random() * available.length)];
+      usedIds.add(pick.id);
+
+      await new Promise<void>((resolve) =>
+        updateDayMealMutation.mutate(
+          { day, data: { mealId: pick.id } },
+          { onSuccess: () => { successCount++; resolve(); }, onError: () => resolve() }
+        )
+      );
+    }
+
+    queryClient.invalidateQueries({ queryKey: getGetWeeklyPlanQueryKey() });
+    setSelectedDays(new Set());
+    setRegeneratingDays(false);
+
+    if (successCount === days.length) {
+      toast({ title: `${successCount} day${successCount !== 1 ? "s" : ""} refreshed with new meals!` });
+    } else if (successCount > 0) {
+      toast({ title: `${successCount} of ${days.length} days updated.`, variant: "destructive" });
+    } else {
+      toast({ title: "Could not regenerate meals.", description: "Please try again.", variant: "destructive" });
+    }
+  }
+
   function handleAnalyzeRecipe(e: React.FormEvent) {
     e.preventDefault();
     if (!recipeUrl.trim()) return;
@@ -773,6 +825,16 @@ export function WeeklyPlan() {
               >
                 <ShoppingCart className="w-4 h-4" />
                 Add to Grocery ({selectedDays.size})
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRegenerateSelected}
+                disabled={regeneratingDays || updateDayMealMutation.isPending}
+                className="gap-1.5"
+              >
+                {regeneratingDays ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+                Regenerate ({selectedDays.size})
               </Button>
               <Button variant="destructive" size="sm" onClick={handleRemoveSelected} disabled={updateDayMealMutation.isPending}>
                 <Trash2 className="w-4 h-4 mr-1.5" />

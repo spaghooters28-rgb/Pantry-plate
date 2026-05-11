@@ -292,6 +292,7 @@ export function Discover() {
       const decoder = new TextDecoder();
       let buffer = "";
       let savedCount = 0;
+      let errorCount = 0;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -313,11 +314,24 @@ export function Discover() {
               savedCount++;
               setAiProgress(savedCount);
               queryClient.invalidateQueries({ queryKey: getListMealsQueryKey(params) });
+            } else if (event.type === "error") {
+              errorCount++;
             } else if (event.type === "done") {
-              toast({
-                title: `${event.count ?? savedCount} new meal ideas added!`,
-                description: "AI-generated meals are now in your list.",
-              });
+              const finalCount = event.count ?? savedCount;
+              if (finalCount === 0) {
+                toast({
+                  title: "No meals generated",
+                  description: errorCount > 0
+                    ? "AI generation ran into errors. Please try again in a moment."
+                    : "Try adjusting your filters or try again.",
+                  variant: "destructive",
+                });
+              } else {
+                toast({
+                  title: `${finalCount} new meal idea${finalCount !== 1 ? "s" : ""} added!`,
+                  description: "AI-generated meals are now in your list.",
+                });
+              }
             }
           } catch {
             // malformed SSE line — skip
