@@ -10,6 +10,7 @@ import {
   getListPantryItemsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useOfflineQueueState, enqueueOp, dequeueOp } from "@/hooks/useOfflineQueue";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -299,6 +300,7 @@ export function GroceryList() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const qKey = getGetGroceryListQueryKey();
+  const { pendingCount, isSyncing } = useOfflineQueueState();
 
   const { data: list, isLoading } = useGetGroceryList({ query: { queryKey: qKey } });
   const { data: suggestions } = useGetGroceryListSuggestions({ query: { queryKey: ["grocery-suggestions"], enabled: suggestionsOpen } });
@@ -346,10 +348,21 @@ export function GroceryList() {
         })),
       };
     });
+    if (!navigator.onLine) {
+      enqueueOp({
+        key: `grocery-toggle-${id}`,
+        type: "grocery-toggle",
+        itemId: id,
+        payload: { isChecked: !checked },
+      });
+    }
     updateMutation.mutate(
       { id, data: { isChecked: !checked } },
       {
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: qKey }),
+        onSuccess: () => {
+          dequeueOp(`grocery-toggle-${id}`);
+          queryClient.invalidateQueries({ queryKey: qKey });
+        },
         onError: () => {
           queryClient.setQueryData(qKey, snapshot);
           toast({ title: "Error", description: "Could not update item.", variant: "destructive" });
@@ -488,14 +501,21 @@ export function GroceryList() {
   }
 
   const hasPendingWrites = updateMutation.isPaused || addMutation.isPaused || deleteMutation.isPaused || clearMutation.isPaused;
+  const showQueuedBanner = hasPendingWrites || pendingCount > 0;
 
   return (
     <div className="space-y-6">
       <CachedDataBanner hasData={!!list} />
-      {hasPendingWrites && (
+      {showQueuedBanner && (
         <div className="flex items-center gap-1.5 text-xs text-sky-700 bg-sky-50 border border-sky-200 rounded-md px-3 py-1.5">
-          <RefreshCw className="w-3 h-3 shrink-0 animate-spin" />
-          <span>Changes queued — will sync automatically when you reconnect</span>
+          <RefreshCw className={`w-3 h-3 shrink-0 ${isSyncing ? "animate-spin" : "animate-none opacity-60"}`} />
+          <span>
+            {isSyncing
+              ? "Syncing changes…"
+              : pendingCount > 0
+              ? `${pendingCount} change${pendingCount > 1 ? "s" : ""} saved locally — will sync when you reconnect`
+              : "Changes queued — will sync automatically when you reconnect"}
+          </span>
         </div>
       )}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">

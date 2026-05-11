@@ -14,6 +14,7 @@ import {
   type AvailableRecipe,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useOfflineQueueState, enqueueOp, dequeueOp } from "@/hooks/useOfflineQueue";
 import { CachedDataBanner } from "@/components/CachedDataBanner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -202,6 +203,7 @@ export function Pantry() {
   const { isPro } = useTier();
   const qKey = getListPantryItemsQueryKey();
   const recipeQKey = getGetAvailableRecipesQueryKey();
+  const { pendingCount, isSyncing } = useOfflineQueueState();
 
   const { data: items, isLoading } = useListPantryItems({ query: { queryKey: qKey } });
   const { data: availableRecipes, isLoading: recipesLoading, refetch: fetchRecipes } = useGetAvailableRecipes({
@@ -233,10 +235,21 @@ export function Pantry() {
       if (!old) return old;
       return old.map((item) => item.id === id ? { ...item, quantity: qty } : item);
     });
+    if (!navigator.onLine) {
+      enqueueOp({
+        key: `pantry-quantity-${id}`,
+        type: "pantry-quantity",
+        itemId: id,
+        payload: { quantity: qty },
+      });
+    }
     updateMutation.mutate(
       { id, data: { quantity: qty } },
       {
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: qKey }),
+        onSuccess: () => {
+          dequeueOp(`pantry-quantity-${id}`);
+          queryClient.invalidateQueries({ queryKey: qKey });
+        },
         onError: () => {
           queryClient.setQueryData(qKey, snapshot);
           toast({ title: "Error", description: "Could not update quantity.", variant: "destructive" });
@@ -326,14 +339,21 @@ export function Pantry() {
   const readyRecipes = availableRecipes?.filter((r) => r.matchScore === 1) ?? [];
   const almostRecipes = availableRecipes?.filter((r) => r.matchScore < 1) ?? [];
   const hasPendingWrites = updateMutation.isPaused || addMutation.isPaused || deleteMutation.isPaused || movePantryMutation.isPaused;
+  const showQueuedBanner = hasPendingWrites || pendingCount > 0;
 
   return (
     <div className="space-y-6">
       <CachedDataBanner hasData={!!(items && items.length > 0)} />
-      {hasPendingWrites && (
+      {showQueuedBanner && (
         <div className="flex items-center gap-1.5 text-xs text-sky-700 bg-sky-50 border border-sky-200 rounded-md px-3 py-1.5">
-          <RefreshCw className="w-3 h-3 shrink-0 animate-spin" />
-          <span>Changes queued — will sync automatically when you reconnect</span>
+          <RefreshCw className={`w-3 h-3 shrink-0 ${isSyncing ? "animate-spin" : "animate-none opacity-60"}`} />
+          <span>
+            {isSyncing
+              ? "Syncing changes…"
+              : pendingCount > 0
+              ? `${pendingCount} change${pendingCount > 1 ? "s" : ""} saved locally — will sync when you reconnect`
+              : "Changes queued — will sync automatically when you reconnect"}
+          </span>
         </div>
       )}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">

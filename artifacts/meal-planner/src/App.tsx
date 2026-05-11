@@ -9,6 +9,7 @@ import { OfflineBanner } from "@/components/OfflineBanner";
 import { AiChatProvider } from "@/contexts/AiChatContext";
 import { AuthProvider, useAuth, useTier } from "@/contexts/AuthContext";
 import { useProteinReminder } from "@/hooks/useProteinReminder";
+import { useOfflineQueue } from "@/hooks/useOfflineQueue";
 import { LoginPage } from "@/pages/LoginPage";
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
 import { LandingPage } from "@/pages/LandingPage";
@@ -39,6 +40,11 @@ const queryClient = new QueryClient({
 function ProteinReminderManager() {
   const { isPro } = useTier();
   useProteinReminder(isPro);
+  return null;
+}
+
+function SyncManager() {
+  useOfflineQueue();
   return null;
 }
 
@@ -111,6 +117,7 @@ function AuthenticatedApp() {
   return (
     <AiChatProvider>
       <ProteinReminderManager />
+      <SyncManager />
       <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
         <Router />
       </WouterRouter>

@@ -1,15 +1,30 @@
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
-import { WifiOff } from "lucide-react";
+import { useOfflineQueueState } from "@/hooks/useOfflineQueue";
+import { WifiOff, RefreshCw } from "lucide-react";
 
 export function OfflineBanner() {
   const isOnline = useOnlineStatus();
+  const { pendingCount, isSyncing } = useOfflineQueueState();
 
-  if (isOnline) return null;
+  if (isOnline) {
+    if (pendingCount === 0 && !isSyncing) return null;
+    return (
+      <div className="fixed top-0 left-0 right-0 z-[100] flex items-center justify-center gap-2 bg-sky-600 text-white px-4 py-2 text-sm font-medium shadow-md">
+        <RefreshCw className="w-4 h-4 shrink-0 animate-spin" />
+        <span>Syncing {pendingCount} offline change{pendingCount !== 1 ? "s" : ""}…</span>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed top-0 left-0 right-0 z-[100] flex items-center justify-center gap-2 bg-amber-500 text-white px-4 py-2 text-sm font-medium shadow-md">
       <WifiOff className="w-4 h-4 shrink-0" />
-      <span>You're offline — changes will sync when you reconnect</span>
+      <span>
+        You're offline
+        {pendingCount > 0
+          ? ` — ${pendingCount} change${pendingCount > 1 ? "s" : ""} will sync when you reconnect`
+          : " — changes will sync when you reconnect"}
+      </span>
     </div>
   );
 }
