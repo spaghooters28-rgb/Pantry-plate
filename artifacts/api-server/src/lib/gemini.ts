@@ -1,5 +1,5 @@
 const GEMINI_API_KEY = process.env.GOOGLE_API_KEY ?? process.env.GEMINI_API_KEY;
-const BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash";
+const BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash";
 
 export function isGeminiEnabled(): boolean {
   return Boolean(GEMINI_API_KEY);
