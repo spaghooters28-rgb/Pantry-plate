@@ -27,7 +27,7 @@ const routes = [
   { name: "Saved", path: "/history", icon: History },
 ];
 
-const bottomRoutes = [routes[1], routes[2], routes[3], routes[4], routes[7]];
+const bottomRoutes = [routes[0], routes[1], routes[2], routes[3], routes[4], routes[7]];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -111,15 +111,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </main>
 
       {/* Mobile Bottom Nav */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t bg-card flex justify-around p-2 pb-safe z-50">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t bg-card flex justify-around p-1 pb-safe z-50">
         {bottomRoutes.map((route) => {
           const Icon = route.icon;
           const isActive = location === route.path;
           return (
             <Link key={route.path} href={route.path}>
-              <div className={`flex flex-col items-center gap-1 p-2 ${isActive ? "text-primary" : "text-muted-foreground"}`}>
+              <div className={`flex flex-col items-center gap-0.5 px-1 py-1.5 ${isActive ? "text-primary" : "text-muted-foreground"}`}>
                 <Icon className="w-5 h-5" />
-                <span className="text-[10px] font-medium">{route.name}</span>
+                <span className="text-[9px] font-medium leading-tight">{route.name}</span>
               </div>
             </Link>
           );
