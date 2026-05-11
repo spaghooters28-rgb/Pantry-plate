@@ -471,22 +471,12 @@ export function Discover() {
 
       {/* Results count */}
       {!isLoading && meals && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            {meals.length} meal{meals.length !== 1 ? "s" : ""} found
-            {activeFilters.length > 0 && (
-              <span className="ml-1">for <strong>{activeFilters.join(", ")}</strong></span>
-            )}
-          </p>
-          <button
-            onClick={handleGenerateAi}
-            disabled={aiGenerating}
-            className="text-xs text-primary hover:underline flex items-center gap-1 disabled:opacity-50"
-          >
-            <Sparkles className="w-3 h-3" />
-            {aiGenerating ? "Generating…" : "Find more with AI"}
-          </button>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          {meals.length} meal{meals.length !== 1 ? "s" : ""} found
+          {activeFilters.length > 0 && (
+            <span className="ml-1">for <strong>{activeFilters.join(", ")}</strong></span>
+          )}
+        </p>
       )}
 
       {/* Meal Grid */}

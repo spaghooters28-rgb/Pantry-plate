@@ -353,14 +353,14 @@ export function Settings() {
 
             {isFree && (
               <div className="space-y-2">
-                <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col gap-2">
                   <Button
                     size="sm"
                     variant="outline"
                     className="gap-1.5 w-full"
                     onClick={() => { setUpgradeTarget("pro"); setUpgradeModalOpen(true); }}
                   >
-                    <Sparkles className="w-3.5 h-3.5" />
+                    <Sparkles className="w-3.5 h-3.5 shrink-0" />
                     Upgrade to Pro — $2/mo
                   </Button>
                   <Button
@@ -368,8 +368,8 @@ export function Settings() {
                     className="gap-1.5 w-full"
                     onClick={() => { setUpgradeTarget("pro_ai"); setUpgradeModalOpen(true); }}
                   >
-                    <Zap className="w-3.5 h-3.5" />
-                    Pro+AI — $4.99/mo
+                    <Zap className="w-3.5 h-3.5 shrink-0" />
+                    Upgrade to Pro+AI — $4.99/mo
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground text-center">Cancel anytime. Billed via Stripe.</p>

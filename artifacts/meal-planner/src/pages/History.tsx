@@ -114,7 +114,7 @@ export function HistoryPage() {
 
   const { data: listMealsData, isLoading: favLoading } = useListMeals(
     {},
-    { query: { queryKey: allMealsKey, staleTime: 5 * 60 * 1000 } }
+    { query: { queryKey: allMealsKey } }
   );
   const allMeals = listMealsData?.meals;
   const toggleFavMutation = useToggleMealFavorite();

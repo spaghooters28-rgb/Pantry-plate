@@ -21,9 +21,11 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   PackageSearch, Plus, Trash2, ChefHat, ShoppingCart, Sparkles,
-  Clock, Flame, CheckCircle2, AlertCircle, Star, ShoppingBag,
+  Clock, Flame, CheckCircle2, AlertCircle, Star, ShoppingBag, Lock,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useTier } from "@/contexts/AuthContext";
+import { UpgradeModal } from "@/components/UpgradeModal";
 
 const CATEGORIES = [
   "Produce", "Meat & Seafood", "Dairy & Eggs", "Grains & Bread", "Bakery",
@@ -192,9 +194,11 @@ function RecipeCard({ recipe: initialRecipe }: { recipe: AvailableRecipe }) {
 export function Pantry() {
   const [addOpen, setAddOpen] = useState(false);
   const [recipesOpen, setRecipesOpen] = useState(false);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [newItem, setNewItem] = useState({ name: "", quantity: "", category: "Pantry", notes: "" });
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { isPro } = useTier();
   const qKey = getListPantryItemsQueryKey();
   const recipeQKey = getGetAvailableRecipesQueryKey();
 
@@ -229,6 +233,10 @@ export function Pantry() {
   }
 
   async function handleGenerateRecipes() {
+    if (!isPro) {
+      setUpgradeOpen(true);
+      return;
+    }
     setRecipesOpen(true);
     await fetchRecipes();
   }
@@ -242,7 +250,14 @@ export function Pantry() {
   for (const cat of Object.keys(grouped)) {
     grouped[cat].sort((a, b) => a.name.localeCompare(b.name));
   }
-  const sortedCategories = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
+  const sortedCategories = Object.keys(grouped).sort((a, b) => {
+    const ia = CATEGORIES.indexOf(a);
+    const ib = CATEGORIES.indexOf(b);
+    if (ia === -1 && ib === -1) return a.localeCompare(b);
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
+    return ia - ib;
+  });
 
   function handleAddToGrocery(item: PantryItem) {
     movePantryMutation.mutate(
@@ -307,8 +322,15 @@ export function Pantry() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={handleGenerateRecipes}>
-            <Sparkles className="w-4 h-4 mr-2" />
+            {isPro ? (
+              <Sparkles className="w-4 h-4 mr-2" />
+            ) : (
+              <Lock className="w-4 h-4 mr-2" />
+            )}
             Find Available Recipes
+            {!isPro && (
+              <Badge variant="secondary" className="ml-2 text-xs">Pro</Badge>
+            )}
           </Button>
           <Button onClick={() => setAddOpen(true)}>
             <Plus className="w-4 h-4 mr-2" />
@@ -555,6 +577,13 @@ export function Pantry() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <UpgradeModal
+        open={upgradeOpen}
+        onClose={() => setUpgradeOpen(false)}
+        requiredTier="pro"
+        featureName="Find Available Recipes"
+      />
     </div>
   );
 }

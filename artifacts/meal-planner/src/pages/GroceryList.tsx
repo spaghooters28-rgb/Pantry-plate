@@ -766,7 +766,7 @@ export function GroceryList() {
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">Based on your pantry and common staples:</p>
-          <div className="space-y-2">
+          <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
             {suggestions
               ?.filter((s) => !addedSuggestionNames.has(s.name))
               .map((s) => (
