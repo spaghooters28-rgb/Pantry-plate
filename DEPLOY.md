@@ -92,7 +92,7 @@ The app URL will be `https://pantry-plate.fly.dev` (or whatever name you chose).
 
 ---
 
-## Step 4 — Deploy to Render (alternative, free tier)
+## Step 5 — Deploy to Render (alternative, free tier)
 
 1. Go to [render.com](https://render.com) and sign up (free)
 2. Click **New** → **Web Service** → **Connect a repository**
@@ -105,7 +105,7 @@ The app URL will be `https://pantry-plate.fly.dev` (or whatever name you chose).
 
 ---
 
-## Step 4 — Run locally on your own machine (home server or laptop)
+## Step 6 — Run locally on your own machine (home server or laptop)
 
 You need [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed.
 

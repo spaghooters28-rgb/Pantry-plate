@@ -43,6 +43,10 @@ export async function* geminiStreamChat(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => res.statusText);
+    throw new Error(`Gemini streaming error ${res.status}: ${errText}`);
+  }
   if (!res.body) return;
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
