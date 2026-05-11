@@ -107,6 +107,16 @@ export async function sendTestNotification(): Promise<string> {
 }
 
 export function useProteinReminder(isPro = false) {
+  // When the user loses Pro status, clear the enabled flag from localStorage
+  // so stale settings don't silently re-enable reminders on re-upgrade.
+  useEffect(() => {
+    if (isPro) return;
+    const settings = loadReminderSettings();
+    if (settings.enabled) {
+      saveReminderSettings({ ...settings, enabled: false });
+    }
+  }, [isPro]);
+
   // Register the service worker on mount (only for Pro users)
   useEffect(() => {
     if (!isPro) return;

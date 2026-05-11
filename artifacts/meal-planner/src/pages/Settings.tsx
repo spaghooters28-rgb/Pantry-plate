@@ -67,6 +67,11 @@ export function Settings() {
 
   const { data: billingUsage } = useGetAiUsage({ query: { enabled: !isFree, queryKey: getGetAiUsageQueryKey() } });
 
+  // Resync reminder state whenever Pro status changes (e.g. downgrade while page is open)
+  useEffect(() => {
+    setReminder(loadReminderSettings());
+  }, [isPro]);
+
   useEffect(() => {
     setReminder(loadReminderSettings());
     if ("Notification" in window) setNotifPermission(Notification.permission);
