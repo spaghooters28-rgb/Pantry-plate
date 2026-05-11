@@ -6,6 +6,8 @@ import {
   useListMeals,
   getListMealsQueryKey,
   useToggleMealFavorite,
+  useAddMealToGroceryList,
+  getGetGroceryListQueryKey,
   useGetPins,
   getGetPinsQueryKey,
   useAddPin,
@@ -118,6 +120,7 @@ export function HistoryPage() {
   );
   const allMeals = listMealsData?.meals;
   const toggleFavMutation = useToggleMealFavorite();
+  const addToGroceryMutation = useAddMealToGroceryList();
 
   const { data: pinsData, isLoading: pinsLoading } = useGetPins({
     query: { queryKey: pinsQueryKey },
@@ -241,6 +244,20 @@ export function HistoryPage() {
         },
         onError: () =>
           toast({ title: "Error", description: "Could not update favorite.", variant: "destructive" }),
+      }
+    );
+  }
+
+  function handleAddFavToGrocery(meal: FavMeal) {
+    addToGroceryMutation.mutate(
+      { mealId: meal.id },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetGroceryListQueryKey() });
+          toast({ title: `"${meal.name}" added to grocery list!` });
+        },
+        onError: () =>
+          toast({ title: "Error", description: "Could not add to grocery list.", variant: "destructive" }),
       }
     );
   }
@@ -561,6 +578,14 @@ export function HistoryPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        className="p-1.5 text-muted-foreground hover:text-primary transition-colors rounded"
+                        onClick={() => handleAddFavToGrocery(meal)}
+                        disabled={addToGroceryMutation.isPending}
+                        title="Add to grocery list"
+                      >
+                        <ShoppingBasket className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         className={`p-1.5 transition-colors rounded ${
                           pinnedMealIds.has(meal.id)

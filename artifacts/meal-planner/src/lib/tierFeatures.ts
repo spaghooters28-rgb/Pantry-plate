@@ -45,6 +45,7 @@ export const LANDING_PRO_FEATURES: string[] = [
   "Custom recipe creation",
   "Grocery scheduling & reminders",
   "Recurring auto-add groceries",
+  "Protein thaw reminders",
 ];
 
 export const LANDING_PRO_AI_FEATURES: string[] = [

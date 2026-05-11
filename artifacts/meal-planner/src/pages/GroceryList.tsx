@@ -537,7 +537,14 @@ export function GroceryList() {
               </h3>
               <Card>
                 <CardContent className="p-0">
-                  {[...category.items].sort((a, b) => a.name.localeCompare(b.name)).map((item, idx) => (
+                  {[...category.items].sort((a, b) => {
+                    const mA = a.mealName ?? "";
+                    const mB = b.mealName ?? "";
+                    if (mA && !mB) return -1;
+                    if (!mA && mB) return 1;
+                    if (mA !== mB) return mA.localeCompare(mB);
+                    return a.name.localeCompare(b.name);
+                  }).map((item, idx) => (
                     <div
                       key={item.id}
                       className={`flex items-center gap-3 px-4 py-3 group ${idx !== category.items.length - 1 ? "border-b" : ""} ${item.isChecked ? "bg-muted/30" : ""}`}
