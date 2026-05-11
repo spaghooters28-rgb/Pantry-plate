@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Trash2, Settings as SettingsIcon, Bell, BellOff, FlaskConical, LogOut, Eye, EyeOff, KeyRound, CreditCard, Check, Sparkles, Zap, ExternalLink } from "lucide-react";
+import { Trash2, Settings as SettingsIcon, Bell, BellOff, FlaskConical, LogOut, Eye, EyeOff, KeyRound, CreditCard, Check, Sparkles, Zap, ExternalLink, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   loadReminderSettings,
@@ -28,6 +28,7 @@ import {
 import { useAuth, useTier } from "@/contexts/AuthContext";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { useGetAiUsage, getGetAiUsageQueryKey } from "@workspace/api-client-react";
+import { PRO_GATED_FEATURES, PRO_AI_GATED_FEATURES } from "@/lib/tierFeatures";
 
 const TIER_LABELS: Record<string, string> = {
   free: "Free",
@@ -195,6 +196,43 @@ export function Settings() {
         </h1>
         <p className="text-muted-foreground">Manage your account, subscription, and preferences.</p>
       </div>
+
+      {/* ── Pro upgrade banner (free users only) ── */}
+      {isFree && (
+        <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10">
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div className="flex items-center gap-2">
+                <Lock className="w-4 h-4 text-primary" />
+                <p className="font-semibold text-base">Unlock Pro features</p>
+              </div>
+              <Button
+                size="sm"
+                className="shrink-0 gap-1.5"
+                onClick={() => { setUpgradeTarget("pro"); setUpgradeModalOpen(true); }}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Upgrade
+              </Button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
+              {PRO_GATED_FEATURES.map((f) => (
+                <div key={f} className="flex items-center gap-2 text-muted-foreground">
+                  <Sparkles className="w-3.5 h-3.5 shrink-0 text-primary" />
+                  <span>{f}</span>
+                </div>
+              ))}
+              {PRO_AI_GATED_FEATURES.map((f) => (
+                <div key={f} className="flex items-center gap-2 text-muted-foreground">
+                  <Zap className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+                  <span>{f}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">Pro from $2/mo · Pro+AI from $4.99/mo · Cancel anytime</p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── Account ── */}
       <div className="space-y-4">
