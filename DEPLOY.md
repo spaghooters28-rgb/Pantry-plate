@@ -56,7 +56,43 @@ Railway gives you a free container + a free PostgreSQL database in one place.
 
 ---
 
-## Step 3 — Deploy to Render (alternative, free tier)
+## Step 3 — Deploy to Fly.io (alternative, global free tier)
+
+Fly.io lets you deploy a Docker container in any region for free (up to 3 shared-CPU VMs). You need the [flyctl CLI](https://fly.io/docs/hands-on/install-flyctl/).
+
+```bash
+# Install flyctl
+curl -L https://fly.io/install.sh | sh
+
+# Log in
+fly auth login
+
+# From the project root, create the app
+fly launch --no-deploy --name pantry-plate
+
+# Create a Postgres database (free shared tier)
+fly postgres create --name pantry-plate-db --initial-cluster-size 1
+fly postgres attach pantry-plate-db   # auto-sets DATABASE_URL secret
+
+# Set the remaining secrets
+fly secrets set \
+  SESSION_SECRET=$(openssl rand -hex 32) \
+  GEMINI_API_KEY=AIza... \
+  SELF_HOSTED=true \
+  NODE_ENV=production
+
+# Deploy
+fly deploy
+
+# View your live URL
+fly status
+```
+
+The app URL will be `https://pantry-plate.fly.dev` (or whatever name you chose). Run `fly scale count 1` to ensure you're on the free tier.
+
+---
+
+## Step 4 — Deploy to Render (alternative, free tier)
 
 1. Go to [render.com](https://render.com) and sign up (free)
 2. Click **New** → **Web Service** → **Connect a repository**
