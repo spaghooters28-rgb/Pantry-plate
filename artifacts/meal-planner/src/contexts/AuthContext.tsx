@@ -20,6 +20,15 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+async function extractErrorMessage(r: Response, fallback: string): Promise<string> {
+  try {
+    const body = await r.json() as { error?: string };
+    return body.error ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,38 +53,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function login(email: string, password: string) {
-    const r = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ email, password }),
-    });
+    let r: Response;
+    try {
+      r = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email, password }),
+      });
+    } catch {
+      throw new Error("Unable to reach the server. Please check your connection and try again.");
+    }
     if (!r.ok) {
-      let msg = "Login failed. Please try again.";
-      try {
-        const body = await r.json() as { error?: string };
-        if (body.error) msg = body.error;
-      } catch { /* empty or non-JSON body — keep default */ }
-      throw new Error(msg);
+      throw new Error(await extractErrorMessage(r, "Login failed. Please try again."));
     }
     const data = await r.json() as AuthUser;
     setUser(data);
   }
 
   async function register(email: string, displayName: string, password: string) {
-    const r = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ email, displayName, password }),
-    });
+    let r: Response;
+    try {
+      r = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email, displayName, password }),
+      });
+    } catch {
+      throw new Error("Unable to reach the server. Please check your connection and try again.");
+    }
     if (!r.ok) {
-      let msg = "Registration failed. Please try again.";
-      try {
-        const body = await r.json() as { error?: string };
-        if (body.error) msg = body.error;
-      } catch { /* empty or non-JSON body — keep default */ }
-      throw new Error(msg);
+      throw new Error(await extractErrorMessage(r, "Registration failed. Please try again."));
     }
     const data = await r.json() as AuthUser;
     setUser(data);
@@ -87,51 +96,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function forgotPassword(email: string) {
-    const r = await fetch("/api/auth/forgot-password", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
-    });
+    let r: Response;
+    try {
+      r = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+    } catch {
+      throw new Error("Unable to reach the server. Please check your connection and try again.");
+    }
     if (!r.ok) {
-      let msg = "Request failed. Please try again.";
-      try {
-        const body = await r.json() as { error?: string };
-        if (body.error) msg = body.error;
-      } catch { /* empty or non-JSON body — keep default */ }
-      throw new Error(msg);
+      throw new Error(await extractErrorMessage(r, "Request failed. Please try again."));
     }
   }
 
   async function resetPassword(token: string, password: string) {
-    const r = await fetch("/api/auth/reset-password", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token, password }),
-    });
+    let r: Response;
+    try {
+      r = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, password }),
+      });
+    } catch {
+      throw new Error("Unable to reach the server. Please check your connection and try again.");
+    }
     if (!r.ok) {
-      let msg = "Password reset failed. Please try again.";
-      try {
-        const body = await r.json() as { error?: string };
-        if (body.error) msg = body.error;
-      } catch { /* empty or non-JSON body — keep default */ }
-      throw new Error(msg);
+      throw new Error(await extractErrorMessage(r, "Password reset failed. Please try again."));
     }
   }
 
   async function changePassword(currentPassword: string, newPassword: string) {
-    const r = await fetch("/api/auth/password", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ currentPassword, newPassword }),
-    });
+    let r: Response;
+    try {
+      r = await fetch("/api/auth/password", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+    } catch {
+      throw new Error("Unable to reach the server. Please check your connection and try again.");
+    }
     if (!r.ok) {
-      let msg = "Password change failed. Please try again.";
-      try {
-        const body = await r.json() as { error?: string };
-        if (body.error) msg = body.error;
-      } catch { /* empty or non-JSON body — keep default */ }
-      throw new Error(msg);
+      throw new Error(await extractErrorMessage(r, "Password change failed. Please try again."));
     }
   }
 
