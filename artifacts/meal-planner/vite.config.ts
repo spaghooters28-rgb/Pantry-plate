@@ -35,6 +35,9 @@ export default defineConfig({
     runtimeErrorOverlay(),
     VitePWA({
       registerType: "autoUpdate",
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.ts",
       base: basePath,
       includeAssets: ["favicon.svg", "pwa-icon.svg", "pwa-192x192.png", "pwa-512x512.png"],
       manifest: {
@@ -74,18 +77,13 @@ export default defineConfig({
           },
         ],
       },
-      workbox: {
+      injectManifest: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
-        navigateFallback: null,
-        runtimeCaching: [
-          {
-            urlPattern: /^\/api\/.*/i,
-            handler: "NetworkOnly",
-          },
-        ],
+        globIgnores: ["**/sw.js"],
       },
       devOptions: {
         enabled: true,
+        type: "module",
       },
     }),
     ...(process.env.NODE_ENV !== "production" &&
