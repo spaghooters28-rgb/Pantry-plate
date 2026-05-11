@@ -144,6 +144,7 @@ export function WeeklyPlan() {
   const [replacingMealName, setReplacingMealName] = useState<string | null>(null);
   const [addingCustomMeal, setAddingCustomMeal] = useState(false);
   const [recipeBuilderOpen, setRecipeBuilderOpen] = useState(false);
+  const [favPendingIds, setFavPendingIds] = useState<Set<number>>(new Set());
   const [newRecipe, setNewRecipe] = useState<NewRecipeForm>(BLANK_RECIPE);
   const [localPrefs, setLocalPrefs] = useState<{
     cuisine: string;
@@ -231,8 +232,11 @@ export function WeeklyPlan() {
   );
 
   function handleToggleFavorite(mealId: number) {
+    if (favPendingIds.has(mealId)) return;
     const currentlyFavorited = mealFavoriteMap.get(mealId) ?? false;
     const newFavorited = !currentlyFavorited;
+
+    setFavPendingIds((prev) => new Set(prev).add(mealId));
 
     queryClient.setQueryData(
       getListMealsQueryKey({}),
@@ -258,6 +262,13 @@ export function WeeklyPlan() {
             }
           );
           toast({ title: "Error", description: "Could not update favorite.", variant: "destructive" });
+        },
+        onSettled: () => {
+          setFavPendingIds((prev) => {
+            const next = new Set(prev);
+            next.delete(mealId);
+            return next;
+          });
         },
       }
     );
@@ -300,17 +311,28 @@ export function WeeklyPlan() {
   }
 
   function toggleCookingBoard(mealId: number, mealName: string) {
-    if (pinnedMealIds.has(mealId)) {
+    const isPinned = pinnedMealIds.has(mealId);
+
+    queryClient.setQueryData(pinsQueryKey, (old: typeof pinsData) => {
+      if (!old) return old;
+      return isPinned
+        ? { ...old, mealIds: old.mealIds.filter((id) => id !== mealId) }
+        : { ...old, mealIds: [...old.mealIds, mealId] };
+    });
+
+    if (isPinned) {
       removePinMutation.mutate(
         { itemType: "meal", itemId: mealId },
         {
           onSuccess: () => {
-            queryClient.setQueryData(pinsQueryKey, (old: typeof pinsData) =>
-              old ? { ...old, mealIds: old.mealIds.filter((id) => id !== mealId) } : old
-            );
             toast({ title: "Removed from Cooking Board", description: `${mealName} was unpinned.` });
           },
-          onError: () => toast({ title: "Error", description: "Could not unpin meal.", variant: "destructive" }),
+          onError: () => {
+            queryClient.setQueryData(pinsQueryKey, (old: typeof pinsData) =>
+              old ? { ...old, mealIds: [...old.mealIds, mealId] } : old
+            );
+            toast({ title: "Error", description: "Could not unpin meal.", variant: "destructive" });
+          },
         }
       );
     } else {
@@ -321,7 +343,12 @@ export function WeeklyPlan() {
             queryClient.setQueryData(pinsQueryKey, result);
             toast({ title: "Added to Cooking Board", description: `${mealName} is now pinned.` });
           },
-          onError: () => toast({ title: "Error", description: "Could not pin meal.", variant: "destructive" }),
+          onError: () => {
+            queryClient.setQueryData(pinsQueryKey, (old: typeof pinsData) =>
+              old ? { ...old, mealIds: old.mealIds.filter((id) => id !== mealId) } : old
+            );
+            toast({ title: "Error", description: "Could not pin meal.", variant: "destructive" });
+          },
         }
       );
     }
