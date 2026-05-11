@@ -88,7 +88,14 @@ router.post("/auth/register", requireSameOrigin, registerIpRateLimit, async (req
   req.session.email = resolvedEmail;
   req.session.displayName = resolvedName;
 
-  res.status(201).json({ id: user.id, email: resolvedEmail, displayName: resolvedName, tier: effectiveTier(user.tier) });
+  req.session.save((err) => {
+    if (err) {
+      logger.error({ err }, "Failed to save session after register");
+      res.status(500).json({ error: "Failed to create session" });
+      return;
+    }
+    res.status(201).json({ id: user.id, email: resolvedEmail, displayName: resolvedName, tier: effectiveTier(user.tier) });
+  });
 });
 
 // ── Login ─────────────────────────────────────────────────────────────────────
@@ -124,7 +131,14 @@ router.post("/auth/login", requireSameOrigin, loginIpRateLimit, async (req, res)
   req.session.email = resolvedEmail;
   req.session.displayName = resolvedName;
 
-  res.json({ id: user.id, email: resolvedEmail, displayName: resolvedName, tier: effectiveTier(user.tier) });
+  req.session.save((err) => {
+    if (err) {
+      logger.error({ err }, "Failed to save session after login");
+      res.status(500).json({ error: "Failed to create session" });
+      return;
+    }
+    res.json({ id: user.id, email: resolvedEmail, displayName: resolvedName, tier: effectiveTier(user.tier) });
+  });
 });
 
 // ── Logout ───────────────────────────────────────────────────────────────────
