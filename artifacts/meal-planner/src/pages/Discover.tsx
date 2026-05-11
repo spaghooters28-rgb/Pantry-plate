@@ -172,7 +172,15 @@ export function Discover() {
       { id: meal.id },
       {
         onSuccess: (updated) => {
-          queryClient.invalidateQueries({ queryKey: ["/api/meals"] });
+          // Update the cache directly instead of invalidating — invalidateQueries triggers a
+          // refetch that returns HTTP 304 (browser cache), which reverts the star to the old state.
+          queryClient.setQueryData(
+            getListMealsQueryKey(params),
+            (old: { meals: Meal[] } | undefined) => {
+              if (!old?.meals) return old;
+              return { ...old, meals: old.meals.map((m) => m.id === meal.id ? { ...m, isFavorited: (updated as Meal).isFavorited } : m) };
+            }
+          );
           if (selectedMeal?.id === meal.id) {
             setSelectedMeal((prev) => prev ? { ...prev, isFavorited: (updated as Meal).isFavorited } : null);
           }
@@ -225,7 +233,13 @@ export function Discover() {
               { id: meal.id },
               {
                 onSuccess: (updated) => {
-                  queryClient.invalidateQueries({ queryKey: ["/api/meals"] });
+                  queryClient.setQueryData(
+                    getListMealsQueryKey(params),
+                    (old: { meals: Meal[] } | undefined) => {
+                      if (!old?.meals) return old;
+                      return { ...old, meals: old.meals.map((m) => m.id === meal.id ? { ...m, isFavorited: (updated as Meal).isFavorited } : m) };
+                    }
+                  );
                   const nowFavorited = (updated as Meal).isFavorited;
                   toast({ title: nowFavorited ? `${meal.name} added to favorites!` : `${meal.name} removed from favorites.` });
                   resolve();

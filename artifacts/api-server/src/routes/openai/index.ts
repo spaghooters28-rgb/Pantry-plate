@@ -1,7 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, asc, and } from "drizzle-orm";
 import { db, conversations, messages } from "@workspace/db";
-import { openai } from "@workspace/integrations-openai-ai-server";
 import {
   CreateOpenaiConversationBody,
   SendOpenaiMessageBody,
@@ -148,6 +147,11 @@ router.post("/openai/conversations/:id/messages", requireAuth, messageSendRateLi
     return;
   }
 
+  if (!isGeminiEnabled()) {
+    res.status(503).json({ error: "AI assistant is not configured. Set the GEMINI_API_KEY environment variable to enable it." });
+    return;
+  }
+
   // Monthly AI usage cap — after body validation so malformed requests don't consume quota
   const usage = await checkAndIncrementAiUsage(userId);
   if (!usage.allowed) {
@@ -181,49 +185,25 @@ router.post("/openai/conversations/:id/messages", requireAuth, messageSendRateLi
     content: parsed.data.content,
   });
 
-  const chatMessages: { role: "system" | "user" | "assistant"; content: string }[] = [
-    { role: "system", content: getSystemPrompt() },
-    ...history.map((m) => ({
-      role: m.role as "user" | "assistant",
-      content: m.content,
-    })),
-    { role: "user", content: parsed.data.content },
-  ];
-
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
   res.setHeader("X-Accel-Buffering", "no");
   res.flushHeaders();
 
+  const geminiHistory: GeminiContent[] = [
+    ...history.map((m) => ({
+      role: m.role === "user" ? "user" as const : "model" as const,
+      parts: [{ text: m.content }] as [{ text: string }],
+    })),
+    { role: "user" as const, parts: [{ text: parsed.data.content }] },
+  ];
+
   let fullResponse = "";
   try {
-    if (isGeminiEnabled()) {
-      const geminiHistory: GeminiContent[] = [
-        ...history.map((m) => ({
-          role: m.role === "user" ? "user" as const : "model" as const,
-          parts: [{ text: m.content }] as [{ text: string }],
-        })),
-        { role: "user" as const, parts: [{ text: parsed.data.content }] },
-      ];
-      for await (const chunk of geminiStreamChat(geminiHistory, getSystemPrompt())) {
-        fullResponse += chunk;
-        res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
-      }
-    } else {
-      const stream = await openai.chat.completions.create({
-        model: "gpt-5.1",
-        max_completion_tokens: 8192,
-        messages: chatMessages,
-        stream: true,
-      });
-      for await (const chunk of stream) {
-        const content = chunk.choices[0]?.delta?.content;
-        if (content) {
-          fullResponse += content;
-          res.write(`data: ${JSON.stringify({ content })}\n\n`);
-        }
-      }
+    for await (const chunk of geminiStreamChat(geminiHistory, getSystemPrompt())) {
+      fullResponse += chunk;
+      res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
     }
 
     await db.insert(messages).values({
@@ -232,7 +212,7 @@ router.post("/openai/conversations/:id/messages", requireAuth, messageSendRateLi
       content: fullResponse,
     });
   } catch (err) {
-    req.log.error({ err }, "OpenAI streaming error");
+    req.log.error({ err }, "Gemini streaming error");
     res.write(`data: ${JSON.stringify({ error: "AI response failed" })}\n\n`);
   }
 

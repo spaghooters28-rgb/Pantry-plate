@@ -1,11 +1,10 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, ilike, and, isNull, or } from "drizzle-orm";
 import { db, pantryItemsTable, mealsTable, ingredientsTable, recipeHistoryTable, weeklyPlansTable, weeklyPlanDaysTable } from "@workspace/db";
-import { openai } from "@workspace/integrations-openai-ai-server";
 import { requireAuth } from "../middleware/requireAuth";
 import { createUserRateLimit, createIpRateLimit } from "../middleware/rateLimit";
 import { checkAndIncrementAiUsage } from "../lib/aiUsage";
-import { isGeminiEnabled, geminiGenerate } from "../lib/gemini";
+import { geminiGenerate, isGeminiEnabled } from "../lib/gemini";
 import dns from "dns";
 import net from "net";
 import https from "https";
@@ -249,18 +248,13 @@ Rules:
   let instructions: string | null = null;
   let extracted: ExtractedIngredient[] = [];
 
+  if (!isGeminiEnabled()) {
+    res.status(503).json({ error: "Recipe analysis is not configured. Set the GEMINI_API_KEY environment variable to enable it." });
+    return;
+  }
+
   try {
-    let content: string;
-    if (isGeminiEnabled()) {
-      content = await geminiGenerate(prompt);
-    } else {
-      const response = await openai.chat.completions.create({
-        model: "gpt-5-mini",
-        max_completion_tokens: 4096,
-        messages: [{ role: "user", content: prompt }],
-      });
-      content = response.choices[0]?.message?.content ?? "";
-    }
+    const content = await geminiGenerate(prompt);
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsedResult = JSON.parse(jsonMatch[0]) as {

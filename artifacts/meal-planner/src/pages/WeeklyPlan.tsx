@@ -250,7 +250,9 @@ export function WeeklyPlan() {
       { id: mealId },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getListMealsQueryKey({}) });
+          // Do NOT invalidateQueries here — it triggers a refetch that returns HTTP 304,
+          // which React Query serves from browser cache (stale data), reverting the optimistic update.
+          // The optimistic setQueryData above is already correct.
           toast({ title: newFavorited ? "Added to favorites!" : "Removed from favorites." });
         },
         onError: () => {
@@ -926,10 +928,11 @@ export function WeeklyPlan() {
                   {/* Meal info */}
                   <div className="flex-1 min-w-0 p-4">
                     {day.meal ? (
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-start gap-2.5 flex-1 min-w-0">
+                      <div className="space-y-1">
+                        {/* Row 1: checkbox + name + star */}
+                        <div className="flex items-start gap-2">
                           <Checkbox
-                            className="mt-1 shrink-0 w-3.5 h-3.5"
+                            className="mt-0.5 shrink-0 w-3.5 h-3.5"
                             checked={selectedDays.has(day.day)}
                             onCheckedChange={() => toggleDaySelection(day.day)}
                           />
@@ -937,39 +940,37 @@ export function WeeklyPlan() {
                             className="flex-1 min-w-0 text-left hover:opacity-80 transition-opacity"
                             onClick={() => { setSelectedMeal(day.meal as PlanMeal); setShowInstructions(false); }}
                           >
-                            <p className="font-semibold text-base leading-snug">{day.meal.name}</p>
-                            <div className="flex flex-wrap gap-2 mt-1 text-xs text-muted-foreground">
-                              <span className="flex items-center gap-0.5"><Clock className="w-3 h-3" />{day.meal.cookTimeMinutes}m</span>
-                              <span className="flex items-center gap-0.5"><Flame className="w-3 h-3" />{day.meal.calories} kcal</span>
-                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{day.meal.cuisine}</Badge>
-                              {day.meal.isGlutenFree && <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-green-500 text-green-600">GF (Gluten Free)</Badge>}
-                            </div>
+                            <p className="font-semibold text-sm leading-snug">{day.meal.name}</p>
+                          </button>
+                          <button
+                            className={`shrink-0 p-1 rounded transition-colors ${mealFavoriteMap.get(day.meal.id) ? "text-amber-400 hover:text-amber-500" : "text-muted-foreground hover:text-amber-400"}`}
+                            title={mealFavoriteMap.get(day.meal.id) ? "Remove from favorites" : "Add to favorites"}
+                            onClick={() => handleToggleFavorite(day.meal!.id)}
+                          >
+                            <Star className={`w-3.5 h-3.5 ${mealFavoriteMap.get(day.meal.id) ? "fill-amber-400" : ""}`} />
                           </button>
                         </div>
-                        <div className="flex flex-col items-end gap-1 shrink-0">
-                          <div className="flex items-center gap-1">
-                            <button
-                              className={`p-1.5 rounded transition-colors ${mealFavoriteMap.get(day.meal.id) ? "text-amber-400 hover:text-amber-500" : "text-muted-foreground hover:text-amber-400"}`}
-                              title={mealFavoriteMap.get(day.meal.id) ? "Remove from favorites" : "Add to favorites"}
-                              onClick={() => handleToggleFavorite(day.meal!.id)}
+                        {/* Row 2: badges + action buttons */}
+                        <div className="flex items-center gap-1.5 pl-[22px] flex-wrap">
+                          <span className="flex items-center gap-0.5 text-xs text-muted-foreground"><Clock className="w-3 h-3" />{day.meal.cookTimeMinutes}m</span>
+                          <span className="flex items-center gap-0.5 text-xs text-muted-foreground"><Flame className="w-3 h-3" />{day.meal.calories} kcal</span>
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{day.meal.cuisine}</Badge>
+                          {day.meal.isGlutenFree && <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-green-500 text-green-600">GF</Badge>}
+                          <div className="flex items-center gap-0.5 ml-auto shrink-0">
+                            <Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={() => setSwapDay(day.day)}>
+                              <Shuffle className="w-3 h-3 mr-0.5" />Swap
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className={`h-6 px-1.5 text-xs ${pinnedMealIds.has(day.meal.id) ? "text-amber-500 hover:text-amber-600" : "text-muted-foreground hover:text-amber-500"}`}
+                              onClick={() => toggleCookingBoard(day.meal!.id, day.meal!.name)}
+                              title={pinnedMealIds.has(day.meal.id) ? "Remove from Cooking Board" : "Add to Cooking Board"}
                             >
-                              <Star className={`w-3.5 h-3.5 ${mealFavoriteMap.get(day.meal.id) ? "fill-amber-400" : ""}`} />
-                            </button>
-                            <Button variant="ghost" size="sm" className="shrink-0" onClick={() => setSwapDay(day.day)}>
-                              <Shuffle className="w-3.5 h-3.5 mr-1" />
-                              Swap
+                              <Pin className={`w-3 h-3 mr-0.5 ${pinnedMealIds.has(day.meal.id) ? "fill-amber-400" : ""}`} />
+                              {pinnedMealIds.has(day.meal.id) ? "On Board" : "Pin"}
                             </Button>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className={`shrink-0 text-xs h-7 px-2 ${pinnedMealIds.has(day.meal.id) ? "text-amber-500 hover:text-amber-600" : "text-muted-foreground hover:text-amber-500"}`}
-                            onClick={() => toggleCookingBoard(day.meal!.id, day.meal!.name)}
-                            title={pinnedMealIds.has(day.meal.id) ? "Remove from Cooking Board" : "Add to Cooking Board"}
-                          >
-                            <Pin className={`w-3 h-3 mr-1 ${pinnedMealIds.has(day.meal.id) ? "fill-amber-400" : ""}`} />
-                            {pinnedMealIds.has(day.meal.id) ? "On Board" : "Pin"}
-                          </Button>
                         </div>
                       </div>
                     ) : leftoverDays.has(day.day) ? (

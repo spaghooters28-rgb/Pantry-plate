@@ -1,7 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, isNull, or } from "drizzle-orm";
 import { db, mealsTable, ingredientsTable, sidesTable } from "@workspace/db";
-import { openai } from "@workspace/integrations-openai-ai-server";
 import { requireAuth } from "../middleware/requireAuth";
 import { createUserRateLimit, createIpRateLimit } from "../middleware/rateLimit";
 import { checkAndIncrementAiUsage } from "../lib/aiUsage";
@@ -86,17 +85,7 @@ async function generateAndSaveMeal(
 ): Promise<object | null> {
   const prompt = buildPrompt(cuisineFilter, proteinFilter, glutenFreeFilter, existingNames);
 
-  let content: string;
-  if (isGeminiEnabled()) {
-    content = await geminiGenerate(prompt);
-  } else {
-    const response = await openai.chat.completions.create({
-      model: "gpt-5-nano",
-      max_completion_tokens: 16384,
-      messages: [{ role: "user", content: prompt }],
-    });
-    content = response.choices[0]?.message?.content ?? "";
-  }
+  const content = await geminiGenerate(prompt);
   if (!content) return null;
 
   const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -182,6 +171,11 @@ const generateAiIpRateLimit = createIpRateLimit(10, 60 * 60 * 1000);
 
 router.post("/meals/generate-ai", requireAuth, generateAiIpRateLimit, generateAiRateLimit, async (req, res): Promise<void> => {
   const userId = req.session.userId!;
+
+  if (!isGeminiEnabled()) {
+    res.status(503).json({ error: "AI meal generation is not configured. Set the GEMINI_API_KEY environment variable to enable it." });
+    return;
+  }
 
   const { cuisine, protein, glutenFree, count = 5 } = req.body ?? {};
 
