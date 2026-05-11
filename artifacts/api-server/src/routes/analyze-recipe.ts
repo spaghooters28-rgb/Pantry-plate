@@ -280,7 +280,14 @@ Rules:
     }
   } catch (err) {
     req.log.error({ err }, "AI recipe analysis failed");
-    res.status(500).json({ error: "Failed to analyze recipe with AI" });
+    const errMsg = err instanceof Error ? err.message : "";
+    if (errMsg.includes("429") || errMsg.toLowerCase().includes("quota") || errMsg.includes("RESOURCE_EXHAUSTED")) {
+      res.status(503).json({ error: "AI service is temporarily rate-limited. Please wait a moment and try again." });
+    } else if (errMsg.includes("not found") || errMsg.includes("503")) {
+      res.status(503).json({ error: "AI service is unavailable. Please check that your Gemini API key is valid." });
+    } else {
+      res.status(500).json({ error: "Failed to analyze recipe with AI. Please try again." });
+    }
     return;
   }
 

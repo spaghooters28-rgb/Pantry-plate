@@ -610,7 +610,11 @@ export function WeeklyPlan() {
       { data: { url: recipeUrl.trim() } },
       {
         onSuccess: (result) => setAnalyzeResult(result as AnalyzeResult),
-        onError: () => toast({ title: "Error", description: "Could not analyze recipe. Make sure the URL is publicly accessible.", variant: "destructive" }),
+        onError: (err) => {
+          const data = (err as { data?: { error?: string } }).data;
+          const msg = data?.error ?? "Could not analyze recipe. Please try again.";
+          toast({ title: "Recipe Analysis Failed", description: msg, variant: "destructive" });
+        },
       }
     );
   }

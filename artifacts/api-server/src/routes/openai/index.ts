@@ -213,7 +213,14 @@ router.post("/openai/conversations/:id/messages", requireAuth, messageSendRateLi
     });
   } catch (err) {
     req.log.error({ err }, "Gemini streaming error");
-    res.write(`data: ${JSON.stringify({ error: "AI response failed" })}\n\n`);
+    const errMsg = err instanceof Error ? err.message : "";
+    let displayMsg = "Sorry, I ran into an issue. Please try again.";
+    if (errMsg.includes("429") || errMsg.toLowerCase().includes("quota") || errMsg.includes("RESOURCE_EXHAUSTED")) {
+      displayMsg = "The AI service is temporarily rate-limited. Please wait a moment and try again.";
+    } else if (errMsg.includes("not found") || errMsg.includes("503")) {
+      displayMsg = "AI service is unavailable. Please check that your Gemini API key is valid.";
+    }
+    res.write(`data: ${JSON.stringify({ error: displayMsg })}\n\n`);
   }
 
   res.write(`data: ${JSON.stringify({ done: true })}\n\n`);

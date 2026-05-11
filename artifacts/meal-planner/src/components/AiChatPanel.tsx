@@ -130,6 +130,18 @@ export function AiChatPanel({ onAction }: { onAction?: (actions: ChatAction[]) =
           if (!line.startsWith("data: ")) continue;
           try {
             const parsed = JSON.parse(line.slice(6));
+            if (parsed.error) {
+              const errMsg = typeof parsed.error === "string" ? parsed.error : "Sorry, I ran into an issue. Please try again.";
+              setMessages((prev) => {
+                const next = [...prev];
+                const msg = next[next.length - 1] as ChatMessage;
+                if (msg?.role === "assistant") {
+                  next[next.length - 1] = { ...msg, content: errMsg, streaming: false };
+                }
+                return next;
+              });
+              break;
+            }
             if (parsed.content) {
               fullContent += parsed.content;
               const { cleanText } = parseActions(fullContent);
@@ -142,7 +154,7 @@ export function AiChatPanel({ onAction }: { onAction?: (actions: ChatAction[]) =
                 return next;
               });
             }
-            if (parsed.done || parsed.error) break;
+            if (parsed.done) break;
           } catch {
             // ignore malformed chunks
           }
