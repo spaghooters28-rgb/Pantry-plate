@@ -1,7 +1,8 @@
+import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, Sparkles, Zap, Lock } from "lucide-react";
+import { Check, Sparkles, Zap, Lock, AlertCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { UPGRADE_PRO_FEATURES, UPGRADE_PRO_AI_FEATURES } from "@/lib/tierFeatures";
 
@@ -19,16 +20,34 @@ const PRO_AI_FEATURES = UPGRADE_PRO_AI_FEATURES;
 
 export function UpgradeModal({ open, onClose, requiredTier, featureName }: UpgradeModalProps) {
   const { startCheckout } = useAuth();
+  const [loadingTier, setLoadingTier] = useState<RequiredTier | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  function handleUpgrade(tier: RequiredTier) {
-    startCheckout(tier);
-    onClose();
+  async function handleUpgrade(tier: RequiredTier) {
+    setLoadingTier(tier);
+    setError(null);
+    try {
+      await startCheckout(tier);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not start checkout. Please try again.");
+    } finally {
+      setLoadingTier(null);
+    }
+  }
+
+  function handleOpenChange(v: boolean) {
+    if (!v && !loadingTier) {
+      setError(null);
+      onClose();
+    }
   }
 
   const showBoth = requiredTier === "pro";
+  const isLoading = loadingTier !== null;
 
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <div className="flex items-center gap-2 mb-1">
@@ -66,8 +85,19 @@ export function UpgradeModal({ open, onClose, requiredTier, featureName }: Upgra
                   </li>
                 ))}
               </ul>
-              <Button className="w-full" onClick={() => handleUpgrade("pro")}>
-                Upgrade to Pro — $2/mo
+              <Button
+                className="w-full"
+                onClick={() => handleUpgrade("pro")}
+                disabled={isLoading}
+              >
+                {loadingTier === "pro" ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    Starting checkout…
+                  </span>
+                ) : (
+                  "Upgrade to Pro — $2/mo"
+                )}
               </Button>
             </div>
           )}
@@ -99,11 +129,26 @@ export function UpgradeModal({ open, onClose, requiredTier, featureName }: Upgra
               className="w-full"
               variant={requiredTier === "pro_ai" ? "default" : "outline"}
               onClick={() => handleUpgrade("pro_ai")}
+              disabled={isLoading}
             >
-              Upgrade to Pro+AI — $4.99/mo
+              {loadingTier === "pro_ai" ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  Starting checkout…
+                </span>
+              ) : (
+                "Upgrade to Pro+AI — $4.99/mo"
+              )}
             </Button>
           </div>
         </div>
+
+        {error && (
+          <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
 
         <p className="text-xs text-muted-foreground text-center pt-1">
           Cancel anytime. Billed via Stripe. No card info stored in this app.

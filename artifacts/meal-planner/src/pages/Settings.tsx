@@ -65,6 +65,22 @@ export function Settings() {
 
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [upgradeTarget, setUpgradeTarget] = useState<"pro" | "pro_ai">("pro");
+  const [portalLoading, setPortalLoading] = useState(false);
+
+  async function handleOpenPortal() {
+    setPortalLoading(true);
+    try {
+      await openPortal();
+    } catch (err) {
+      toast({
+        title: "Could not open billing portal",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setPortalLoading(false);
+    }
+  }
 
   const { data: billingUsage } = useGetAiUsage({ query: { enabled: !isFree, queryKey: getGetAiUsageQueryKey() } });
 
@@ -386,9 +402,14 @@ export function Settings() {
                   variant="outline"
                   size="sm"
                   className="shrink-0 gap-1.5"
-                  onClick={openPortal}
+                  onClick={handleOpenPortal}
+                  disabled={portalLoading}
                 >
-                  <ExternalLink className="w-3.5 h-3.5" />
+                  {portalLoading ? (
+                    <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  )}
                   Manage
                 </Button>
               )}
@@ -423,9 +444,14 @@ export function Settings() {
               <Button
                 size="sm"
                 className="gap-1.5 w-full"
-                onClick={openPortal}
+                onClick={handleOpenPortal}
+                disabled={portalLoading}
               >
-                <Zap className="w-3.5 h-3.5" />
+                {portalLoading ? (
+                  <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Zap className="w-3.5 h-3.5" />
+                )}
                 Upgrade to Pro+AI — $4.99/mo
               </Button>
             )}

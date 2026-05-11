@@ -13,8 +13,8 @@ type AuthContextValue = {
   forgotPassword: (email: string) => Promise<void>;
   resetPassword: (token: string, password: string) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
-  startCheckout: (tier: "pro" | "pro_ai") => void;
-  openPortal: () => void;
+  startCheckout: (tier: "pro" | "pro_ai") => Promise<void>;
+  openPortal: () => Promise<void>;
   refreshUser: () => Promise<void>;
 };
 
@@ -144,43 +144,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  function startCheckout(tier: "pro" | "pro_ai") {
-    fetch("/api/billing/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ tier }),
-    })
-      .then((r) => r.json())
-      .then((data: { url?: string; error?: string }) => {
-        if (data.url) {
-          window.location.href = data.url;
-        } else {
-          alert(data.error ?? "Could not start checkout. Please try again.");
-        }
-      })
-      .catch(() => {
-        alert("Could not start checkout. Please try again.");
+  async function startCheckout(tier: "pro" | "pro_ai"): Promise<void> {
+    let data: { url?: string; error?: string };
+    try {
+      const r = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ tier }),
       });
+      data = await r.json() as { url?: string; error?: string };
+    } catch {
+      throw new Error("Unable to reach the server. Please check your connection and try again.");
+    }
+    if (data.url) {
+      window.location.href = data.url;
+    } else {
+      throw new Error(data.error ?? "Could not start checkout. Please try again.");
+    }
   }
 
-  function openPortal() {
-    fetch("/api/billing/portal", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    })
-      .then((r) => r.json())
-      .then((data: { url?: string; error?: string }) => {
-        if (data.url) {
-          window.location.href = data.url;
-        } else {
-          alert(data.error ?? "Could not open billing portal. Please try again.");
-        }
-      })
-      .catch(() => {
-        alert("Could not open billing portal. Please try again.");
+  async function openPortal(): Promise<void> {
+    let data: { url?: string; error?: string };
+    try {
+      const r = await fetch("/api/billing/portal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
       });
+      data = await r.json() as { url?: string; error?: string };
+    } catch {
+      throw new Error("Unable to reach the server. Please check your connection and try again.");
+    }
+    if (data.url) {
+      window.location.href = data.url;
+    } else {
+      throw new Error(data.error ?? "Could not open billing portal. Please try again.");
+    }
   }
 
   return (
