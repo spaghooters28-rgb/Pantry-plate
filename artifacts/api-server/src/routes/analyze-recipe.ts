@@ -6,6 +6,7 @@ import { requireAuth } from "../middleware/requireAuth";
 import { requireTier } from "../middleware/requireTier";
 import { createUserRateLimit, createIpRateLimit } from "../middleware/rateLimit";
 import { checkAndIncrementAiUsage } from "../lib/aiUsage";
+import { isGeminiEnabled, geminiGenerate } from "../lib/gemini";
 import dns from "dns";
 import net from "net";
 import https from "https";
@@ -250,13 +251,17 @@ Rules:
   let extracted: ExtractedIngredient[] = [];
 
   try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-5-mini",
-      max_completion_tokens: 4096,
-      messages: [{ role: "user", content: prompt }],
-    });
-
-    const content = response.choices[0]?.message?.content ?? "";
+    let content: string;
+    if (isGeminiEnabled()) {
+      content = await geminiGenerate(prompt);
+    } else {
+      const response = await openai.chat.completions.create({
+        model: "gpt-5-mini",
+        max_completion_tokens: 4096,
+        messages: [{ role: "user", content: prompt }],
+      });
+      content = response.choices[0]?.message?.content ?? "";
+    }
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsedResult = JSON.parse(jsonMatch[0]) as {

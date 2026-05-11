@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pantryplate
+      POSTGRES_USER: pantryplate
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pantryplate"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgres://pantryplate:${DB_PASSWORD:-changeme}@db:5432/pantryplate
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:?GEMINI_API_KEY is required}
+      SELF_HOSTED: "true"
+      # Optional — only needed if running API and frontend on separate domains
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+      # Optional — Stripe keys (leave blank to disable payment features)
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db_data:

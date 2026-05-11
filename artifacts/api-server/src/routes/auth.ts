@@ -20,6 +20,11 @@ function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+function effectiveTier(dbTier: string | null | undefined): string {
+  if (process.env.SELF_HOSTED === "true") return "pro_ai";
+  return dbTier ?? "free";
+}
+
 function getAppBaseUrl(req: import("express").Request): string {
   const domains = process.env.REPLIT_DOMAINS;
   if (domains) {
@@ -83,7 +88,7 @@ router.post("/auth/register", requireSameOrigin, registerIpRateLimit, async (req
   req.session.email = resolvedEmail;
   req.session.displayName = resolvedName;
 
-  res.status(201).json({ id: user.id, email: resolvedEmail, displayName: resolvedName, tier: user.tier ?? "free" });
+  res.status(201).json({ id: user.id, email: resolvedEmail, displayName: resolvedName, tier: effectiveTier(user.tier) });
 });
 
 // ── Login ─────────────────────────────────────────────────────────────────────
@@ -119,7 +124,7 @@ router.post("/auth/login", requireSameOrigin, loginIpRateLimit, async (req, res)
   req.session.email = resolvedEmail;
   req.session.displayName = resolvedName;
 
-  res.json({ id: user.id, email: resolvedEmail, displayName: resolvedName, tier: user.tier ?? "free" });
+  res.json({ id: user.id, email: resolvedEmail, displayName: resolvedName, tier: effectiveTier(user.tier) });
 });
 
 // ── Logout ───────────────────────────────────────────────────────────────────
@@ -150,7 +155,7 @@ router.get("/auth/me", async (req, res): Promise<void> => {
     id: user.id,
     email: user.email,
     displayName: user.displayName,
-    tier: user.tier ?? "free",
+    tier: effectiveTier(user.tier),
   });
 });
 

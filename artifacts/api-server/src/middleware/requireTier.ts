@@ -27,6 +27,11 @@ export function requireTier(minTier: Tier) {
       res.status(401).json({ error: "Not authenticated" });
       return;
     }
+    // In self-hosted mode all features are unlocked for authenticated users
+    if (process.env.SELF_HOSTED === "true") {
+      next();
+      return;
+    }
     const userTier = await getUserTier(req.session.userId);
     if (TIER_ORDER[userTier] < TIER_ORDER[minTier]) {
       res.status(403).json({

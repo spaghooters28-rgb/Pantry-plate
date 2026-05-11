@@ -3,6 +3,7 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
+import path from "path";
 import router from "./routes";
 import { handleStripeWebhook } from "./routes/billing";
 import { logger } from "./lib/logger";
@@ -171,5 +172,14 @@ app.use(
 );
 
 app.use("/api", router);
+
+// In self-hosted/production mode, serve the built React frontend and handle SPA routing
+if (process.env.NODE_ENV === "production") {
+  const publicDir = path.resolve(process.cwd(), "public");
+  app.use(express.static(publicDir));
+  app.get("*", (_req, res) => {
+    res.sendFile(path.join(publicDir, "index.html"));
+  });
+}
 
 export default app;

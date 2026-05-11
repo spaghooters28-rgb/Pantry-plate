@@ -6,6 +6,7 @@ import { requireAuth } from "../middleware/requireAuth";
 import { requireTier } from "../middleware/requireTier";
 import { createUserRateLimit, createIpRateLimit } from "../middleware/rateLimit";
 import { checkAndIncrementAiUsage } from "../lib/aiUsage";
+import { isGeminiEnabled, geminiGenerate } from "../lib/gemini";
 
 const router: IRouter = Router();
 
@@ -86,13 +87,17 @@ async function generateAndSaveMeal(
 ): Promise<object | null> {
   const prompt = buildPrompt(cuisineFilter, proteinFilter, glutenFreeFilter, existingNames);
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-5-nano",
-    max_completion_tokens: 16384,
-    messages: [{ role: "user", content: prompt }],
-  });
-
-  const content = response.choices[0]?.message?.content ?? "";
+  let content: string;
+  if (isGeminiEnabled()) {
+    content = await geminiGenerate(prompt);
+  } else {
+    const response = await openai.chat.completions.create({
+      model: "gpt-5-nano",
+      max_completion_tokens: 16384,
+      messages: [{ role: "user", content: prompt }],
+    });
+    content = response.choices[0]?.message?.content ?? "";
+  }
   if (!content) return null;
 
   const jsonMatch = content.match(/\{[\s\S]*\}/);

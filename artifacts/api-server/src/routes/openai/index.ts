@@ -10,6 +10,7 @@ import { requireAuth } from "../../middleware/requireAuth";
 import { requireTier } from "../../middleware/requireTier";
 import { createUserRateLimit } from "../../middleware/rateLimit";
 import { checkAndIncrementAiUsage } from "../../lib/aiUsage";
+import { isGeminiEnabled, geminiStreamChat, type GeminiContent } from "../../lib/gemini";
 
 const router: IRouter = Router();
 
@@ -198,18 +199,31 @@ router.post("/openai/conversations/:id/messages", requireAuth, requireTier("pro_
 
   let fullResponse = "";
   try {
-    const stream = await openai.chat.completions.create({
-      model: "gpt-5.1",
-      max_completion_tokens: 8192,
-      messages: chatMessages,
-      stream: true,
-    });
-
-    for await (const chunk of stream) {
-      const content = chunk.choices[0]?.delta?.content;
-      if (content) {
-        fullResponse += content;
-        res.write(`data: ${JSON.stringify({ content })}\n\n`);
+    if (isGeminiEnabled()) {
+      const geminiHistory: GeminiContent[] = [
+        ...history.map((m) => ({
+          role: m.role === "user" ? "user" as const : "model" as const,
+          parts: [{ text: m.content }] as [{ text: string }],
+        })),
+        { role: "user" as const, parts: [{ text: parsed.data.content }] },
+      ];
+      for await (const chunk of geminiStreamChat(geminiHistory, getSystemPrompt())) {
+        fullResponse += chunk;
+        res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
+      }
+    } else {
+      const stream = await openai.chat.completions.create({
+        model: "gpt-5.1",
+        max_completion_tokens: 8192,
+        messages: chatMessages,
+        stream: true,
+      });
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content;
+        if (content) {
+          fullResponse += content;
+          res.write(`data: ${JSON.stringify({ content })}\n\n`);
+        }
       }
     }
 

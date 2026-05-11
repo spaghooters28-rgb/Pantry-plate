@@ -19,6 +19,15 @@ function getAllowedOrigins(): string[] {
     origins.push(`https://${devDomain}`);
   }
 
+  // Support self-hosted deployments with a custom origin allowlist
+  const allowedOriginsEnv = process.env.ALLOWED_ORIGINS;
+  if (allowedOriginsEnv) {
+    for (const origin of allowedOriginsEnv.split(",")) {
+      const trimmed = origin.trim();
+      if (trimmed) origins.push(trimmed);
+    }
+  }
+
   if (!isProduction) {
     origins.push("http://localhost:5173", "http://localhost:3000");
   }
