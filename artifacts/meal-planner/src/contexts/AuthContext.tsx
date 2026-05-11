@@ -51,8 +51,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ email, password }),
     });
     if (!r.ok) {
-      const { error } = await r.json() as { error: string };
-      throw new Error(error ?? "Login failed");
+      let msg = "Login failed. Please try again.";
+      try {
+        const body = await r.json() as { error?: string };
+        if (body.error) msg = body.error;
+      } catch { /* empty or non-JSON body — keep default */ }
+      throw new Error(msg);
     }
     const data = await r.json() as AuthUser;
     setUser(data);
@@ -66,8 +70,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ email, displayName, password }),
     });
     if (!r.ok) {
-      const { error } = await r.json() as { error: string };
-      throw new Error(error ?? "Registration failed");
+      let msg = "Registration failed. Please try again.";
+      try {
+        const body = await r.json() as { error?: string };
+        if (body.error) msg = body.error;
+      } catch { /* empty or non-JSON body — keep default */ }
+      throw new Error(msg);
     }
     const data = await r.json() as AuthUser;
     setUser(data);
@@ -85,8 +93,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ email }),
     });
     if (!r.ok) {
-      const { error } = await r.json() as { error: string };
-      throw new Error(error ?? "Request failed");
+      let msg = "Request failed. Please try again.";
+      try {
+        const body = await r.json() as { error?: string };
+        if (body.error) msg = body.error;
+      } catch { /* empty or non-JSON body — keep default */ }
+      throw new Error(msg);
     }
   }
 
@@ -97,8 +109,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ token, password }),
     });
     if (!r.ok) {
-      const { error } = await r.json() as { error: string };
-      throw new Error(error ?? "Reset failed");
+      let msg = "Password reset failed. Please try again.";
+      try {
+        const body = await r.json() as { error?: string };
+        if (body.error) msg = body.error;
+      } catch { /* empty or non-JSON body — keep default */ }
+      throw new Error(msg);
     }
   }
 
@@ -110,8 +126,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ currentPassword, newPassword }),
     });
     if (!r.ok) {
-      const { error } = await r.json() as { error: string };
-      throw new Error(error ?? "Password change failed");
+      let msg = "Password change failed. Please try again.";
+      try {
+        const body = await r.json() as { error?: string };
+        if (body.error) msg = body.error;
+      } catch { /* empty or non-JSON body — keep default */ }
+      throw new Error(msg);
     }
   }
 
