@@ -12,6 +12,7 @@ import {
   useUpdateDayMeal,
   getGetWeeklyPlanQueryKey,
 } from "@workspace/api-client-react";
+import { CachedDataBanner } from "@/components/CachedDataBanner";
 import { AiChatPanel, type ChatAction } from "@/components/AiChatPanel";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -344,6 +345,7 @@ export function Discover() {
 
   return (
     <div className="space-y-6">
+      <CachedDataBanner hasData={!!(meals && meals.length > 0)} readOnly />
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-3xl font-serif font-bold text-primary mb-1">Discover</h1>

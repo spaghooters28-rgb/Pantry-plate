@@ -14,6 +14,7 @@ import {
   type AvailableRecipe,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { CachedDataBanner } from "@/components/CachedDataBanner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   PackageSearch, Plus, Trash2, ChefHat, ShoppingCart, Sparkles,
-  Clock, Flame, CheckCircle2, AlertCircle, Star, ShoppingBag, Lock,
+  Clock, Flame, CheckCircle2, AlertCircle, Star, ShoppingBag, Lock, RefreshCw,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTier } from "@/contexts/AuthContext";
@@ -225,10 +226,22 @@ export function Pantry() {
   const deleteMutation = useDeletePantryItem();
   const movePantryMutation = useMovePantryItemToGrocery();
 
-  function handleQuantityChange(id: number, qty: string) {
+  async function handleQuantityChange(id: number, qty: string) {
+    await queryClient.cancelQueries({ queryKey: qKey });
+    const snapshot = queryClient.getQueryData(qKey);
+    queryClient.setQueryData(qKey, (old: typeof items) => {
+      if (!old) return old;
+      return old.map((item) => item.id === id ? { ...item, quantity: qty } : item);
+    });
     updateMutation.mutate(
       { id, data: { quantity: qty } },
-      { onSuccess: () => queryClient.invalidateQueries({ queryKey: qKey }) }
+      {
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: qKey }),
+        onError: () => {
+          queryClient.setQueryData(qKey, snapshot);
+          toast({ title: "Error", description: "Could not update quantity.", variant: "destructive" });
+        },
+      }
     );
   }
 
@@ -312,9 +325,17 @@ export function Pantry() {
 
   const readyRecipes = availableRecipes?.filter((r) => r.matchScore === 1) ?? [];
   const almostRecipes = availableRecipes?.filter((r) => r.matchScore < 1) ?? [];
+  const hasPendingWrites = updateMutation.isPaused || addMutation.isPaused || deleteMutation.isPaused || movePantryMutation.isPaused;
 
   return (
     <div className="space-y-6">
+      <CachedDataBanner hasData={!!(items && items.length > 0)} />
+      {hasPendingWrites && (
+        <div className="flex items-center gap-1.5 text-xs text-sky-700 bg-sky-50 border border-sky-200 rounded-md px-3 py-1.5">
+          <RefreshCw className="w-3 h-3 shrink-0 animate-spin" />
+          <span>Changes queued — will sync automatically when you reconnect</span>
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-serif font-bold text-primary mb-1">Pantry</h1>

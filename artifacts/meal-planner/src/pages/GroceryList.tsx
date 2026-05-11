@@ -17,8 +17,9 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, Trash2, ShoppingBag, Sparkles, X, PackagePlus } from "lucide-react";
+import { Plus, Trash2, ShoppingBag, Sparkles, X, PackagePlus, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { CachedDataBanner } from "@/components/CachedDataBanner";
 
 const CATEGORIES = [
   "Produce",
@@ -329,10 +330,31 @@ export function GroceryList() {
 
   const progress = list ? Math.round((list.checkedItems / (list.totalItems || 1)) * 100) : 0;
 
-  function handleToggle(id: number, checked: boolean) {
+  async function handleToggle(id: number, checked: boolean) {
+    await queryClient.cancelQueries({ queryKey: qKey });
+    const snapshot = queryClient.getQueryData(qKey);
+    queryClient.setQueryData(qKey, (old: typeof list) => {
+      if (!old) return old;
+      return {
+        ...old,
+        checkedItems: old.checkedItems + (checked ? -1 : 1),
+        categories: old.categories.map((cat) => ({
+          ...cat,
+          items: cat.items.map((item) =>
+            item.id === id ? { ...item, isChecked: !checked } : item
+          ),
+        })),
+      };
+    });
     updateMutation.mutate(
       { id, data: { isChecked: !checked } },
-      { onSuccess: () => queryClient.invalidateQueries({ queryKey: qKey }) }
+      {
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: qKey }),
+        onError: () => {
+          queryClient.setQueryData(qKey, snapshot);
+          toast({ title: "Error", description: "Could not update item.", variant: "destructive" });
+        },
+      }
     );
   }
 
@@ -465,8 +487,17 @@ export function GroceryList() {
     );
   }
 
+  const hasPendingWrites = updateMutation.isPaused || addMutation.isPaused || deleteMutation.isPaused || clearMutation.isPaused;
+
   return (
     <div className="space-y-6">
+      <CachedDataBanner hasData={!!list} />
+      {hasPendingWrites && (
+        <div className="flex items-center gap-1.5 text-xs text-sky-700 bg-sky-50 border border-sky-200 rounded-md px-3 py-1.5">
+          <RefreshCw className="w-3 h-3 shrink-0 animate-spin" />
+          <span>Changes queued — will sync automatically when you reconnect</span>
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-serif font-bold text-primary mb-1">Grocery List</h1>

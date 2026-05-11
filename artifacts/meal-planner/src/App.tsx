@@ -25,8 +25,13 @@ import { Settings } from "@/pages/Settings";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 60 * 1000,
+      staleTime: 5 * 60 * 1000,
+      gcTime: 24 * 60 * 60 * 1000,
+      networkMode: "offlineFirst",
       refetchOnWindowFocus: false,
+    },
+    mutations: {
+      networkMode: "online",
     },
   },
 });
