@@ -20,10 +20,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Clock, Flame, ChefHat, ShoppingCart, CheckCircle2, AlertCircle, Users, Sparkles, RefreshCw, Star, BookOpen, ChevronDown, ChevronUp, Lock } from "lucide-react";
+import { Clock, Flame, ChefHat, ShoppingCart, CheckCircle2, AlertCircle, Users, Sparkles, RefreshCw, Star, BookOpen, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useTier } from "@/contexts/AuthContext";
-import { UpgradeModal } from "@/components/UpgradeModal";
 
 type Meal = {
   id: number;
@@ -90,7 +88,6 @@ export function Discover() {
   });
 
   const allMeals = listMealsData?.meals;
-  const lockedCount = listMealsData?.lockedCount ?? 0;
   const meals = favoritesOnly ? allMeals?.filter((m) => (m as Meal).isFavorited) : allMeals;
 
   const { data: cuisines } = useListCuisines();
@@ -105,9 +102,6 @@ export function Discover() {
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiProgress, setAiProgress] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
-  const { isProAi } = useTier();
-  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
-  const [upgradeModalTier, setUpgradeModalTier] = useState<"pro" | "pro_ai">("pro_ai");
 
   function handleOpenMeal(meal: Meal) {
     setSelectedMeal(meal);
@@ -252,11 +246,6 @@ export function Discover() {
   }
 
   function handleGenerateAiClick() {
-    if (!isProAi) {
-      setUpgradeModalTier("pro_ai");
-      setUpgradeModalOpen(true);
-      return;
-    }
     void handleGenerateAi();
   }
 
@@ -355,7 +344,7 @@ export function Discover() {
           onClick={handleGenerateAiClick}
           disabled={aiGenerating}
           className="gap-2 shrink-0"
-          variant={isProAi ? "outline" : "secondary"}
+          variant="outline"
         >
           {aiGenerating ? (
             <>
@@ -376,22 +365,7 @@ export function Discover() {
         </Button>
       </div>
 
-      {/* AI Chat Panel — gated to Pro+AI */}
-      {isProAi ? (
-        <AiChatPanel onAction={handleAiAction} />
-      ) : (
-        <button
-          onClick={() => { setUpgradeModalTier("pro_ai"); setUpgradeModalOpen(true); }}
-          className="w-full rounded-xl border border-dashed border-border bg-muted/30 hover:bg-muted/60 transition-colors px-5 py-4 flex items-center gap-3 text-sm text-muted-foreground group"
-        >
-          <Lock className="w-4 h-4 shrink-0 group-hover:text-primary transition-colors" />
-          <span className="flex-1 text-left">
-            <span className="font-medium text-foreground">AI Meal Planning Assistant</span>
-            {" — "}chat with an AI to plan your meals, assign dishes to days, and get personalized suggestions.
-          </span>
-          <span className="text-xs font-medium text-primary shrink-0">Pro+AI →</span>
-        </button>
-      )}
+      <AiChatPanel onAction={handleAiAction} />
 
       {/* AI generation loading banner */}
       {aiGenerating && (
@@ -587,30 +561,6 @@ export function Discover() {
               ))
             )}
           </div>
-
-          {/* Locked meals upgrade banner */}
-          {lockedCount > 0 && (
-            <div className="mt-2 rounded-xl border-2 border-primary/30 bg-primary/5 px-5 py-4 flex flex-col sm:flex-row items-center gap-4">
-              <div className="flex items-center gap-3 flex-1">
-                <Lock className="w-5 h-5 text-primary shrink-0" />
-                <div>
-                  <p className="font-semibold text-sm">
-                    {lockedCount} more recipe{lockedCount !== 1 ? "s" : ""} available
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Upgrade to Pro to unlock the full catalog of 726+ recipes.
-                  </p>
-                </div>
-              </div>
-              <Button
-                size="sm"
-                className="shrink-0"
-                onClick={() => { setUpgradeModalTier("pro"); setUpgradeModalOpen(true); }}
-              >
-                Upgrade to Pro
-              </Button>
-            </div>
-          )}
 
           {/* Load More strip */}
           <div className="flex justify-center pt-4">
@@ -843,11 +793,6 @@ export function Discover() {
         </DialogContent>
       </Dialog>
 
-      <UpgradeModal
-        open={upgradeModalOpen}
-        onClose={() => setUpgradeModalOpen(false)}
-        requiredTier={upgradeModalTier}
-      />
     </div>
   );
 }

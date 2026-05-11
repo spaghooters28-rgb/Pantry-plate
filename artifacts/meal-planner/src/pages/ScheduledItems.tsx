@@ -17,10 +17,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Clock, Plus, Pause, Play, Trash2, ShoppingCart, Bell, CalendarClock, Lock } from "lucide-react";
+import { Clock, Plus, Pause, Play, Trash2, ShoppingCart, Bell, CalendarClock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useTier } from "@/contexts/AuthContext";
-import { UpgradeModal } from "@/components/UpgradeModal";
 import { CachedDataBanner } from "@/components/CachedDataBanner";
 
 const CATEGORIES = ["Produce", "Dairy & Eggs", "Meat & Seafood", "Grains & Bread", "Pantry", "Frozen", "Beverages", "Other"];
@@ -28,7 +26,7 @@ const SCHEDULE_TYPES = [
   { value: "weekly", label: "Weekly", description: "Every 7 days" },
   { value: "biweekly", label: "Biweekly", description: "Every 14 days" },
   { value: "every_other_day", label: "Every other day", description: "Every 2 days" },
-  { value: "custom", label: "Custom", description: "You choose the interval", proOnly: true },
+  { value: "custom", label: "Custom", description: "You choose the interval" },
 ];
 
 const SCHEDULE_LABELS: Record<string, string> = {
@@ -37,12 +35,6 @@ const SCHEDULE_LABELS: Record<string, string> = {
   every_other_day: "Every other day",
   custom: "Custom",
 };
-
-const PROTEIN_CATEGORY = "Meat & Seafood";
-
-function isProFeature(category: string, scheduleType: string): boolean {
-  return category === PROTEIN_CATEGORY || scheduleType === "custom";
-}
 
 type ScheduledItem = {
   id: number;
@@ -63,8 +55,6 @@ export function ScheduledItems() {
     scheduleType: "weekly", scheduleDaysInterval: 7,
   });
   const { toast } = useToast();
-  const { isPro } = useTier();
-  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const queryClient = useQueryClient();
   const qKey = getListScheduledItemsQueryKey();
   const dueQKey = getGetDueScheduledItemsQueryKey();
@@ -160,13 +150,6 @@ export function ScheduledItems() {
     e.preventDefault();
     if (!newItem.name.trim()) return;
 
-    // Free users cannot create protein-based or custom interval reminders
-    if (!isPro && isProFeature(newItem.category, newItem.scheduleType)) {
-      setAddOpen(false);
-      setUpgradeModalOpen(true);
-      return;
-    }
-
     createMutation.mutate(
       {
         data: {
@@ -185,13 +168,8 @@ export function ScheduledItems() {
           setNewItem({ name: "", quantity: "1", unit: "", category: "Dairy & Eggs", scheduleType: "weekly", scheduleDaysInterval: 7 });
           toast({ title: `${newItem.name.trim()} scheduled!` });
         },
-        onError: (err: unknown) => {
-          const status = (err as { response?: { status?: number } })?.response?.status;
-          if (status === 403) {
-            setUpgradeModalOpen(true);
-          } else {
-            toast({ title: "Error", description: "Could not schedule item.", variant: "destructive" });
-          }
+        onError: () => {
+          toast({ title: "Error", description: "Could not schedule item.", variant: "destructive" });
         },
       }
     );
@@ -214,8 +192,6 @@ export function ScheduledItems() {
     today.setHours(0, 0, 0, 0);
     return date <= today;
   }
-
-  const scheduleTypeRequiresPro = !isPro && (newItem.scheduleType === "custom" || newItem.category === PROTEIN_CATEGORY);
 
   return (
     <div className="space-y-6">
@@ -418,9 +394,7 @@ export function ScheduledItems() {
                 onChange={(e) => setNewItem((v) => ({ ...v, category: e.target.value }))}
               >
                 {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}{!isPro && c === PROTEIN_CATEGORY ? " (Pro)" : ""}
-                  </option>
+                  <option key={c} value={c}>{c}</option>
                 ))}
               </select>
             </div>
@@ -436,7 +410,6 @@ export function ScheduledItems() {
                   >
                     <p className="text-sm font-medium flex items-center gap-1.5">
                       {s.label}
-                      {!isPro && s.proOnly && <Lock className="w-3 h-3 text-muted-foreground" />}
                     </p>
                     <p className="text-xs text-muted-foreground">{s.description}</p>
                   </button>
@@ -457,34 +430,16 @@ export function ScheduledItems() {
               </div>
             )}
 
-            {scheduleTypeRequiresPro && (
-              <p className="text-xs text-muted-foreground bg-muted/60 rounded-lg px-3 py-2 flex items-center gap-1.5">
-                <Lock className="w-3 h-3 shrink-0" />
-                {newItem.category === PROTEIN_CATEGORY
-                  ? "Meat & Seafood reminders"
-                  : "Custom interval schedules"}{" "}
-                require a Pro subscription.
-              </p>
-            )}
-
             <div className="flex gap-2 justify-end pt-1">
               <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
               <Button type="submit" disabled={!newItem.name.trim() || createMutation.isPending}>
-                {scheduleTypeRequiresPro
-                  ? <><Lock className="w-3.5 h-3.5 mr-1.5" />Upgrade to Schedule</>
-                  : createMutation.isPending ? "Scheduling…" : "Schedule Item"}
+                {createMutation.isPending ? "Scheduling…" : "Schedule Item"}
               </Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
 
-      <UpgradeModal
-        open={upgradeModalOpen}
-        onClose={() => setUpgradeModalOpen(false)}
-        requiredTier="pro"
-        featureName="Protein & Custom Reminders"
-      />
     </div>
   );
 }

@@ -8,15 +8,8 @@ import {
   DeleteScheduledItemParams,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middleware/requireAuth";
-import { requireTier, getUserTier } from "../middleware/requireTier";
 
 const router: IRouter = Router();
-
-const PROTEIN_CATEGORY = "Meat & Seafood";
-
-function isProFeature(category: string, scheduleType: string): boolean {
-  return category === PROTEIN_CATEGORY || scheduleType === "custom";
-}
 
 function getIntervalDays(scheduleType: string, customInterval?: number | null): number {
   switch (scheduleType) {
@@ -58,20 +51,6 @@ router.post("/scheduled-items", requireAuth, async (req, res): Promise<void> => 
     return;
   }
 
-  // Protein-based reminders and custom intervals require Pro
-  if (isProFeature(parsed.data.category, parsed.data.scheduleType)) {
-    const userTier = await getUserTier(userId);
-    if (userTier === "free") {
-      res.status(403).json({
-        error: "This feature requires a subscription upgrade.",
-        requiredTier: "pro",
-        currentTier: userTier,
-        upgradePath: "pro",
-      });
-      return;
-    }
-  }
-
   const interval = getIntervalDays(parsed.data.scheduleType, parsed.data.scheduleDaysInterval);
   const nextDue = addDays(todayStr(), interval);
 
@@ -111,20 +90,6 @@ router.patch("/scheduled-items/:id", requireAuth, async (req, res): Promise<void
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
-  }
-
-  // If the update is changing scheduleType to "custom", that requires Pro
-  if (parsed.data.scheduleType === "custom") {
-    const userTier = await getUserTier(userId);
-    if (userTier === "free") {
-      res.status(403).json({
-        error: "This feature requires a subscription upgrade.",
-        requiredTier: "pro",
-        currentTier: userTier,
-        upgradePath: "pro",
-      });
-      return;
-    }
   }
 
   const updateData: Record<string, unknown> = {};

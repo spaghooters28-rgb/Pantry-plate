@@ -21,25 +21,10 @@ export async function getUserTier(userId: number): Promise<Tier> {
   return sanitizeTier(row?.tier);
 }
 
-export function requireTier(minTier: Tier) {
-  return async function tierGate(req: Request, res: Response, next: NextFunction): Promise<void> {
+export function requireTier(_minTier: Tier) {
+  return function tierGate(req: Request, res: Response, next: NextFunction): void {
     if (!req.session.userId) {
       res.status(401).json({ error: "Not authenticated" });
-      return;
-    }
-    // In self-hosted mode all features are unlocked for authenticated users
-    if (process.env.SELF_HOSTED === "true") {
-      next();
-      return;
-    }
-    const userTier = await getUserTier(req.session.userId);
-    if (TIER_ORDER[userTier] < TIER_ORDER[minTier]) {
-      res.status(403).json({
-        error: "This feature requires a subscription upgrade.",
-        requiredTier: minTier,
-        currentTier: userTier,
-        upgradePath: minTier === "pro_ai" ? "pro_ai" : "pro",
-      });
       return;
     }
     next();

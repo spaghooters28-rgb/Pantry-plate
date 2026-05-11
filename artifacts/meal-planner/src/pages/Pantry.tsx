@@ -23,11 +23,9 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   PackageSearch, Plus, Trash2, ChefHat, ShoppingCart, Sparkles,
-  Clock, Flame, CheckCircle2, AlertCircle, Star, ShoppingBag, Lock, RefreshCw,
+  Clock, Flame, CheckCircle2, AlertCircle, Star, ShoppingBag, RefreshCw,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useTier } from "@/contexts/AuthContext";
-import { UpgradeModal } from "@/components/UpgradeModal";
 
 const CATEGORIES = [
   "Produce", "Meat & Seafood", "Dairy & Eggs", "Grains & Bread", "Bakery",
@@ -196,11 +194,9 @@ function RecipeCard({ recipe: initialRecipe }: { recipe: AvailableRecipe }) {
 export function Pantry() {
   const [addOpen, setAddOpen] = useState(false);
   const [recipesOpen, setRecipesOpen] = useState(false);
-  const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [newItem, setNewItem] = useState({ name: "", quantity: "", category: "Pantry", notes: "" });
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { isPro } = useTier();
   const qKey = getListPantryItemsQueryKey();
   const recipeQKey = getGetAvailableRecipesQueryKey();
   const { pendingCount, isSyncing } = useOfflineQueueState();
@@ -290,10 +286,6 @@ export function Pantry() {
   }
 
   async function handleGenerateRecipes() {
-    if (!isPro) {
-      setUpgradeOpen(true);
-      return;
-    }
     setRecipesOpen(true);
     await fetchRecipes();
   }
@@ -421,15 +413,8 @@ export function Pantry() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={handleGenerateRecipes}>
-            {isPro ? (
-              <Sparkles className="w-4 h-4 mr-2" />
-            ) : (
-              <Lock className="w-4 h-4 mr-2" />
-            )}
+            <Sparkles className="w-4 h-4 mr-2" />
             Find Available Recipes
-            {!isPro && (
-              <Badge variant="secondary" className="ml-2 text-xs">Pro</Badge>
-            )}
           </Button>
           <Button onClick={() => setAddOpen(true)}>
             <Plus className="w-4 h-4 mr-2" />
@@ -685,12 +670,6 @@ export function Pantry() {
         </DialogContent>
       </Dialog>
 
-      <UpgradeModal
-        open={upgradeOpen}
-        onClose={() => setUpgradeOpen(false)}
-        requiredTier="pro"
-        featureName="Find Available Recipes"
-      />
     </div>
   );
 }

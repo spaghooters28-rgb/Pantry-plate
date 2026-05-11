@@ -7,7 +7,6 @@ import {
   ToggleMealFavoriteParams,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middleware/requireAuth";
-import { requireTier, getUserTier } from "../middleware/requireTier";
 import { z } from "zod";
 
 const CustomIngredientSchema = z.object({
@@ -78,8 +77,6 @@ function catalogVisibilityCondition(userId: number | undefined) {
   return isNull(mealsTable.createdByUserId);
 }
 
-const FREE_MEAL_CAP = 100;
-
 router.get("/meals", async (req, res): Promise<void> => {
   const params = ListMealsQueryParams.safeParse(req.query);
   if (!params.success) {
@@ -90,21 +87,14 @@ router.get("/meals", async (req, res): Promise<void> => {
   const { cuisine, protein, glutenFree } = params.data;
   const userId = req.session?.userId as number | undefined;
 
-  const tier = userId ? await getUserTier(userId) : "free";
-  const isCapped = tier === "free";
+  const lockedCount = 0;
 
   const conditions = [catalogVisibilityCondition(userId)!];
   if (cuisine) conditions.push(eq(mealsTable.cuisine, cuisine));
   if (protein) conditions.push(eq(mealsTable.protein, protein));
   if (glutenFree !== undefined) conditions.push(eq(mealsTable.isGlutenFree, glutenFree));
 
-  let allMatchingMeals = await db.select().from(mealsTable).where(and(...conditions));
-
-  let lockedCount = 0;
-  if (isCapped && allMatchingMeals.length > FREE_MEAL_CAP) {
-    lockedCount = allMatchingMeals.length - FREE_MEAL_CAP;
-    allMatchingMeals = allMatchingMeals.slice(0, FREE_MEAL_CAP);
-  }
+  const allMatchingMeals = await db.select().from(mealsTable).where(and(...conditions));
 
   if (allMatchingMeals.length === 0) {
     res.json({ meals: [], lockedCount });
@@ -263,7 +253,7 @@ router.post("/meals/:id/toggle-favorite", requireAuth, async (req, res): Promise
   res.json(await buildMealResponse(meal, favoritedIds));
 });
 
-router.post("/meals/custom", requireAuth, requireTier("pro"), async (req, res): Promise<void> => {
+router.post("/meals/custom", requireAuth, async (req, res): Promise<void> => {
   const userId = req.session.userId as number;
   const parsed = CreateCustomMealSchema.safeParse(req.body);
   if (!parsed.success) {

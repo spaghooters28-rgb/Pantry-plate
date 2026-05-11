@@ -197,12 +197,10 @@ export function useAuth() {
 }
 
 export function useTier() {
-  const { user } = useAuth();
-  const tier = user?.tier ?? "free";
   return {
-    tier,
-    isPro: tier === "pro" || tier === "pro_ai",
-    isProAi: tier === "pro_ai",
-    isFree: tier === "free",
+    tier: "pro_ai" as Tier,
+    isPro: true,
+    isProAi: true,
+    isFree: false,
   };
 }

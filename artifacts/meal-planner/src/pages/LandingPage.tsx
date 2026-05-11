@@ -1,16 +1,13 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   ChefHat,
   Calendar,
   ShoppingCart,
   PackageSearch,
   Sparkles,
-  Zap,
   Check,
   Clock,
-  Star,
   BookOpen,
   LogIn,
   UserPlus,
@@ -20,15 +17,8 @@ import {
   X,
 } from "lucide-react";
 import { LoginPage } from "@/pages/LoginPage";
-import {
-  LANDING_FREE_FEATURES,
-  LANDING_PRO_FEATURES,
-  LANDING_PRO_AI_FEATURES,
-} from "@/lib/tierFeatures";
+import { LANDING_FREE_FEATURES, LANDING_PRO_FEATURES, LANDING_PRO_AI_FEATURES } from "@/lib/tierFeatures";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
-
-// Key used in localStorage to pass the desired tier through the auth flow
-const PENDING_CHECKOUT_TIER_KEY = "pendingCheckoutTier";
 
 type LandingMode = "landing" | "login" | "register";
 
@@ -56,46 +46,19 @@ const FEATURES = [
   {
     icon: Clock,
     title: "Grocery Scheduling",
-    desc: "Set up recurring auto-add reminders — weekly, biweekly, or custom. Never forget milk again. (Pro)",
+    desc: "Set up recurring auto-add reminders — weekly, biweekly, or custom. Never forget milk again.",
   },
   {
     icon: Sparkles,
     title: "AI Meal Assistant",
-    desc: "Chat with an AI that knows your pantry, plans your week, and generates personalized recipe ideas. (Pro+AI)",
+    desc: "Chat with an AI that knows your pantry, plans your week, and generates personalized recipe ideas.",
   },
 ];
 
-const PLANS = [
-  {
-    name: "Free",
-    price: "$0",
-    period: "forever",
-    badge: null,
-    description: "Everything you need to get started.",
-    cta: "Get Started Free",
-    tier: null as null,
-    features: LANDING_FREE_FEATURES,
-  },
-  {
-    name: "Pro",
-    price: "$2",
-    period: "/ month",
-    badge: "Popular",
-    description: "Unlock premium planning tools.",
-    cta: "Upgrade to Pro",
-    tier: "pro" as const,
-    features: LANDING_PRO_FEATURES,
-  },
-  {
-    name: "Pro+AI",
-    price: "$4.99",
-    period: "/ month",
-    badge: "Most Powerful",
-    description: "Full AI-powered meal planning.",
-    cta: "Upgrade to Pro+AI",
-    tier: "pro_ai" as const,
-    features: LANDING_PRO_AI_FEATURES,
-  },
+const ALL_FEATURES = [
+  ...LANDING_FREE_FEATURES,
+  ...LANDING_PRO_FEATURES,
+  ...LANDING_PRO_AI_FEATURES,
 ];
 
 export function LandingPage() {
@@ -111,16 +74,7 @@ export function LandingPage() {
     }
   }
 
-  /**
-   * Navigate to the register form, optionally tagging a desired tier so
-   * AuthenticatedApp can start Stripe Checkout immediately after signup.
-   */
-  function goRegister(tier?: "pro" | "pro_ai") {
-    if (tier) {
-      localStorage.setItem(PENDING_CHECKOUT_TIER_KEY, tier);
-    } else {
-      localStorage.removeItem(PENDING_CHECKOUT_TIER_KEY);
-    }
+  function goRegister() {
     setMode("register");
   }
 
@@ -259,86 +213,32 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── Pricing ── */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-20" id="pricing">
+      {/* ── What's included ── */}
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-20" id="features">
         <div className="text-center mb-12">
-          <h2 className="text-3xl sm:text-4xl font-serif font-bold mb-3">Simple, honest pricing</h2>
+          <h2 className="text-3xl sm:text-4xl font-serif font-bold mb-3">Everything included, free</h2>
           <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-            Start free — upgrade when you're ready for more.
+            Every feature is available to all users — no tiers, no paywalls.
           </p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-          {PLANS.map((plan) => {
-            const isHighlighted = plan.tier === "pro_ai";
-            return (
-              <div
-                key={plan.name}
-                className={`relative rounded-2xl border p-6 flex flex-col gap-5 transition-all ${
-                  isHighlighted
-                    ? "border-primary bg-primary/5 shadow-lg shadow-primary/10"
-                    : "border-border bg-card"
-                }`}
-              >
-                {plan.badge && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <Badge
-                      className={isHighlighted ? "bg-primary text-primary-foreground shadow-sm" : ""}
-                      variant={isHighlighted ? "default" : "secondary"}
-                    >
-                      {plan.badge}
-                    </Badge>
-                  </div>
-                )}
-
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    {plan.tier === "pro_ai" ? (
-                      <Zap className="w-4 h-4 text-amber-500" />
-                    ) : plan.tier === "pro" ? (
-                      <Sparkles className="w-4 h-4 text-primary" />
-                    ) : (
-                      <Star className="w-4 h-4 text-muted-foreground" />
-                    )}
-                    <span className="font-semibold text-base">{plan.name}</span>
-                  </div>
-                  <div className="flex items-baseline gap-1 mt-2 mb-1">
-                    <span className="text-3xl font-serif font-bold">{plan.price}</span>
-                    <span className="text-muted-foreground text-sm">{plan.period}</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{plan.description}</p>
-                </div>
-
-                <ul className="space-y-2 flex-1">
-                  {plan.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2 text-sm">
-                      <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                      <span>{f}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <Button
-                  variant={isHighlighted ? "default" : "outline"}
-                  className="w-full"
-                  onClick={() => {
-                    if (plan.tier) {
-                      // Store desired tier so AuthenticatedApp can start
-                      // Stripe Checkout automatically after registration.
-                      goRegister(plan.tier);
-                    } else {
-                      goRegister();
-                    }
-                  }}
-                >
-                  {plan.cta}
-                </Button>
-              </div>
-            );
-          })}
+        <div className="max-w-2xl mx-auto rounded-2xl border border-primary bg-primary/5 shadow-lg shadow-primary/10 p-8">
+          <div className="flex items-baseline gap-2 mb-2">
+            <span className="text-4xl font-serif font-bold">$0</span>
+            <span className="text-muted-foreground">forever</span>
+          </div>
+          <p className="text-sm text-muted-foreground mb-6">Full access to every feature, no credit card required.</p>
+          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 mb-8">
+            {ALL_FEATURES.map((f) => (
+              <li key={f} className="flex items-start gap-2 text-sm">
+                <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                <span>{f}</span>
+              </li>
+            ))}
+          </ul>
+          <Button className="w-full" onClick={() => goRegister()}>
+            Get Started Free
+          </Button>
         </div>
-        <p className="text-center text-sm text-muted-foreground mt-6">
-          All paid plans billed monthly via Stripe. Cancel anytime.
-        </p>
       </section>
 
       {/* ── How it works ── */}

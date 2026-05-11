@@ -3,7 +3,6 @@ import { eq, and, isNull, or } from "drizzle-orm";
 import { db, mealsTable, ingredientsTable, sidesTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { requireAuth } from "../middleware/requireAuth";
-import { requireTier } from "../middleware/requireTier";
 import { createUserRateLimit, createIpRateLimit } from "../middleware/rateLimit";
 import { checkAndIncrementAiUsage } from "../lib/aiUsage";
 import { isGeminiEnabled, geminiGenerate } from "../lib/gemini";
@@ -181,7 +180,7 @@ async function generateAndSaveMeal(
 const generateAiRateLimit = createUserRateLimit(5, 60 * 60 * 1000);
 const generateAiIpRateLimit = createIpRateLimit(10, 60 * 60 * 1000);
 
-router.post("/meals/generate-ai", requireAuth, requireTier("pro_ai"), generateAiIpRateLimit, generateAiRateLimit, async (req, res): Promise<void> => {
+router.post("/meals/generate-ai", requireAuth, generateAiIpRateLimit, generateAiRateLimit, async (req, res): Promise<void> => {
   const userId = req.session.userId!;
 
   const { cuisine, protein, glutenFree, count = 5 } = req.body ?? {};

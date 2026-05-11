@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -7,7 +6,7 @@ import NotFound from "@/pages/not-found";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { AiChatProvider } from "@/contexts/AiChatContext";
-import { AuthProvider, useAuth, useTier } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { useProteinReminder } from "@/hooks/useProteinReminder";
 import { useOfflineQueue } from "@/hooks/useOfflineQueue";
 import { LoginPage } from "@/pages/LoginPage";
@@ -38,8 +37,7 @@ const queryClient = new QueryClient({
 });
 
 function ProteinReminderManager() {
-  const { isPro } = useTier();
-  useProteinReminder(isPro);
+  useProteinReminder(true);
   return null;
 }
 
@@ -78,20 +76,8 @@ function isResetPasswordPath(): boolean {
   return path === "/reset-password" || path.endsWith("/reset-password");
 }
 
-const PENDING_CHECKOUT_TIER_KEY = "pendingCheckoutTier";
-
 function AuthenticatedApp() {
-  const { user, loading, startCheckout } = useAuth();
-
-  // After signup from a pricing CTA, automatically redirect to Stripe Checkout
-  useEffect(() => {
-    if (!user) return;
-    const tier = localStorage.getItem(PENDING_CHECKOUT_TIER_KEY) as "pro" | "pro_ai" | null;
-    if (tier === "pro" || tier === "pro_ai") {
-      localStorage.removeItem(PENDING_CHECKOUT_TIER_KEY);
-      startCheckout(tier);
-    }
-  }, [user, startCheckout]);
+  const { user, loading } = useAuth();
 
   // Allow reset-password page without authentication
   if (isResetPasswordPath()) {

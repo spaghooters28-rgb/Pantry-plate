@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Trash2, Settings as SettingsIcon, Bell, BellOff, FlaskConical, LogOut, Eye, EyeOff, KeyRound, CreditCard, Check, Sparkles, Zap, ExternalLink, Lock } from "lucide-react";
+import { Trash2, Settings as SettingsIcon, Bell, BellOff, FlaskConical, LogOut, Eye, EyeOff, KeyRound } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   loadReminderSettings,
@@ -25,28 +24,12 @@ import {
   sendTestNotification,
   type ReminderSettings,
 } from "@/hooks/useProteinReminder";
-import { useAuth, useTier } from "@/contexts/AuthContext";
-import { UpgradeModal } from "@/components/UpgradeModal";
-import { useGetAiUsage, getGetAiUsageQueryKey } from "@workspace/api-client-react";
-import { PRO_GATED_FEATURES, PRO_AI_GATED_FEATURES } from "@/lib/tierFeatures";
-
-const TIER_LABELS: Record<string, string> = {
-  free: "Free",
-  pro: "Pro",
-  pro_ai: "Pro+AI",
-};
-
-const TIER_DESCRIPTIONS: Record<string, string> = {
-  free: "Basic meal planning features",
-  pro: "All premium features — $2/month",
-  pro_ai: "Everything + AI assistant — $4.99/month",
-};
+import { useAuth } from "@/contexts/AuthContext";
 
 export function Settings() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { user, logout, changePassword, startCheckout, openPortal } = useAuth();
-  const { tier, isPro, isProAi, isFree } = useTier();
+  const { user, logout, changePassword } = useAuth();
 
   const [confirmGrocery, setConfirmGrocery] = useState(false);
   const [confirmPantry, setConfirmPantry] = useState(false);
@@ -63,50 +46,9 @@ export function Settings() {
   const [showNew, setShowNew] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
 
-  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
-  const [upgradeTarget, setUpgradeTarget] = useState<"pro" | "pro_ai">("pro");
-  const [portalLoading, setPortalLoading] = useState(false);
-
-  async function handleOpenPortal() {
-    setPortalLoading(true);
-    try {
-      await openPortal();
-    } catch (err) {
-      toast({
-        title: "Could not open billing portal",
-        description: err instanceof Error ? err.message : "Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setPortalLoading(false);
-    }
-  }
-
-  const { data: billingUsage } = useGetAiUsage({ query: { enabled: !isFree, queryKey: getGetAiUsageQueryKey() } });
-
-  // Resync reminder state whenever Pro status changes (e.g. downgrade while page is open)
-  useEffect(() => {
-    setReminder(loadReminderSettings());
-  }, [isPro]);
-
   useEffect(() => {
     setReminder(loadReminderSettings());
     if ("Notification" in window) setNotifPermission(Notification.permission);
-
-    // Handle Stripe redirect back with subscription status
-    const params = new URLSearchParams(window.location.search);
-    const subStatus = params.get("subscription");
-    if (subStatus === "success") {
-      toast({ title: "Subscription activated!", description: "Your plan has been upgraded. It may take a moment to reflect." });
-      const url = new URL(window.location.href);
-      url.searchParams.delete("subscription");
-      window.history.replaceState({}, "", url.toString());
-    } else if (subStatus === "cancelled") {
-      toast({ title: "Checkout cancelled", description: "No charges were made." });
-      const url = new URL(window.location.href);
-      url.searchParams.delete("subscription");
-      window.history.replaceState({}, "", url.toString());
-    }
   }, []);
 
   const VALID_TIME_RE = /^\d{2}:\d{2}$/;
@@ -210,45 +152,8 @@ export function Settings() {
           <SettingsIcon className="w-7 h-7" />
           Settings
         </h1>
-        <p className="text-muted-foreground">Manage your account, subscription, and preferences.</p>
+        <p className="text-muted-foreground">Manage your account and preferences.</p>
       </div>
-
-      {/* ── Pro upgrade banner (free users only) ── */}
-      {isFree && (
-        <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10">
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between gap-4 mb-4">
-              <div className="flex items-center gap-2">
-                <Lock className="w-4 h-4 text-primary" />
-                <p className="font-semibold text-base">Unlock Pro features</p>
-              </div>
-              <Button
-                size="sm"
-                className="shrink-0 gap-1.5"
-                onClick={() => { setUpgradeTarget("pro"); setUpgradeModalOpen(true); }}
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                Upgrade
-              </Button>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
-              {PRO_GATED_FEATURES.map((f) => (
-                <div key={f} className="flex items-center gap-2 text-muted-foreground">
-                  <Sparkles className="w-3.5 h-3.5 shrink-0 text-primary" />
-                  <span>{f}</span>
-                </div>
-              ))}
-              {PRO_AI_GATED_FEATURES.map((f) => (
-                <div key={f} className="flex items-center gap-2 text-muted-foreground">
-                  <Zap className="w-3.5 h-3.5 shrink-0 text-amber-500" />
-                  <span>{f}</span>
-                </div>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground mt-3">Pro from $2/mo · Pro+AI from $4.99/mo · Cancel anytime</p>
-          </CardContent>
-        </Card>
-      )}
 
       {/* ── Account ── */}
       <div className="space-y-4">
@@ -371,235 +276,84 @@ export function Settings() {
         </Card>
       </div>
 
-      {/* ── Subscription ── */}
-      <div className="space-y-4">
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Subscription</h2>
-
-        {/* Current plan */}
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between gap-4 mb-4">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  {tier === "pro_ai" ? (
-                    <Zap className="w-4 h-4 text-amber-500" />
-                  ) : tier === "pro" ? (
-                    <Sparkles className="w-4 h-4 text-primary" />
-                  ) : (
-                    <CreditCard className="w-4 h-4 text-muted-foreground" />
-                  )}
-                  <p className="font-semibold text-base">
-                    {TIER_LABELS[tier] ?? "Free"} Plan
-                  </p>
-                  {!isFree && (
-                    <Badge variant="secondary" className="text-xs">Active</Badge>
-                  )}
-                </div>
-                <p className="text-sm text-muted-foreground">{TIER_DESCRIPTIONS[tier]}</p>
-              </div>
-              {!isFree && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0 gap-1.5"
-                  onClick={handleOpenPortal}
-                  disabled={portalLoading}
-                >
-                  {portalLoading ? (
-                    <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  )}
-                  Manage
-                </Button>
-              )}
-            </div>
-
-            {isFree && (
-              <div className="space-y-2">
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5 w-full"
-                    onClick={() => { setUpgradeTarget("pro"); setUpgradeModalOpen(true); }}
-                  >
-                    <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                    Upgrade to Pro — $2/mo
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="gap-1.5 w-full"
-                    onClick={() => { setUpgradeTarget("pro_ai"); setUpgradeModalOpen(true); }}
-                  >
-                    <Zap className="w-3.5 h-3.5 shrink-0" />
-                    Upgrade to Pro+AI — $4.99/mo
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground text-center">Cancel anytime. Billed via Stripe.</p>
-              </div>
-            )}
-
-            {tier === "pro" && (
-              <Button
-                size="sm"
-                className="gap-1.5 w-full"
-                onClick={handleOpenPortal}
-                disabled={portalLoading}
-              >
-                {portalLoading ? (
-                  <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <Zap className="w-3.5 h-3.5" />
-                )}
-                Upgrade to Pro+AI — $4.99/mo
-              </Button>
-            )}
-
-            {!isFree && billingUsage?.nextBillingDate && (
-              <p className="text-xs text-muted-foreground mt-3 text-center">
-                Next billing date: <span className="font-medium">{billingUsage.nextBillingDate}</span>
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Features comparison */}
-        <Card>
-          <CardContent className="p-5 space-y-3">
-            <p className="text-sm font-medium">What's included</p>
-            <div className="space-y-2 text-sm">
-              {[
-                { label: "Basic meal planning & discovery", tiers: ["free", "pro", "pro_ai"] },
-                { label: "Grocery list & pantry tracking", tiers: ["free", "pro", "pro_ai"] },
-                { label: "Weekly meal plan generation", tiers: ["free", "pro", "pro_ai"] },
-                { label: "Custom recipe creation", tiers: ["pro", "pro_ai"] },
-                { label: "Recipe analyzer (import from URL)", tiers: ["pro_ai"] },
-                { label: "Grocery scheduling & reminders", tiers: ["pro", "pro_ai"] },
-                { label: "AI meal planning assistant", tiers: ["pro_ai"] },
-                { label: "AI-generated meal ideas", tiers: ["pro_ai"] },
-              ].map(({ label, tiers }) => {
-                const included = tiers.includes(tier);
-                return (
-                  <div key={label} className={`flex items-center gap-2 ${included ? "" : "opacity-40"}`}>
-                    <Check className={`w-3.5 h-3.5 shrink-0 ${included ? "text-primary" : "text-muted-foreground"}`} />
-                    <span>{label}</span>
-                    {!included && (
-                      <Badge variant="outline" className="text-xs ml-auto">
-                        {tiers.includes("pro_ai") && !tiers.includes("pro") ? "Pro+AI" : "Pro"}
-                      </Badge>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* ── Protein Reminders ── */}
       <div className="space-y-4">
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Protein Thaw Reminders</h2>
 
-        {!isPro ? (
-          <Card>
-            <CardContent className="p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <Card>
+          <CardContent className="p-5 space-y-5">
+            <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <p className="font-semibold">Protein Thaw Reminders</p>
-                  <Badge variant="secondary" className="text-xs">Pro</Badge>
-                </div>
-                <p className="text-sm text-muted-foreground max-w-sm">
-                  Get a browser notification the evening before a meal so you remember to set out the protein to thaw. Upgrade to Pro to enable this feature.
+                <p className="font-semibold mb-0.5">Enable Reminders</p>
+                <p className="text-sm text-muted-foreground">
+                  Get a browser notification the evening before a meal so you remember to set out the protein to thaw.
                 </p>
               </div>
-              <Button
-                size="sm"
-                variant="outline"
-                className="shrink-0 gap-1.5"
-                onClick={() => { setUpgradeTarget("pro"); setUpgradeModalOpen(true); }}
-              >
-                <Zap className="w-3.5 h-3.5" />
-                Upgrade to Pro
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardContent className="p-5 space-y-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="font-semibold mb-0.5">Enable Reminders</p>
-                  <p className="text-sm text-muted-foreground">
-                    Get a browser notification the evening before a meal so you remember to set out the protein to thaw.
-                  </p>
-                </div>
-                <Switch
-                  checked={reminder.enabled}
-                  onCheckedChange={(v) => updateReminder({ enabled: v })}
-                  disabled={!permissionGranted}
-                />
+              <Switch
+                checked={reminder.enabled}
+                onCheckedChange={(v) => updateReminder({ enabled: v })}
+                disabled={!permissionGranted}
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="font-medium text-sm mb-0.5">Reminder Time</p>
+                <p className="text-xs text-muted-foreground">When to send the notification each day.</p>
               </div>
+              <input
+                type="time"
+                value={reminder.time}
+                onChange={(e) => updateReminder({ time: e.target.value })}
+                className="border rounded-md px-3 py-1.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
 
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="font-medium text-sm mb-0.5">Reminder Time</p>
-                  <p className="text-xs text-muted-foreground">When to send the notification each day.</p>
-                </div>
-                <input
-                  type="time"
-                  value={reminder.time}
-                  onChange={(e) => updateReminder({ time: e.target.value })}
-                  className="border rounded-md px-3 py-1.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-                />
-              </div>
-
-              <div className="flex flex-wrap gap-2 pt-1 border-t">
-                {!permissionGranted ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5"
-                    onClick={handleRequestPermission}
-                    disabled={permissionDenied}
-                  >
-                    <Bell className="w-3.5 h-3.5" />
-                    {permissionDenied ? "Blocked by browser" : "Allow Notifications"}
-                  </Button>
-                ) : (
-                  <div className="flex items-center gap-1.5 text-sm text-green-600">
-                    <Bell className="w-4 h-4" />
-                    Notifications allowed
-                  </div>
-                )}
-
+            <div className="flex flex-wrap gap-2 pt-1 border-t">
+              {!permissionGranted ? (
                 <Button
                   size="sm"
                   variant="outline"
-                  className="gap-1.5 ml-auto"
-                  onClick={handleTestNotification}
-                  disabled={!permissionGranted}
+                  className="gap-1.5"
+                  onClick={handleRequestPermission}
+                  disabled={permissionDenied}
                 >
-                  <FlaskConical className="w-3.5 h-3.5" />
-                  Send Test
+                  <Bell className="w-3.5 h-3.5" />
+                  {permissionDenied ? "Blocked by browser" : "Allow Notifications"}
                 </Button>
-              </div>
-
-              {permissionDenied && (
-                <p className="text-xs text-destructive flex items-center gap-1.5">
-                  <BellOff className="w-3.5 h-3.5 shrink-0" />
-                  Notifications are blocked. Go to your browser's site settings to allow them, then refresh.
-                </p>
+              ) : (
+                <div className="flex items-center gap-1.5 text-sm text-green-600">
+                  <Bell className="w-4 h-4" />
+                  Notifications allowed
+                </div>
               )}
 
-              {permissionGranted && reminder.enabled && (
-                <p className="text-xs text-muted-foreground bg-muted/60 rounded-lg px-3 py-2">
-                  You'll receive a reminder at <strong>{formatTime(reminder.time)}</strong> on days when tomorrow's meal has a protein that needs thawing.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        )}
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 ml-auto"
+                onClick={handleTestNotification}
+                disabled={!permissionGranted}
+              >
+                <FlaskConical className="w-3.5 h-3.5" />
+                Send Test
+              </Button>
+            </div>
+
+            {permissionDenied && (
+              <p className="text-xs text-destructive flex items-center gap-1.5">
+                <BellOff className="w-3.5 h-3.5 shrink-0" />
+                Notifications are blocked. Go to your browser's site settings to allow them, then refresh.
+              </p>
+            )}
+
+            {permissionGranted && reminder.enabled && (
+              <p className="text-xs text-muted-foreground bg-muted/60 rounded-lg px-3 py-2">
+                You'll receive a reminder at <strong>{formatTime(reminder.time)}</strong> on days when tomorrow's meal has a protein that needs thawing.
+              </p>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* ── Data Management ── */}
@@ -691,11 +445,6 @@ export function Settings() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <UpgradeModal
-        open={upgradeModalOpen}
-        onClose={() => setUpgradeModalOpen(false)}
-        requiredTier={upgradeTarget}
-      />
     </div>
   );
 }

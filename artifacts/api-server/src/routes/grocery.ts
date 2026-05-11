@@ -10,7 +10,6 @@ import {
 } from "@workspace/api-zod";
 import { expandAbbreviation } from "../lib/expand-abbreviation";
 import { requireAuth } from "../middleware/requireAuth";
-import { getUserTier } from "../middleware/requireTier";
 
 const router: IRouter = Router();
 
@@ -123,20 +122,6 @@ router.post("/grocery-list/items", requireAuth, async (req, res): Promise<void> 
   }
 
   const name = expandAbbreviation(parsed.data.name);
-
-  // Scheduling fields are a Pro feature — reject free users who try to use them directly
-  if (parsed.data.scheduleType && parsed.data.scheduleType !== "none") {
-    const userTier = await getUserTier(userId);
-    if (userTier === "free") {
-      res.status(403).json({
-        error: "This feature requires a subscription upgrade.",
-        requiredTier: "pro",
-        currentTier: userTier,
-        upgradePath: "pro",
-      });
-      return;
-    }
-  }
 
   const [existing] = await db
     .select()

@@ -3,7 +3,6 @@ import { eq, desc, ilike, and, isNull, or } from "drizzle-orm";
 import { db, pantryItemsTable, mealsTable, ingredientsTable, recipeHistoryTable, weeklyPlansTable, weeklyPlanDaysTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { requireAuth } from "../middleware/requireAuth";
-import { requireTier } from "../middleware/requireTier";
 import { createUserRateLimit, createIpRateLimit } from "../middleware/rateLimit";
 import { checkAndIncrementAiUsage } from "../lib/aiUsage";
 import { isGeminiEnabled, geminiGenerate } from "../lib/gemini";
@@ -155,7 +154,7 @@ function fetchWithPinnedIp(parsed: URL, pinnedIp: string): Promise<{ ok: boolean
   });
 }
 
-router.post("/meals/analyze-recipe", requireAuth, requireTier("pro_ai"), analyzeIpRateLimit, analyzeRateLimit, async (req, res): Promise<void> => {
+router.post("/meals/analyze-recipe", requireAuth, analyzeIpRateLimit, analyzeRateLimit, async (req, res): Promise<void> => {
   const userId = req.session.userId!;
 
   const { url } = req.body as { url?: string };
@@ -325,7 +324,7 @@ function getWeekStart(): string {
   return monday.toISOString().split("T")[0];
 }
 
-router.post("/meals/save-recipe", requireAuth, requireTier("pro_ai"), async (req, res): Promise<void> => {
+router.post("/meals/save-recipe", requireAuth, async (req, res): Promise<void> => {
   const userId = req.session.userId!;
 
   const body = req.body as {
