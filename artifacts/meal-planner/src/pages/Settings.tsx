@@ -290,42 +290,42 @@ export function Settings() {
       </div>
 
       {/* ── Install App ── */}
-      {(canInstall || isStandalone) && (
-        <div className="space-y-4">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Install App</h2>
-          <Card>
-            <CardContent className="p-5 flex items-start justify-between gap-4">
-              <div className="flex items-start gap-3">
-                {isStandalone ? (
-                  <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
-                ) : (
-                  <Smartphone className="w-5 h-5 text-primary mt-0.5 shrink-0" />
-                )}
-                <div>
-                  <p className="font-semibold mb-0.5">
-                    {isStandalone ? "App installed" : "Add to Home Screen"}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {isStandalone
-                      ? "You're already using the installed version of Pantry & Plate."
-                      : "Install Pantry & Plate on your device for quick access without opening a browser."}
-                  </p>
-                </div>
-              </div>
-              {!isStandalone && (
-                <Button
-                  size="sm"
-                  className="shrink-0 gap-1.5"
-                  onClick={handleInstall}
-                >
-                  <Download className="w-4 h-4" />
-                  {isIos ? "How to Install" : "Install"}
-                </Button>
+      <div className="space-y-4">
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Install App</h2>
+        <Card>
+          <CardContent className="p-5 flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              {isStandalone ? (
+                <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
+              ) : (
+                <Smartphone className="w-5 h-5 text-primary mt-0.5 shrink-0" />
               )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
+              <div>
+                <p className="font-semibold mb-0.5">
+                  {isStandalone ? "App installed" : "Add to Home Screen"}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {isStandalone
+                    ? "You're already using the installed version of Pantry & Plate."
+                    : canInstall
+                      ? "Install Pantry & Plate on your device for quick access without opening a browser."
+                      : "Open your browser menu and tap \"Install app\" or \"Add to Home Screen\" to install."}
+                </p>
+              </div>
+            </div>
+            {!isStandalone && canInstall && (
+              <Button
+                size="sm"
+                className="shrink-0 gap-1.5"
+                onClick={handleInstall}
+              >
+                <Download className="w-4 h-4" />
+                {isIos ? "How to Install" : "Install"}
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* ── Protein Reminders ── */}
       <div className="space-y-4">

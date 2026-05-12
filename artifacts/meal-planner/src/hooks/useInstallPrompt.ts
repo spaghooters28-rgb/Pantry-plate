@@ -1,4 +1,9 @@
 import { useState, useEffect } from "react";
+import {
+  getCapturedPrompt,
+  subscribeToCapturedPrompt,
+  clearCapturedPrompt,
+} from "@/lib/installPromptCapture";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -14,7 +19,7 @@ interface UseInstallPromptReturn {
 
 export function useInstallPrompt(): UseInstallPromptReturn {
   const [deferredPrompt, setDeferredPrompt] =
-    useState<BeforeInstallPromptEvent | null>(null);
+    useState<BeforeInstallPromptEvent | null>(getCapturedPrompt);
 
   const isIos =
     /iphone|ipad|ipod/i.test(navigator.userAgent) &&
@@ -25,19 +30,14 @@ export function useInstallPrompt(): UseInstallPromptReturn {
     (navigator as Navigator & { standalone?: boolean }).standalone === true;
 
   useEffect(() => {
-    function handler(e: Event) {
-      e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
-    }
-
-    window.addEventListener("beforeinstallprompt", handler);
-    return () => window.removeEventListener("beforeinstallprompt", handler);
+    return subscribeToCapturedPrompt((e) => setDeferredPrompt(e));
   }, []);
 
   async function triggerInstall() {
     if (!deferredPrompt) return;
     await deferredPrompt.prompt();
     await deferredPrompt.userChoice;
+    clearCapturedPrompt();
     setDeferredPrompt(null);
   }
 
