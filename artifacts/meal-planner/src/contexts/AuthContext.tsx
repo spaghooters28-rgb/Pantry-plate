@@ -1,5 +1,14 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
+function isTrustedStripeUrl(url: string): boolean {
+  try {
+    const { protocol, hostname } = new URL(url);
+    return protocol === "https:" && (hostname === "checkout.stripe.com" || hostname === "billing.stripe.com");
+  } catch {
+    return false;
+  }
+}
+
 export type Tier = "free" | "pro" | "pro_ai";
 
 export type AuthUser = { id: number; email: string; displayName: string; tier: Tier };
@@ -157,7 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       throw new Error("Unable to reach the server. Please check your connection and try again.");
     }
-    if (data.url) {
+    if (data.url && isTrustedStripeUrl(data.url)) {
       window.location.href = data.url;
     } else {
       throw new Error(data.error ?? "Could not start checkout. Please try again.");
@@ -176,7 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       throw new Error("Unable to reach the server. Please check your connection and try again.");
     }
-    if (data.url) {
+    if (data.url && isTrustedStripeUrl(data.url)) {
       window.location.href = data.url;
     } else {
       throw new Error(data.error ?? "Could not open billing portal. Please try again.");

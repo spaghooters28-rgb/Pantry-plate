@@ -23,12 +23,12 @@ export async function sendPasswordResetEmail(
         <p>Hi ${escapeHtml(displayName)},</p>
         <p>We received a request to reset your password. Click the button below — this link expires in <strong>1 hour</strong>.</p>
         <p style="margin:24px 0">
-          <a href="${resetUrl}" style="background:#e07b12;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600">
+          <a href="${escapeHtml(resetUrl)}" style="background:#e07b12;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600">
             Reset Password
           </a>
         </p>
         <p style="color:#888;font-size:13px">If you didn't request this, you can safely ignore this email. Your password won't change.</p>
-        <p style="color:#888;font-size:13px">Or copy this link: ${resetUrl}</p>
+        <p style="color:#888;font-size:13px">Or copy this link: ${escapeHtml(resetUrl)}</p>
       </div>
     `,
   };
