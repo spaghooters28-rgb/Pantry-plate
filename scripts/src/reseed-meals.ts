@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
-import { pgTable, serial, text, integer, boolean, timestamp } from "drizzle-orm/pg-core";
-import { seedMeals } from "../../lib/db/src/seed-data.js";
+import { pgTable, serial, text, integer, boolean } from "drizzle-orm/pg-core";
+import { seedMeals } from "@workspace/db";
 
 const { Pool } = pg;
 

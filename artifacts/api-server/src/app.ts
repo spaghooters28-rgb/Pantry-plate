@@ -87,9 +87,11 @@ app.use(
 
 app.use("/api", router);
 
-// In self-hosted/production mode, serve the built React frontend and handle SPA routing
+// In self-hosted/production mode, serve the built React frontend and handle SPA routing.
+// __dirname is injected by the esbuild banner and points to the dist/ directory,
+// so this resolves to dist/public where the Vite build is copied during deployment.
 if (process.env.NODE_ENV === "production") {
-  const publicDir = path.resolve(process.cwd(), "public");
+  const publicDir = path.resolve(__dirname, "public");
   app.use(express.static(publicDir));
   app.get("/{*path}", (_req, res) => {
     res.sendFile(path.join(publicDir, "index.html"));

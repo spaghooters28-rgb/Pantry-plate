@@ -20,3 +20,4 @@ export const db = drizzle(pool, { schema });
 
 export * from "./schema";
 export { runMigrations, runSeed } from "./migrate";
+export { seedMeals } from "./seed-data";
