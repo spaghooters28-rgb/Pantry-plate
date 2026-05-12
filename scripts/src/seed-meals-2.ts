@@ -41,6 +41,8 @@ const meals: MealData[] = [
       { name: "Eggs", quantity: "3", unit: "whole", category: "Dairy & Eggs", isCommonPantryItem: true },
       { name: "Butter", quantity: "1/2", unit: "cup", category: "Dairy & Eggs", isCommonPantryItem: true },
       { name: "Fresh Dill", quantity: "1/4", unit: "cup", category: "Produce", isCommonPantryItem: false },
+      { name: "Onion", quantity: "1", unit: "medium", category: "Produce", isCommonPantryItem: true },
+      { name: "Garlic", quantity: "3", unit: "cloves", category: "Produce", isCommonPantryItem: true },
     ],
     sides: [
       { name: "Greek Salad", description: "Tomatoes, cucumbers, olives and feta" },
@@ -135,6 +137,7 @@ const meals: MealData[] = [
       { name: "Crushed Tomatoes", quantity: "1", unit: "can", category: "Canned Goods", isCommonPantryItem: false },
       { name: "Cinnamon Stick", quantity: "2", unit: "whole", category: "Pantry", isCommonPantryItem: true },
       { name: "Olive Oil", quantity: "3", unit: "tbsp", category: "Condiments & Sauces", isCommonPantryItem: true },
+      { name: "Garlic", quantity: "4", unit: "cloves", category: "Produce", isCommonPantryItem: true },
     ],
     sides: [
       { name: "Egg Noodles", description: "Wide egg noodles to absorb the sauce" },
@@ -154,6 +157,7 @@ const meals: MealData[] = [
       { name: "Olive Oil", quantity: "3", unit: "tbsp", category: "Condiments & Sauces", isCommonPantryItem: true },
       { name: "Garlic", quantity: "4", unit: "cloves", category: "Produce", isCommonPantryItem: true },
       { name: "Red Chili Flakes", quantity: "1/2", unit: "tsp", category: "Pantry", isCommonPantryItem: true },
+      { name: "Onion", quantity: "1", unit: "medium", category: "Produce", isCommonPantryItem: true },
     ],
     sides: [
       { name: "Crusty Bread", description: "For scooping up the sauce" },
@@ -173,6 +177,8 @@ const meals: MealData[] = [
       { name: "Bell Peppers", quantity: "2", unit: "whole", category: "Produce", isCommonPantryItem: false },
       { name: "Feta Cheese", quantity: "3", unit: "oz", category: "Dairy & Eggs", isCommonPantryItem: false },
       { name: "Pita Bread", quantity: "2", unit: "whole", category: "Bakery", isCommonPantryItem: false },
+      { name: "Garlic", quantity: "2", unit: "cloves", category: "Produce", isCommonPantryItem: true },
+      { name: "Olive Oil", quantity: "2", unit: "tbsp", category: "Condiments & Sauces", isCommonPantryItem: true },
     ],
     sides: [
       { name: "Kalamata Olives", description: "Briny olives for garnish" },

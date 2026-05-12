@@ -3926,6 +3926,8 @@ const meals: MealData[] = [
       { name: "Pearl Onions", quantity: "1", unit: "cup", category: "Produce", isCommonPantryItem: false },
       { name: "Button Mushrooms", quantity: "1", unit: "lb", category: "Produce", isCommonPantryItem: false },
       { name: "Beef Broth", quantity: "2", unit: "cups", category: "Canned Goods", isCommonPantryItem: false },
+      { name: "Garlic", quantity: "4", unit: "cloves", category: "Produce", isCommonPantryItem: true },
+      { name: "Carrots", quantity: "3", unit: "whole", category: "Produce", isCommonPantryItem: false },
     ],
     sides: [
       { name: "Buttery Mashed Potatoes", description: "Rich butter-forward mashed potatoes" },
@@ -3983,6 +3985,8 @@ const meals: MealData[] = [
       { name: "Bell Peppers", quantity: "2", unit: "whole", category: "Produce", isCommonPantryItem: false },
       { name: "Herbs de Provence", quantity: "2", unit: "tsp", category: "Pantry", isCommonPantryItem: false },
       { name: "Olive Oil", quantity: "3", unit: "tbsp", category: "Condiments & Sauces", isCommonPantryItem: true },
+      { name: "Onion", quantity: "1", unit: "medium", category: "Produce", isCommonPantryItem: true },
+      { name: "Garlic", quantity: "4", unit: "cloves", category: "Produce", isCommonPantryItem: true },
     ],
     sides: [
       { name: "Crusty Bread", description: "Baguette or sourdough" },
@@ -4020,6 +4024,9 @@ const meals: MealData[] = [
       { name: "Saffron Threads", quantity: "1/4", unit: "tsp", category: "Pantry", isCommonPantryItem: false },
       { name: "Fish Stock", quantity: "4", unit: "cups", category: "Canned Goods", isCommonPantryItem: false },
       { name: "Fennel Bulb", quantity: "1", unit: "whole", category: "Produce", isCommonPantryItem: false },
+      { name: "Leeks", quantity: "2", unit: "whole", category: "Produce", isCommonPantryItem: false },
+      { name: "Onion", quantity: "1", unit: "medium", category: "Produce", isCommonPantryItem: true },
+      { name: "Garlic", quantity: "4", unit: "cloves", category: "Produce", isCommonPantryItem: true },
     ],
     sides: [
       { name: "Rouille", description: "Saffron and garlic aïoli" },
@@ -4151,6 +4158,8 @@ const meals: MealData[] = [
       { name: "Fresh Peas", quantity: "1", unit: "cup", category: "Produce", isCommonPantryItem: false },
       { name: "Dry White Wine", quantity: "1/2", unit: "cup", category: "Beverages", isCommonPantryItem: false },
       { name: "Fresh Thyme", quantity: "3", unit: "sprigs", category: "Produce", isCommonPantryItem: false },
+      { name: "Onion", quantity: "1", unit: "medium", category: "Produce", isCommonPantryItem: true },
+      { name: "Garlic", quantity: "3", unit: "cloves", category: "Produce", isCommonPantryItem: true },
     ],
     sides: [
       { name: "Crusty Baguette", description: "Fresh crusty baguette" },
@@ -4317,6 +4326,9 @@ const meals: MealData[] = [
       { name: "Capers", quantity: "2", unit: "tbsp", category: "Condiments & Sauces", isCommonPantryItem: false },
       { name: "Herbs de Provence", quantity: "1", unit: "tbsp", category: "Pantry", isCommonPantryItem: false },
       { name: "Dry White Wine", quantity: "1/2", unit: "cup", category: "Beverages", isCommonPantryItem: false },
+      { name: "Onion", quantity: "1", unit: "medium", category: "Produce", isCommonPantryItem: true },
+      { name: "Garlic", quantity: "4", unit: "cloves", category: "Produce", isCommonPantryItem: true },
+      { name: "Fennel Bulb", quantity: "1", unit: "whole", category: "Produce", isCommonPantryItem: false },
     ],
     sides: [
       { name: "Polenta", description: "Soft creamy polenta" },
@@ -4539,6 +4551,9 @@ const meals: MealData[] = [
       { name: "Turnips", quantity: "2", unit: "whole", category: "Produce", isCommonPantryItem: false },
       { name: "Carrots", quantity: "3", unit: "whole", category: "Produce", isCommonPantryItem: false },
       { name: "Chicken Broth", quantity: "6", unit: "cups", category: "Canned Goods", isCommonPantryItem: false },
+      { name: "Onion", quantity: "1", unit: "medium", category: "Produce", isCommonPantryItem: true },
+      { name: "Leeks", quantity: "2", unit: "whole", category: "Produce", isCommonPantryItem: false },
+      { name: "Garlic", quantity: "3", unit: "cloves", category: "Produce", isCommonPantryItem: true },
     ],
     sides: [
       { name: "Rustic Country Bread", description: "Thick slices of pain de campagne" },
@@ -4578,6 +4593,8 @@ const meals: MealData[] = [
       { name: "Whole Milk", quantity: "2", unit: "cups", category: "Dairy & Eggs", isCommonPantryItem: true },
       { name: "Cinnamon", quantity: "1", unit: "tsp", category: "Pantry", isCommonPantryItem: true },
       { name: "Butter", quantity: "4", unit: "tbsp", category: "Dairy & Eggs", isCommonPantryItem: true },
+      { name: "Onion", quantity: "1", unit: "medium", category: "Produce", isCommonPantryItem: true },
+      { name: "Garlic", quantity: "3", unit: "cloves", category: "Produce", isCommonPantryItem: true },
     ],
     sides: [
       { name: "Greek Salad", description: "Classic tomato, cucumber, and feta salad" },
@@ -4597,6 +4614,8 @@ const meals: MealData[] = [
       { name: "Whole Milk", quantity: "3", unit: "cups", category: "Dairy & Eggs", isCommonPantryItem: true },
       { name: "Gruyère or Kefalotyri Cheese", quantity: "1.5", unit: "cups grated", category: "Dairy & Eggs", isCommonPantryItem: false },
       { name: "Cinnamon", quantity: "1", unit: "tsp", category: "Pantry", isCommonPantryItem: true },
+      { name: "Onion", quantity: "1", unit: "medium", category: "Produce", isCommonPantryItem: true },
+      { name: "Garlic", quantity: "3", unit: "cloves", category: "Produce", isCommonPantryItem: true },
     ],
     sides: [
       { name: "Greek Salad", description: "Fresh Greek village salad" },

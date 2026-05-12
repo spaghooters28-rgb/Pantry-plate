@@ -1,15 +1,23 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import type { Pool } from "pg";
 import { mealsTable, ingredientsTable, sidesTable, pantryItemsTable } from "./schema";
 import { seedMeals, seedPantryItems } from "./seed-data";
 
+// In ESM (tsx), __dirname is not defined — use import.meta.url as a fallback.
+// In the esbuild CJS bundle, __dirname is injected via a banner and takes priority.
+const _dirname: string =
+  typeof __dirname !== "undefined"
+    ? __dirname
+    : path.dirname(fileURLToPath(import.meta.url));
+
 // The build step copies lib/db/drizzle/ into dist/drizzle/ so the path is
-// always relative to __dirname (set to the dist directory by the esbuild banner).
-const migrationsFolder = path.join(__dirname, "drizzle");
+// always relative to _dirname (set to the dist directory by the esbuild banner).
+const migrationsFolder = path.join(_dirname, "drizzle");
 
 export async function runMigrations(pool: Pool): Promise<void> {
   const { rows } = await pool.query<{ has_users: boolean; has_tracking: boolean }>(`
