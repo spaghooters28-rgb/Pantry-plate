@@ -115,19 +115,17 @@ export function LandingPage() {
             <span className="text-lg font-serif font-bold text-primary">Pantry & Plate</span>
           </div>
           <div className="flex items-center gap-2">
-            {!isStandalone && (
-              <Button variant="ghost" size="sm" onClick={handleInstall} className="gap-1.5">
-                <Download className="w-4 h-4" />
-                <span className="hidden sm:inline">Install App</span>
-              </Button>
-            )}
+            <Button variant="ghost" size="sm" onClick={handleInstall} className="gap-1.5">
+              <Download className="w-4 h-4" />
+              Install App
+            </Button>
             <Button variant="ghost" size="sm" onClick={goLogin} className="gap-1.5">
               <LogIn className="w-4 h-4" />
               <span className="hidden sm:inline">Log in</span>
             </Button>
             <Button size="sm" onClick={() => goRegister()} className="gap-1.5">
               <UserPlus className="w-4 h-4" />
-              Sign up free
+              <span className="hidden sm:inline">Sign up free</span>
             </Button>
           </div>
         </div>
@@ -163,12 +161,10 @@ export function LandingPage() {
               <LogIn className="w-5 h-5" />
               Sign in
             </Button>
-            {!isStandalone && (
-              <Button variant="outline" size="lg" onClick={handleInstall} className="gap-2 px-8 text-base h-12 w-full sm:w-auto">
-                <Download className="w-5 h-5" />
-                Install App
-              </Button>
-            )}
+            <Button variant="outline" size="lg" onClick={handleInstall} className="gap-2 px-8 text-base h-12 w-full sm:w-auto">
+              <Download className="w-5 h-5" />
+              Install App
+            </Button>
           </div>
           <p className="mt-4 text-sm text-muted-foreground">Free forever — no credit card required.</p>
         </div>
