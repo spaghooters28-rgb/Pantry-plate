@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, ilike, asc } from "drizzle-orm";
+import { eq, and, ilike, asc, or, isNull } from "drizzle-orm";
 import { db, pantryItemsTable, ingredientsTable, mealsTable, sidesTable, groceryItemsTable } from "@workspace/db";
 import {
   AddPantryItemBody,
@@ -206,7 +206,7 @@ router.get("/pantry/available-recipes", requireAuth, async (req, res): Promise<v
     .from(pantryItemsTable)
     .where(and(eq(pantryItemsTable.userId, userId), eq(pantryItemsTable.inStock, true)));
 
-  const allMeals = await db.select().from(mealsTable);
+  const allMeals = await db.select().from(mealsTable).where(or(isNull(mealsTable.createdByUserId), eq(mealsTable.createdByUserId, userId)));
 
   const allIngredients = await db.select().from(ingredientsTable);
   const ingredientsByMeal = new Map<number, (typeof ingredientsTable.$inferSelect)[]>();

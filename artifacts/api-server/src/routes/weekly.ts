@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc, ilike } from "drizzle-orm";
+import { eq, and, desc, ilike, or, isNull } from "drizzle-orm";
 import { db, mealsTable, ingredientsTable, sidesTable, weeklyPlansTable, weeklyPlanDaysTable, groceryItemsTable, pantryItemsTable, recipeHistoryTable } from "@workspace/db";
 import { GenerateWeeklyPlanBody, UpdateDayMealBody, UpdateDayMealParams } from "@workspace/api-zod";
 import { requireAuth } from "../middleware/requireAuth";
@@ -83,7 +83,8 @@ router.post("/weekly-plan", requireAuth, async (req, res): Promise<void> => {
 
   const { cuisine, glutenFree, proteins } = parsed.data;
 
-  let allMeals = await db.select().from(mealsTable);
+  const visibilityWhere = or(isNull(mealsTable.createdByUserId), eq(mealsTable.createdByUserId, userId))!;
+  let allMeals = await db.select().from(mealsTable).where(visibilityWhere);
   if (cuisine) allMeals = allMeals.filter((m) => m.cuisine === cuisine);
   if (glutenFree) allMeals = allMeals.filter((m) => m.isGlutenFree === true);
   if (proteins && proteins.length > 0) allMeals = allMeals.filter((m) => proteins.includes(m.protein));

@@ -291,7 +291,7 @@ Rules:
     return;
   }
 
-  const pantryItems = await db.select().from(pantryItemsTable).where(eq(pantryItemsTable.inStock, true));
+  const pantryItems = await db.select().from(pantryItemsTable).where(and(eq(pantryItemsTable.userId, userId), eq(pantryItemsTable.inStock, true)));
 
   const ingredients = extracted.map((ing) => {
     const inPantry = pantryItems.some(
