@@ -16,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Trash2, Settings as SettingsIcon, Bell, BellOff, FlaskConical, LogOut, Eye, EyeOff, KeyRound } from "lucide-react";
+import { Trash2, Settings as SettingsIcon, Bell, BellOff, FlaskConical, LogOut, Eye, EyeOff, KeyRound, Download, Smartphone, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   loadReminderSettings,
@@ -25,6 +25,8 @@ import {
   type ReminderSettings,
 } from "@/hooks/useProteinReminder";
 import { useAuth } from "@/contexts/AuthContext";
+import { useInstallPrompt } from "@/hooks/useInstallPrompt";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 export function Settings() {
   const queryClient = useQueryClient();
@@ -45,6 +47,17 @@ export function Settings() {
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
+
+  const [showIosSheet, setShowIosSheet] = useState(false);
+  const { canInstall, isIos, isStandalone, triggerInstall } = useInstallPrompt();
+
+  function handleInstall() {
+    if (isIos) {
+      setShowIosSheet(true);
+    } else {
+      triggerInstall();
+    }
+  }
 
   useEffect(() => {
     setReminder(loadReminderSettings());
@@ -276,6 +289,44 @@ export function Settings() {
         </Card>
       </div>
 
+      {/* ── Install App ── */}
+      {(canInstall || isStandalone) && (
+        <div className="space-y-4">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Install App</h2>
+          <Card>
+            <CardContent className="p-5 flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                {isStandalone ? (
+                  <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
+                ) : (
+                  <Smartphone className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+                )}
+                <div>
+                  <p className="font-semibold mb-0.5">
+                    {isStandalone ? "App installed" : "Add to Home Screen"}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {isStandalone
+                      ? "You're already using the installed version of Pantry & Plate."
+                      : "Install Pantry & Plate on your device for quick access without opening a browser."}
+                  </p>
+                </div>
+              </div>
+              {!isStandalone && (
+                <Button
+                  size="sm"
+                  className="shrink-0 gap-1.5"
+                  onClick={handleInstall}
+                >
+                  <Download className="w-4 h-4" />
+                  {isIos ? "How to Install" : "Install"}
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* ── Protein Reminders ── */}
       <div className="space-y-4">
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Protein Thaw Reminders</h2>
@@ -402,6 +453,32 @@ export function Settings() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ── iOS Install Sheet ── */}
+      <Sheet open={showIosSheet} onOpenChange={setShowIosSheet}>
+        <SheetContent side="bottom" className="pb-10">
+          <SheetHeader className="mb-4">
+            <SheetTitle className="flex items-center gap-2">
+              <Download className="w-5 h-5 text-primary" />
+              Install on iPhone / iPad
+            </SheetTitle>
+          </SheetHeader>
+          <ol className="space-y-3 text-sm">
+            <li className="flex gap-3 items-start">
+              <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
+              <span>Open this page in <strong>Safari</strong> (not Chrome or another browser).</span>
+            </li>
+            <li className="flex gap-3 items-start">
+              <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
+              <span>Tap the <strong>Share</strong> button at the bottom of the screen (the square with an arrow pointing up).</span>
+            </li>
+            <li className="flex gap-3 items-start">
+              <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
+              <span>Scroll down and tap <strong>"Add to Home Screen"</strong>, then tap <strong>Add</strong>.</span>
+            </li>
+          </ol>
+        </SheetContent>
+      </Sheet>
 
       <AlertDialog open={confirmGrocery} onOpenChange={setConfirmGrocery}>
         <AlertDialogContent>
