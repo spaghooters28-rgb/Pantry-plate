@@ -4,6 +4,7 @@ import pinoHttp from "pino-http";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import path from "path";
+import { existsSync } from "fs";
 import router from "./routes";
 import { handleStripeWebhook } from "./routes/billing";
 import { logger } from "./lib/logger";
@@ -88,10 +89,17 @@ app.use(
 app.use("/api", router);
 
 // In self-hosted/production mode, serve the built React frontend and handle SPA routing.
-// __dirname is injected by the esbuild banner and points to the dist/ directory,
-// so this resolves to dist/public where the Vite build is copied during deployment.
+// We try several candidate paths because the working directory can vary between
+// hosting platforms (Render root-dir vs repo-root deployment modes).
 if (process.env.NODE_ENV === "production") {
-  const publicDir = path.resolve(__dirname, "public");
+  const candidates = [
+    path.resolve(__dirname, "public"),
+    path.resolve(process.cwd(), "artifacts/api-server/dist/public"),
+    path.resolve(process.cwd(), "dist/public"),
+    path.resolve(process.cwd(), "public"),
+  ];
+  const publicDir = candidates.find((p) => existsSync(path.join(p, "index.html"))) ?? candidates[0];
+  logger.info({ publicDir, exists: existsSync(publicDir) }, "serving static frontend");
   app.use(express.static(publicDir));
   app.get("/{*path}", (_req, res) => {
     res.sendFile(path.join(publicDir, "index.html"));
