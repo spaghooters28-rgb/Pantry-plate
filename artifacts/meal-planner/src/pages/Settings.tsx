@@ -306,9 +306,9 @@ export function Settings() {
                 </p>
                 <p className="text-sm text-muted-foreground">
                   {isStandalone
-                    ? "You're already using the installed version of Pantry & Plate."
+                    ? "You're already using the installed version of Kitchen AI-d."
                     : canInstall
-                      ? "Install Pantry & Plate on your device for quick access without opening a browser."
+                      ? "Install Kitchen AI-d on your device for quick access without opening a browser."
                       : "Open your browser menu and tap \"Install app\" or \"Add to Home Screen\" to install."}
                 </p>
               </div>

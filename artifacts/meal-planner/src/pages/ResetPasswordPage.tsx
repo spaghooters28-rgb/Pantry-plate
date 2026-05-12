@@ -160,7 +160,7 @@ function BrandLogo() {
     <div className="text-center space-y-2">
       <div className="flex items-center justify-center gap-2">
         <ChefHat className="w-9 h-9 text-primary" />
-        <h1 className="text-3xl font-serif font-bold text-primary">Pantry & Plate</h1>
+        <h1 className="text-3xl font-serif font-bold text-primary">Kitchen AI-d</h1>
       </div>
       <p className="text-muted-foreground text-sm">Your household meal planning app</p>
     </div>

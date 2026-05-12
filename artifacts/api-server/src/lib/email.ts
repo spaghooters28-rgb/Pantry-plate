@@ -1,7 +1,7 @@
 import { logger } from "./logger";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const FROM_EMAIL = process.env.FROM_EMAIL ?? "Pantry & Plate <noreply@pantryplate.app>";
+const FROM_EMAIL = process.env.FROM_EMAIL ?? "Kitchen AI-d <noreply@pantryplate.app>";
 
 export async function sendPasswordResetEmail(
   toEmail: string,
@@ -16,10 +16,10 @@ export async function sendPasswordResetEmail(
   const body = {
     from: FROM_EMAIL,
     to: [toEmail],
-    subject: "Reset your Pantry & Plate password",
+    subject: "Reset your Kitchen AI-d password",
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
-        <h2 style="color:#e07b12;margin-bottom:8px">Pantry &amp; Plate</h2>
+        <h2 style="color:#e07b12;margin-bottom:8px">Kitchen AI-d</h2>
         <p>Hi ${escapeHtml(displayName)},</p>
         <p>We received a request to reset your password. Click the button below — this link expires in <strong>1 hour</strong>.</p>
         <p style="margin:24px 0">

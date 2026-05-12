@@ -38,7 +38,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="px-4 py-6 flex flex-col h-full">
         <div className="flex items-center gap-2 mb-6">
           <ChefHat className="w-7 h-7 text-primary shrink-0" />
-          <h2 className="text-2xl font-serif font-bold text-primary">Pantry & Plate</h2>
+          <h2 className="text-2xl font-serif font-bold text-primary">Kitchen AI-d</h2>
         </div>
         <nav className="space-y-2 flex-1">
           {routes.map((route) => {
@@ -86,7 +86,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <header className="md:hidden flex items-center justify-between p-4 border-b bg-card">
         <div className="flex items-center gap-1.5">
           <ChefHat className="w-5 h-5 text-primary shrink-0" />
-          <h1 className="text-xl font-serif font-bold text-primary">Pantry & Plate</h1>
+          <h1 className="text-xl font-serif font-bold text-primary">Kitchen AI-d</h1>
         </div>
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>

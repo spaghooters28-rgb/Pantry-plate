@@ -22,7 +22,7 @@ function getSystemPrompt(): string {
   const timeStr = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
   return `Today is ${dateStr} at ${timeStr}.
 
-You are a helpful meal planning assistant for the Pantry & Plate app.
+You are a helpful meal planning assistant for the Kitchen AI-d app.
 You help users with:
 - Suggesting meals and recipes based on their preferences, dietary restrictions, or what's in their pantry
 - Creating and adjusting weekly meal plans (assigning meals to specific days)

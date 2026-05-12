@@ -24,10 +24,10 @@ self.addEventListener("push", (event) => {
   try {
     payload = event.data.json() as typeof payload;
   } catch {
-    payload = { title: "Pantry & Plate", body: event.data.text() };
+    payload = { title: "Kitchen AI-d", body: event.data.text() };
   }
   event.waitUntil(
-    self.registration.showNotification(payload.title ?? "Pantry & Plate", {
+    self.registration.showNotification(payload.title ?? "Kitchen AI-d", {
       body: payload.body ?? "",
       icon: "/favicon.svg",
       badge: "/favicon.svg",

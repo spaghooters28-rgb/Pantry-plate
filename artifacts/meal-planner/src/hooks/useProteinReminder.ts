@@ -96,7 +96,7 @@ export async function sendTestNotification(): Promise<string> {
   }
   try {
     showNotification(
-      "🍽️ Pantry & Plate Reminder",
+      "🍽️ Kitchen AI-d Reminder",
       "This is a test — your protein reminders are working!",
       "protein-reminder-test"
     );
@@ -146,7 +146,7 @@ export function useProteinReminder(isPro = false) {
       if (!data) return;
 
       showNotification(
-        "🍽️ Pantry & Plate — Protein Reminder",
+        "🍽️ Kitchen AI-d — Protein Reminder",
         `Set out ${data.protein} tonight — "${data.mealName}" is on tomorrow's menu!`,
         "protein-reminder"
       );

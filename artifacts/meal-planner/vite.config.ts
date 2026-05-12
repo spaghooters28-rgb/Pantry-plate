@@ -23,8 +23,8 @@ export default defineConfig({
       base: basePath,
       includeAssets: ["favicon.svg", "pwa-icon.svg", "pwa-192x192.png", "pwa-512x512.png"],
       manifest: {
-        name: "Pantry & Plate",
-        short_name: "Pantry & Plate",
+        name: "Kitchen AI-d",
+        short_name: "Kitchen AI-d",
         description: "Your household meal planning app — grocery list, pantry, and weekly meals.",
         theme_color: "#E07B12",
         background_color: "#FBF7F2",

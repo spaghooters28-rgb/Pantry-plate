@@ -96,7 +96,7 @@ export function LandingPage() {
               className="flex items-center gap-2 hover:opacity-80 transition-opacity"
             >
               <ChefHat className="w-6 h-6 text-primary" />
-              <span className="text-lg font-serif font-bold text-primary">Pantry & Plate</span>
+              <span className="text-lg font-serif font-bold text-primary">Kitchen AI-d</span>
             </button>
           </div>
         </header>
@@ -112,7 +112,7 @@ export function LandingPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <ChefHat className="w-6 h-6 text-primary" />
-            <span className="text-lg font-serif font-bold text-primary">Pantry & Plate</span>
+            <span className="text-lg font-serif font-bold text-primary">Kitchen AI-d</span>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={handleInstall} className="gap-1.5">
@@ -175,7 +175,7 @@ export function LandingPage() {
         <div className="text-center mb-12">
           <h2 className="text-3xl sm:text-4xl font-serif font-bold mb-3">Everything your kitchen needs</h2>
           <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-            From recipe discovery to AI-powered planning — Pantry & Plate has you covered.
+            From recipe discovery to AI-powered planning — Kitchen AI-d has you covered.
           </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -287,7 +287,7 @@ export function LandingPage() {
           Ready to simplify dinner?
         </h2>
         <p className="text-muted-foreground text-lg mb-8 max-w-lg mx-auto">
-          Join households already using Pantry & Plate. Free to get started, no credit card needed.
+          Join households already using Kitchen AI-d. Free to get started, no credit card needed.
         </p>
         <Button size="lg" onClick={() => goRegister()} className="gap-2 px-10 text-base h-12">
           <UserPlus className="w-5 h-5" />
@@ -300,7 +300,7 @@ export function LandingPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
             <ChefHat className="w-5 h-5 text-primary" />
-            <span className="font-serif font-semibold text-foreground">Pantry & Plate</span>
+            <span className="font-serif font-semibold text-foreground">Kitchen AI-d</span>
           </div>
           <div className="flex items-center gap-4">
             <button onClick={goLogin} className="hover:text-foreground transition-colors">
@@ -310,7 +310,7 @@ export function LandingPage() {
               Sign up free
             </button>
           </div>
-          <p>© {new Date().getFullYear()} Pantry & Plate</p>
+          <p>© {new Date().getFullYear()} Kitchen AI-d</p>
         </div>
       </footer>
 
@@ -347,7 +347,7 @@ export function LandingPage() {
               </div>
               <div>
                 <h3 className="font-semibold text-base">Add to Home Screen</h3>
-                <p className="text-sm text-muted-foreground">Install Pantry & Plate using Safari</p>
+                <p className="text-sm text-muted-foreground">Install Kitchen AI-d using Safari</p>
               </div>
             </div>
 
