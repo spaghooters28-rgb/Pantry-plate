@@ -64,13 +64,17 @@ const ALL_FEATURES = [
 export function LandingPage() {
   const [mode, setMode] = useState<LandingMode>("landing");
   const [showIosSheet, setShowIosSheet] = useState(false);
-  const { canInstall, isIos, triggerInstall } = useInstallPrompt();
+  const [showBrowserHint, setShowBrowserHint] = useState(false);
+  const { canInstall, isIos, isStandalone, triggerInstall } = useInstallPrompt();
 
   function handleInstall() {
     if (isIos) {
       setShowIosSheet(true);
-    } else {
+    } else if (canInstall) {
       triggerInstall();
+    } else {
+      setShowBrowserHint(true);
+      setTimeout(() => setShowBrowserHint(false), 4000);
     }
   }
 
@@ -111,7 +115,7 @@ export function LandingPage() {
             <span className="text-lg font-serif font-bold text-primary">Pantry & Plate</span>
           </div>
           <div className="flex items-center gap-2">
-            {canInstall && (
+            {!isStandalone && (
               <Button variant="ghost" size="sm" onClick={handleInstall} className="gap-1.5">
                 <Download className="w-4 h-4" />
                 <span className="hidden sm:inline">Install App</span>
@@ -159,7 +163,7 @@ export function LandingPage() {
               <LogIn className="w-5 h-5" />
               Sign in
             </Button>
-            {canInstall && (
+            {!isStandalone && (
               <Button variant="outline" size="lg" onClick={handleInstall} className="gap-2 px-8 text-base h-12 w-full sm:w-auto">
                 <Download className="w-5 h-5" />
                 Install App
@@ -313,6 +317,14 @@ export function LandingPage() {
           <p>© {new Date().getFullYear()} Pantry & Plate</p>
         </div>
       </footer>
+
+      {/* ── Browser install hint toast ── */}
+      {showBrowserHint && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-foreground text-background text-sm px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 max-w-xs text-center">
+          <Download className="w-4 h-4 shrink-0" />
+          Open your browser menu and tap <strong>&ldquo;Install app&rdquo;</strong> or <strong>&ldquo;Add to Home Screen&rdquo;</strong>
+        </div>
+      )}
 
       {/* ── iOS Install Instructions Sheet ── */}
       {showIosSheet && (
