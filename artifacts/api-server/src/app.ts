@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type ErrorRequestHandler } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import session from "express-session";
@@ -105,5 +105,15 @@ if (process.env.NODE_ENV === "production") {
     res.sendFile(path.join(publicDir, "index.html"));
   });
 }
+
+const globalErrorHandler: ErrorRequestHandler = (err, req, res, _next) => {
+  const status = (err as { status?: number; statusCode?: number }).status
+    ?? (err as { status?: number; statusCode?: number }).statusCode
+    ?? 500;
+  req.log.error({ err }, "Unhandled route error");
+  res.status(status).json({ error: "Internal server error" });
+};
+
+app.use(globalErrorHandler);
 
 export default app;

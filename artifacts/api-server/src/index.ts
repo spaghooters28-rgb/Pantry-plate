@@ -2,6 +2,15 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { pool, runMigrations, runSeed } from "@workspace/db";
 
+process.on("unhandledRejection", (reason) => {
+  logger.error({ reason }, "Unhandled promise rejection — continuing");
+});
+
+process.on("uncaughtException", (err) => {
+  logger.error({ err }, "Uncaught exception — shutting down");
+  process.exit(1);
+});
+
 const rawPort = process.env["PORT"];
 
 if (!rawPort) {
