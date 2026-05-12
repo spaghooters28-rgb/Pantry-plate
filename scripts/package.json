@@ -13,11 +13,14 @@
     "seed-pantry": "tsx ./src/seed-pantry.ts",
     "seed-ingredients-1": "tsx ./src/seed-ingredients-1.ts",
     "seed-ingredients-2": "tsx ./src/seed-ingredients-2.ts",
+    "reseed-meals": "tsx ./src/reseed-meals.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@types/pg": "^8.18.0",
     "@workspace/db": "workspace:*",
-    "drizzle-orm": "catalog:"
+    "drizzle-orm": "catalog:",
+    "pg": "^8.20.0"
   },
   "devDependencies": {
     "@types/node": "catalog:",
