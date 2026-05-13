@@ -6,6 +6,7 @@ const isProduction = process.env.NODE_ENV === "production";
 function getAllowedOrigins(): string[] {
   const origins: string[] = [];
 
+  // Replit hosted environment
   const replitDomains = process.env.REPLIT_DOMAINS;
   if (replitDomains) {
     for (const domain of replitDomains.split(",")) {
@@ -19,7 +20,13 @@ function getAllowedOrigins(): string[] {
     origins.push(`https://${devDomain}`);
   }
 
-  // Support self-hosted deployments with a custom origin allowlist
+  // Render.com — RENDER_EXTERNAL_URL is injected automatically on every deploy
+  const renderUrl = process.env.RENDER_EXTERNAL_URL;
+  if (renderUrl) {
+    origins.push(renderUrl.replace(/\/$/, ""));
+  }
+
+  // Generic self-hosted / other platforms: comma-separated full origins
   const allowedOriginsEnv = process.env.ALLOWED_ORIGINS;
   if (allowedOriginsEnv) {
     for (const origin of allowedOriginsEnv.split(",")) {
@@ -41,12 +48,13 @@ if (allowedOrigins.length === 0) {
   if (isProduction) {
     logger.error(
       "No allowed origins configured in production. " +
-        "Set REPLIT_DOMAINS or REPLIT_DEV_DOMAIN to restrict CSRF exposure. " +
-        "All cross-origin auth requests will be rejected.",
+        "Set RENDER_EXTERNAL_URL (auto on Render), REPLIT_DOMAINS (auto on Replit), " +
+        "or ALLOWED_ORIGINS (comma-separated full origins) to enable cross-origin auth. " +
+        "All cross-origin auth requests will be rejected until this is resolved.",
     );
   } else {
     logger.warn(
-      "No allowed origins detected (REPLIT_DOMAINS / REPLIT_DEV_DOMAIN unset). " +
+      "No allowed origins detected. " +
         "Origin validation is disabled in development mode.",
     );
   }

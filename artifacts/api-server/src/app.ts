@@ -15,7 +15,7 @@ const PgSession = connectPgSimple(session);
 
 const app: Express = express();
 
-// Trust Replit's reverse proxy so req.secure is true in production
+// Trust reverse proxy (Render, Replit, etc.) so req.secure is correct in production
 app.set("trust proxy", 1);
 
 app.use(
