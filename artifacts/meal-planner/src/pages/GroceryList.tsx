@@ -629,7 +629,7 @@ export function GroceryList() {
                   required
                 />
                 {showFoodSuggestions && foodSuggestions.length > 0 && (
-                  <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-background border border-border rounded-md shadow-lg overflow-hidden">
+                  <div className="absolute z-50 left-0 right-0 bottom-full mb-1 bg-background border border-border rounded-md shadow-lg overflow-hidden">
                     {foodSuggestions.map((s, i) => (
                       <button
                         key={i}
