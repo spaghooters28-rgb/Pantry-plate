@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useWakeLock } from "@/hooks/useWakeLock";
 import {
   useListRecipeHistory,
   useDeleteRecipeHistory,
@@ -35,6 +36,8 @@ import {
   PinOff,
   ShoppingBasket,
   UtensilsCrossed,
+  MonitorOff,
+  Monitor,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -82,6 +85,7 @@ export function CookingBoard() {
   const [unpinTarget, setUnpinTarget] = useState<HistoryEntry | null>(null);
 
   const { toast } = useToast();
+  const { isActive: wakeLockActive, isSupported: wakeLockSupported, toggle: toggleWakeLock } = useWakeLock(true);
   const queryClient = useQueryClient();
   const qKey = getListRecipeHistoryQueryKey();
   const allMealsKey = getListMealsQueryKey({});
@@ -312,9 +316,25 @@ export function CookingBoard() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-3xl font-serif font-bold text-primary mb-1">Cooking Board</h1>
-        <p className="text-muted-foreground">Recipes and meals pinned for your next cook.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-serif font-bold text-primary mb-1">Cooking Board</h1>
+          <p className="text-muted-foreground">Recipes and meals pinned for your next cook.</p>
+        </div>
+        {wakeLockSupported && (
+          <button
+            onClick={toggleWakeLock}
+            title={wakeLockActive ? "Screen stay-awake is ON — tap to turn off" : "Keep screen awake while cooking"}
+            className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full border transition-colors shrink-0 mt-1 ${
+              wakeLockActive
+                ? "bg-amber-100 border-amber-400 text-amber-700 dark:bg-amber-900/40 dark:border-amber-600 dark:text-amber-400"
+                : "bg-muted border-border text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {wakeLockActive ? <Monitor className="w-3.5 h-3.5" /> : <MonitorOff className="w-3.5 h-3.5" />}
+            {wakeLockActive ? "Awake" : "Awake off"}
+          </button>
+        )}
       </div>
 
       {isLoading ? (
