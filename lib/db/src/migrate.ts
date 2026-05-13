@@ -70,51 +70,58 @@ export async function runMigrations(pool: Pool): Promise<void> {
 export async function runSeed(pool: Pool): Promise<void> {
   const client = await pool.connect();
   try {
-    const { rows } = await client.query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM meals`
+    // Fetch names of all already-seeded (non-user-created) meals for O(1) lookup
+    const { rows: existingRows } = await client.query<{ name: string }>(
+      `SELECT name FROM meals WHERE created_by_user_id IS NULL`
     );
-    const mealCount = parseInt(rows[0]?.count ?? "0", 10);
+    const existingNames = new Set(existingRows.map((r) => r.name.toLowerCase()));
 
-    if (mealCount > 0) {
-      return;
-    }
-
-    await client.query("BEGIN");
+    const mealsToInsert = seedMeals.filter(
+      (m) => !existingNames.has(m.name.toLowerCase())
+    );
 
     const db = drizzle(client);
 
-    for (const meal of seedMeals) {
-      const { ingredients, sides, ...mealData } = meal;
+    if (mealsToInsert.length === 0 && existingNames.size > 0) {
+      // All seed meals already present — skip to pantry check below
+    } else if (mealsToInsert.length > 0) {
+      await client.query("BEGIN");
 
-      const [inserted] = await db
-        .insert(mealsTable)
-        .values({ ...mealData, imageUrl: null })
-        .returning();
+      for (const meal of mealsToInsert) {
+        const { ingredients, sides, ...mealData } = meal;
 
-      if (!inserted) continue;
+        const [inserted] = await db
+          .insert(mealsTable)
+          .values({ ...mealData, imageUrl: null })
+          .returning();
 
-      if (ingredients.length > 0) {
-        await db.insert(ingredientsTable).values(
-          ingredients.map((ing) => ({
-            mealId: inserted.id,
-            name: ing.name,
-            quantity: ing.quantity,
-            unit: ing.unit,
-            category: ing.category,
-            isCommonPantryItem: ing.isCommonPantryItem,
-          }))
-        );
+        if (!inserted) continue;
+
+        if (ingredients.length > 0) {
+          await db.insert(ingredientsTable).values(
+            ingredients.map((ing) => ({
+              mealId: inserted.id,
+              name: ing.name,
+              quantity: ing.quantity,
+              unit: ing.unit,
+              category: ing.category,
+              isCommonPantryItem: ing.isCommonPantryItem,
+            }))
+          );
+        }
+
+        if (sides.length > 0) {
+          await db.insert(sidesTable).values(
+            sides.map((side) => ({
+              mealId: inserted.id,
+              name: side.name,
+              description: side.description,
+            }))
+          );
+        }
       }
 
-      if (sides.length > 0) {
-        await db.insert(sidesTable).values(
-          sides.map((side) => ({
-            mealId: inserted.id,
-            name: side.name,
-            description: side.description,
-          }))
-        );
-      }
+      await client.query("COMMIT");
     }
 
     const { rows: pantryRows } = await client.query<{ count: string }>(
@@ -134,8 +141,6 @@ export async function runSeed(pool: Pool): Promise<void> {
         }))
       );
     }
-
-    await client.query("COMMIT");
   } catch (err) {
     await client.query("ROLLBACK");
     throw err;

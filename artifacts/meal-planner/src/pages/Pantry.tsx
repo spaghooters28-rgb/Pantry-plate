@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { detectCategory } from "@/lib/detectCategory";
+import { searchFoodItems, type FoodSuggestion } from "@/lib/foodSuggestions";
 import {
   useListPantryItems,
   getListPantryItemsQueryKey,
@@ -195,6 +197,9 @@ export function Pantry() {
   const [addOpen, setAddOpen] = useState(false);
   const [recipesOpen, setRecipesOpen] = useState(false);
   const [newItem, setNewItem] = useState({ name: "", quantity: "", category: "Pantry", notes: "" });
+  const [categoryAutoDetected, setCategoryAutoDetected] = useState(false);
+  const [foodSuggestions, setFoodSuggestions] = useState<FoodSuggestion[]>([]);
+  const [showFoodSuggestions, setShowFoodSuggestions] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const qKey = getListPantryItemsQueryKey();
@@ -558,7 +563,7 @@ export function Pantry() {
       )}
 
       {/* Add Item Dialog */}
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+      <Dialog open={addOpen} onOpenChange={(open) => { setAddOpen(open); if (!open) { setCategoryAutoDetected(false); setShowFoodSuggestions(false); setFoodSuggestions([]); setNewItem({ name: "", quantity: "", category: "Pantry", notes: "" }); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="font-serif">Add Pantry Item</DialogTitle>
@@ -566,35 +571,82 @@ export function Pantry() {
           <form onSubmit={handleAdd} className="space-y-4">
             <div>
               <label className="text-sm font-medium mb-1 block">Item Name *</label>
-              <input
-                className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                placeholder="e.g. Olive Oil"
-                value={newItem.name}
-                onChange={(e) => setNewItem((v) => ({ ...v, name: e.target.value }))}
-                autoFocus
-                required
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm font-medium mb-1 block">Quantity</label>
+              <div className="relative">
                 <input
                   className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                  placeholder="e.g. 2 cups"
-                  value={newItem.quantity}
-                  onChange={(e) => setNewItem((v) => ({ ...v, quantity: e.target.value }))}
+                  placeholder="e.g. Olive Oil"
+                  value={newItem.name}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    const detected = detectCategory(name);
+                    if (detected) {
+                      setNewItem((v) => ({ ...v, name, category: detected }));
+                      setCategoryAutoDetected(true);
+                    } else {
+                      setNewItem((v) => ({ ...v, name }));
+                      setCategoryAutoDetected(false);
+                    }
+                    const matches = searchFoodItems(name);
+                    setFoodSuggestions(matches);
+                    setShowFoodSuggestions(matches.length > 0);
+                  }}
+                  onBlur={() => setTimeout(() => setShowFoodSuggestions(false), 100)}
+                  onKeyDown={(e) => { if (e.key === "Escape") setShowFoodSuggestions(false); }}
+                  autoFocus
+                  required
                 />
+                {showFoodSuggestions && foodSuggestions.length > 0 && (
+                  <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-background border border-border rounded-md shadow-lg overflow-hidden">
+                    {foodSuggestions.map((s, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center justify-between gap-2"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          const detected = detectCategory(s.name);
+                          setNewItem((v) => ({ ...v, name: s.name, category: detected ?? s.category }));
+                          setCategoryAutoDetected(true);
+                          setShowFoodSuggestions(false);
+                        }}
+                      >
+                        <span>{s.name}</span>
+                        <span className="text-xs text-muted-foreground shrink-0">{s.category}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-              <div>
-                <label className="text-sm font-medium mb-1 block">Category</label>
-                <select
-                  className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                  value={newItem.category}
-                  onChange={(e) => setNewItem((v) => ({ ...v, category: e.target.value }))}
-                >
-                  {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Quantity</label>
+              <input
+                className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder="e.g. 2 cups"
+                value={newItem.quantity}
+                onChange={(e) => setNewItem((v) => ({ ...v, quantity: e.target.value }))}
+              />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-sm font-medium">Category</label>
+                {categoryAutoDetected && (
+                  <span className="text-[11px] text-amber-600 flex items-center gap-1 font-medium">
+                    <Sparkles className="w-3 h-3" /> Auto-detected — tap to change
+                  </span>
+                )}
               </div>
+              <select
+                className={`w-full px-3 py-2 text-sm rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring transition-all ${
+                  categoryAutoDetected
+                    ? "border-2 border-amber-400 ring-2 ring-amber-200"
+                    : "border border-border"
+                }`}
+                value={newItem.category}
+                onChange={(e) => { setNewItem((v) => ({ ...v, category: e.target.value })); setCategoryAutoDetected(false); }}
+              >
+                {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
             </div>
             <div>
               <label className="text-sm font-medium mb-1 block">Notes (optional)</label>
