@@ -228,6 +228,13 @@ export const FOOD_SUGGESTIONS: FoodSuggestion[] = [
   { name: "Danish Pastry", category: "Bakery" },
   { name: "Scones", category: "Bakery" },
   { name: "Baguette", category: "Bakery" },
+  { name: "Pumpkin Bread", category: "Bakery" },
+  { name: "Lemon Bars", category: "Bakery" },
+  { name: "Focaccia", category: "Bakery" },
+  { name: "Brioche", category: "Bakery" },
+  { name: "Coffee Cake", category: "Bakery" },
+  { name: "Apple Turnover", category: "Bakery" },
+  { name: "Chocolate Éclair", category: "Bakery" },
 
   // Canned Goods
   { name: "Diced Tomatoes", category: "Canned Goods" },
@@ -380,6 +387,12 @@ export const FOOD_SUGGESTIONS: FoodSuggestion[] = [
   { name: "Fruit Snacks", category: "Snacks" },
   { name: "Applesauce", category: "Snacks" },
   { name: "Dried Mango", category: "Snacks" },
+  { name: "Pork Rinds", category: "Snacks" },
+  { name: "Seaweed Snacks", category: "Snacks" },
+  { name: "Pistachios in Shell", category: "Snacks" },
+  { name: "Dark Chocolate Almonds", category: "Snacks" },
+  { name: "Popcorn Chips", category: "Snacks" },
+  { name: "Hummus Cups", category: "Snacks" },
 
   // Beverages
   { name: "Orange Juice", category: "Beverages" },
@@ -426,6 +439,11 @@ export const FOOD_SUGGESTIONS: FoodSuggestion[] = [
   { name: "Frozen Fries", category: "Frozen" },
   { name: "Frozen Tater Tots", category: "Frozen" },
   { name: "Ice Cream", category: "Frozen" },
+  { name: "Frozen Ravioli", category: "Frozen" },
+  { name: "Frozen Fish Sticks", category: "Frozen" },
+  { name: "Frozen Breakfast Sandwich", category: "Frozen" },
+  { name: "Frozen Cauliflower Rice", category: "Frozen" },
+  { name: "Frozen Hash Browns", category: "Frozen" },
 
   // Desserts
   { name: "Dark Chocolate Bar", category: "Desserts" },
@@ -437,6 +455,17 @@ export const FOOD_SUGGESTIONS: FoodSuggestion[] = [
   { name: "Pudding Mix", category: "Desserts" },
   { name: "Gelato", category: "Desserts" },
   { name: "Sorbet", category: "Desserts" },
+  { name: "Fudge", category: "Desserts" },
+  { name: "Truffles", category: "Desserts" },
+  { name: "Toffee", category: "Desserts" },
+  { name: "Peanut Brittle", category: "Desserts" },
+  { name: "Candy Canes", category: "Desserts" },
+  { name: "Licorice", category: "Desserts" },
+  { name: "Chocolate Mousse", category: "Desserts" },
+  { name: "Tiramisu", category: "Desserts" },
+  { name: "Crème Brûlée", category: "Desserts" },
+  { name: "Rice Pudding", category: "Desserts" },
+  { name: "Banana Pudding", category: "Desserts" },
 
   // Cleaning
   { name: "Dish Soap", category: "Cleaning" },
@@ -457,6 +486,10 @@ export const FOOD_SUGGESTIONS: FoodSuggestion[] = [
   { name: "Sponges", category: "Cleaning" },
   { name: "Stain Remover", category: "Cleaning" },
   { name: "Glass Cleaner", category: "Cleaning" },
+  { name: "Mop Refills", category: "Cleaning" },
+  { name: "Scrub Brush", category: "Cleaning" },
+  { name: "Rubber Gloves", category: "Cleaning" },
+  { name: "Baking Soda Cleaner", category: "Cleaning" },
 
   // Personal Care
   { name: "Shampoo", category: "Personal Care" },
